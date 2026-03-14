@@ -88,7 +88,11 @@ struct DashboardView: View {
                 }
                 .padding(.bottom, 32)
             }
-            .background(Color.bg)
+            .background(Color.bg.ignoresSafeArea())
+            #if os(iOS)
+            .toolbarBackground(Color.bgCard, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            #endif
             .navigationTitle("EscapeMint")
             .toolbar {
                 Button {

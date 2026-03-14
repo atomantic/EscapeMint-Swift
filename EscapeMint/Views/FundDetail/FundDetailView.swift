@@ -14,7 +14,7 @@ struct FundDetailView: View {
             } else {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.bg)
+                    .background(Color.bg.ignoresSafeArea())
             }
         }
         .task { await loadFund() }
@@ -151,7 +151,7 @@ struct FundDetailView: View {
                 .padding()
                 .padding(.bottom, 80)
             }
-            .background(Color.bg)
+            .background(Color.bg.ignoresSafeArea())
 
             // FAB
             Button { showAddEntry = true } label: {
