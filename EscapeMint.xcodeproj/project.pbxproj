@@ -297,9 +297,11 @@
 					};
 					579BDC633614FBB7BB0DAEE4 = {
 						DevelopmentTeam = TYQ32QCF6K;
+						ProvisioningStyle = Automatic;
 					};
 					C4CDC287DAE331C76445E6FB = {
 						DevelopmentTeam = TYQ32QCF6K;
+						ProvisioningStyle = Automatic;
 					};
 					DB0D534AC510DCF71ADA54DF = {
 						DevelopmentTeam = TYQ32QCF6K;
@@ -503,7 +505,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = EscapeMint/App/EscapeMint.entitlements;
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = TYQ32QCF6K;
 				INFOPLIST_FILE = EscapeMint/App/Info.plist;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -526,6 +530,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = EscapeMint/App/EscapeMint.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = TYQ32QCF6K;
 				INFOPLIST_FILE = EscapeMint/App/Info.plist;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -663,7 +669,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = EscapeMint/App/EscapeMint.entitlements;
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = TYQ32QCF6K;
 				INFOPLIST_FILE = EscapeMint/App/Info.plist;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -686,6 +694,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = EscapeMint/App/EscapeMint.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = TYQ32QCF6K;
 				INFOPLIST_FILE = EscapeMint/App/Info.plist;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
