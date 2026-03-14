@@ -288,20 +288,28 @@ func computeRealizedAPY(_ realizedGains: Double, _ basis: Double, _ days: Int) -
     return pow(1.0 + returnPct, 365.0 / Double(days)) - 1.0
 }
 
-// MARK: - Formatters
+// MARK: - Formatters (cached)
+
+private let currencyFormatter: NumberFormatter = {
+    let f = NumberFormatter()
+    f.numberStyle = .currency
+    f.currencyCode = "USD"
+    return f
+}()
+
+private let percentFormatter: NumberFormatter = {
+    let f = NumberFormatter()
+    f.numberStyle = .percent
+    f.minimumFractionDigits = 2
+    f.maximumFractionDigits = 2
+    return f
+}()
 
 func formatCurrency(_ value: Double) -> String {
-    let formatter = NumberFormatter()
-    formatter.numberStyle = .currency
-    formatter.currencyCode = "USD"
-    formatter.maximumFractionDigits = value >= 1000 ? 0 : 2
-    return formatter.string(from: NSNumber(value: value)) ?? "$0"
+    currencyFormatter.maximumFractionDigits = abs(value) >= 1000 ? 0 : 2
+    return currencyFormatter.string(from: NSNumber(value: value)) ?? "$0"
 }
 
 func formatPercent(_ value: Double) -> String {
-    let formatter = NumberFormatter()
-    formatter.numberStyle = .percent
-    formatter.minimumFractionDigits = 2
-    formatter.maximumFractionDigits = 2
-    return formatter.string(from: NSNumber(value: value)) ?? "0%"
+    percentFormatter.string(from: NSNumber(value: value)) ?? "0%"
 }

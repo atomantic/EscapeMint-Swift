@@ -1,20 +1,13 @@
 import Foundation
 
 func entriesToTrades(_ entries: [FundEntry]) -> [Trade] {
-    entries
-        .filter { $0.amount != nil && ($0.action == .BUY || $0.action == .SELL) }
-        .map { e in
-            var trade = Trade(
-                date: e.date,
-                amountUsd: e.amount!,
-                type: e.action == .BUY ? .buy : .sell
-            )
-            trade.shares = e.shares
-            if e.action == .BUY || (e.value > 0) {
-                trade.value = e.value
-            }
-            return trade
-        }
+    entries.compactMap { e in
+        guard let amount = e.amount, e.action == .BUY || e.action == .SELL else { return nil }
+        var trade = Trade(date: e.date, amountUsd: amount, type: e.action == .BUY ? .buy : .sell)
+        trade.shares = e.shares
+        if e.action == .BUY || e.value > 0 { trade.value = e.value }
+        return trade
+    }
 }
 
 func entriesToCashFlows(_ entries: [FundEntry]) -> [CashFlow] {
@@ -39,15 +32,17 @@ func entriesToCashFlows(_ entries: [FundEntry]) -> [CashFlow] {
 }
 
 func entriesToDividends(_ entries: [FundEntry]) -> [Dividend] {
-    entries
-        .filter { ($0.dividend ?? 0) > 0 }
-        .map { Dividend(date: $0.date, amountUsd: $0.dividend!) }
+    entries.compactMap { e in
+        guard let d = e.dividend, d > 0 else { return nil }
+        return Dividend(date: e.date, amountUsd: d)
+    }
 }
 
 func entriesToExpenses(_ entries: [FundEntry]) -> [Expense] {
-    entries
-        .filter { ($0.expense ?? 0) > 0 }
-        .map { Expense(date: $0.date, amountUsd: $0.expense!) }
+    entries.compactMap { e in
+        guard let exp = e.expense, exp > 0 else { return nil }
+        return Expense(date: e.date, amountUsd: exp)
+    }
 }
 
 func getLatestValue(_ entries: [FundEntry]) -> Double {
@@ -61,15 +56,18 @@ func getFundStartDate(_ entries: [FundEntry]) -> String {
     return first.date
 }
 
+private let dateFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateFormat = "yyyy-MM-dd"
+    f.locale = Locale(identifier: "en_US_POSIX")
+    return f
+}()
+
 func daysBetween(_ start: String, _ end: String) -> Int {
-    let fmt = DateFormatter()
-    fmt.dateFormat = "yyyy-MM-dd"
-    guard let s = fmt.date(from: start), let e = fmt.date(from: end) else { return 0 }
+    guard let s = dateFormatter.date(from: start), let e = dateFormatter.date(from: end) else { return 0 }
     return Calendar.current.dateComponents([.day], from: s, to: e).day ?? 0
 }
 
 func todayString() -> String {
-    let fmt = DateFormatter()
-    fmt.dateFormat = "yyyy-MM-dd"
-    return fmt.string(from: Date())
+    dateFormatter.string(from: Date())
 }

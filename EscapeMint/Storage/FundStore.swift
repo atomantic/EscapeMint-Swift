@@ -5,11 +5,13 @@ actor FundStore {
 
     private let fileManager = FileManager.default
 
-    var fundsDirectory: URL {
-        let docs = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+    let fundsDirectory: URL
+
+    private init() {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let funds = docs.appendingPathComponent("funds")
-        try? fileManager.createDirectory(at: funds, withIntermediateDirectories: true)
-        return funds
+        try? FileManager.default.createDirectory(at: funds, withIntermediateDirectories: true)
+        self.fundsDirectory = funds
     }
 
     // MARK: - Read
@@ -96,6 +98,34 @@ actor FundStore {
         let configURL = fundsDirectory.appendingPathComponent("\(id).json")
         try? fileManager.removeItem(at: tsvURL)
         try? fileManager.removeItem(at: configURL)
+    }
+
+    func deleteAllFunds() throws {
+        let dir = fundsDirectory
+        guard let files = try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else { return }
+        for file in files {
+            try? fileManager.removeItem(at: file)
+        }
+    }
+
+    struct DataStats {
+        let fundCount: Int
+        let totalBytes: Int
+        var formattedSize: String {
+            if totalBytes < 1024 { return "\(totalBytes) B" }
+            if totalBytes < 1024 * 1024 { return String(format: "%.1f KB", Double(totalBytes) / 1024) }
+            return String(format: "%.1f MB", Double(totalBytes) / 1024 / 1024)
+        }
+    }
+
+    func dataStats() -> DataStats {
+        let dir = fundsDirectory
+        guard let files = try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.fileSizeKey]) else {
+            return DataStats(fundCount: 0, totalBytes: 0)
+        }
+        let tsvCount = files.filter { $0.pathExtension == "tsv" }.count
+        let totalBytes = files.compactMap { try? $0.resourceValues(forKeys: [.fileSizeKey]).fileSize }.reduce(0, +)
+        return DataStats(fundCount: tsvCount, totalBytes: totalBytes)
     }
 }
 

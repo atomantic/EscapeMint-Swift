@@ -28,15 +28,9 @@ struct SettingsView: View {
     }
 
     private func refreshStats() async {
-        let funds = await FundStore.shared.readAllFunds()
-        fundCount = funds.count
-
-        let dir = await FundStore.shared.fundsDirectory
-        let files = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.fileSizeKey])) ?? []
-        let totalBytes = files.compactMap { try? $0.resourceValues(forKeys: [.fileSizeKey]).fileSize }.reduce(0, +)
-        if totalBytes < 1024 { dataSize = "\(totalBytes) B" }
-        else if totalBytes < 1024 * 1024 { dataSize = String(format: "%.1f KB", Double(totalBytes) / 1024) }
-        else { dataSize = String(format: "%.1f MB", Double(totalBytes) / 1024 / 1024) }
+        let stats = await FundStore.shared.dataStats()
+        fundCount = stats.fundCount
+        dataSize = stats.formattedSize
     }
 
     private func generateTestData() {
@@ -88,11 +82,7 @@ struct SettingsView: View {
 
     private func clearData() {
         Task {
-            let dir = await FundStore.shared.fundsDirectory
-            let files = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
-            for file in files {
-                try? FileManager.default.removeItem(at: file)
-            }
+            try? await FundStore.shared.deleteAllFunds()
             await refreshStats()
         }
     }

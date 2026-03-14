@@ -3,13 +3,14 @@ import Charts
 
 struct DashboardView: View {
     @State private var funds: [FundData] = []
+    @State private var summaries: [FundSummary] = []
     @State private var showCreateFund = false
 
-    var activeFunds: [FundData] { funds.filter { $0.config.status != .closed } }
-    var closedFunds: [FundData] { funds.filter { $0.config.status == .closed } }
+    var activeSummaries: [FundSummary] { summaries.filter { $0.fund.config.status != .closed } }
+    var closedSummaries: [FundSummary] { summaries.filter { $0.fund.config.status == .closed } }
 
     var aggregate: AggregateMetrics {
-        computeAggregate(funds)
+        computeAggregate(summaries)
     }
 
     var body: some View {
@@ -20,7 +21,7 @@ struct DashboardView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             MetricCard(label: "Fund Size", value: formatCurrency(aggregate.totalFundSize), sub: "\(funds.count) funds")
-                            MetricCard(label: "Current Value", value: formatCurrency(aggregate.totalValue), sub: "\(activeFunds.count) active")
+                            MetricCard(label: "Current Value", value: formatCurrency(aggregate.totalValue), sub: "\(activeSummaries.count) active")
                             MetricCard(label: "Realized", value: formatCurrency(aggregate.totalRealized), color: aggregate.totalRealized > 0 ? .mint : .red)
                             MetricCard(label: "Realized APY", value: formatPercent(aggregate.realizedAPY), color: aggregate.realizedAPY > 0 ? .mint : .red)
                             MetricCard(label: "Unrealized", value: formatCurrency(aggregate.totalUnrealized), color: aggregate.totalUnrealized >= 0 ? .mint : .red)
@@ -32,12 +33,12 @@ struct DashboardView: View {
                     }
 
                     // Fund cards grouped by platform
-                    let grouped = Dictionary(grouping: activeFunds, by: { $0.platform })
+                    let grouped = Dictionary(grouping: activeSummaries, by: { $0.fund.platform })
                     ForEach(grouped.keys.sorted(), id: \.self) { platform in
                         Section {
-                            ForEach(grouped[platform]!, id: \.id) { fund in
-                                NavigationLink(destination: FundDetailView(fundId: fund.id)) {
-                                    FundCardView(fund: fund)
+                            ForEach(grouped[platform]!, id: \.fund.id) { summary in
+                                NavigationLink(destination: FundDetailView(fundId: summary.fund.id)) {
+                                    FundCardView(summary: summary)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -53,11 +54,11 @@ struct DashboardView: View {
                         }
                     }
 
-                    if !closedFunds.isEmpty {
+                    if !closedSummaries.isEmpty {
                         Section {
-                            ForEach(closedFunds, id: \.id) { fund in
-                                NavigationLink(destination: FundDetailView(fundId: fund.id)) {
-                                    FundCardView(fund: fund)
+                            ForEach(closedSummaries, id: \.fund.id) { summary in
+                                NavigationLink(destination: FundDetailView(fundId: summary.fund.id)) {
+                                    FundCardView(summary: summary)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -108,7 +109,8 @@ struct DashboardView: View {
     private func loadFunds() {
         Task {
             funds = await FundStore.shared.readAllFunds()
-                .sorted { getLatestValue($0.entries) > getLatestValue($1.entries) }
+            summaries = funds.map { FundSummary($0) }
+                .sorted { $0.currentValue > $1.currentValue }
         }
     }
 }
@@ -127,40 +129,27 @@ struct AggregateMetrics {
     var totalInterest: Double = 0
 }
 
-func computeAggregate(_ funds: [FundData]) -> AggregateMetrics {
-    let today = todayString()
+func computeAggregate(_ summaries: [FundSummary]) -> AggregateMetrics {
     var m = AggregateMetrics()
     var totalTWFS = 0.0
     var totalDays = 0
 
-    for fund in funds {
-        let trades = entriesToTrades(fund.entries)
-        let cashflows = entriesToCashFlows(fund.entries)
-        let dividends = entriesToDividends(fund.entries)
-        let expenses = entriesToExpenses(fund.entries)
-        let value = getLatestValue(fund.entries)
-        let startDate = getFundStartDate(fund.entries)
-        let days = max(1, daysBetween(startDate, today))
-
-        let state = computeFundState(config: fund.config, trades: trades, cashflows: cashflows, dividends: dividends, expenses: expenses, actualValue: value, asOfDate: today)
-        let twfs = computeTimeWeightedFundSize(trades: trades, startDate: startDate, asOfDate: today)
-
-        if fund.config.status != .closed {
-            m.totalFundSize += fund.config.fund_size_usd ?? 0
-            m.totalValue += value
-            m.totalUnrealized += state.gainUsd
-            if isCashFund(fund.config.fund_type) {
-                m.cashBalance += value
-            }
+    for s in summaries {
+        let isActive = s.fund.config.status != .closed
+        if isActive {
+            m.totalFundSize += s.fund.config.fund_size_usd ?? 0
+            m.totalValue += s.currentValue
+            m.totalUnrealized += s.state.gainUsd
+            if s.isCash { m.cashBalance += s.currentValue }
         }
-        m.totalRealized += state.realizedGainsUsd
-        m.totalInterest += state.cashInterestUsd
-        totalTWFS += twfs
-        totalDays += days
+        m.totalRealized += s.state.realizedGainsUsd
+        m.totalInterest += s.state.cashInterestUsd
+        totalTWFS += s.twfs
+        totalDays += s.daysActive
     }
 
     m.totalLiquid = m.totalRealized + m.totalUnrealized
-    let avgDays = funds.isEmpty ? 1 : totalDays / funds.count
+    let avgDays = summaries.isEmpty ? 1 : totalDays / summaries.count
     m.realizedAPY = computeRealizedAPY(m.totalRealized, totalTWFS, avgDays)
     m.liquidAPY = computeRealizedAPY(m.totalLiquid, totalTWFS, avgDays)
 
@@ -189,26 +178,16 @@ struct MetricCard: View {
 }
 
 struct FundCardView: View {
-    let fund: FundData
+    let summary: FundSummary
 
     var body: some View {
-        let today = todayString()
-        let trades = entriesToTrades(fund.entries)
-        let cashflows = entriesToCashFlows(fund.entries)
-        let dividends = entriesToDividends(fund.entries)
-        let expenses = entriesToExpenses(fund.entries)
-        let value = getLatestValue(fund.entries)
-        let startDate = getFundStartDate(fund.entries)
-        let days = max(1, daysBetween(startDate, today))
-
-        let state = computeFundState(config: fund.config, trades: trades, cashflows: cashflows, dividends: dividends, expenses: expenses, actualValue: value, asOfDate: today)
-        let rec = computeRecommendation(config: fund.config, state: state)
-        let twfs = computeTimeWeightedFundSize(trades: trades, startDate: startDate, asOfDate: today)
-        let realizedAPY = computeRealizedAPY(state.realizedGainsUsd, twfs > 0 ? twfs : state.startInputUsd, days)
-        let liquidGain = state.gainUsd + state.realizedGainsUsd
-        let liquidAPY = computeRealizedAPY(liquidGain, twfs > 0 ? twfs : state.startInputUsd, days)
-        let features = getFeatures(fund.config.fund_type)
-        let isCash = isCashFund(fund.config.fund_type)
+        let fund = summary.fund
+        let value = summary.currentValue
+        let state = summary.state
+        let rec = summary.recommendation
+        let features = summary.features
+        let realizedAPY = summary.realizedAPY
+        let liquidAPY = summary.liquidAPY
 
         VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -236,7 +215,7 @@ struct FundCardView: View {
             }
 
             HStack(spacing: 12) {
-                if isCash {
+                if summary.isCash {
                     VStack(alignment: .leading) {
                         Text("Balance").font(.caption2).foregroundColor(.textMuted)
                         Text(formatCurrency(value)).font(.caption).foregroundColor(.white)

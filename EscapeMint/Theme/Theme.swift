@@ -12,12 +12,7 @@ extension Color {
 
 extension Color {
     static func forCategory(_ cat: FundCategory?) -> Color {
-        switch cat {
-        case .liquidity: return .blue
-        case .yield: return .green
-        case .sov: return .yellow
-        case .volatility: return .purple
-        case nil: return .gray
-        }
+        guard let cat else { return .gray }
+        return categoryConfig[cat]?.color ?? .gray
     }
 }

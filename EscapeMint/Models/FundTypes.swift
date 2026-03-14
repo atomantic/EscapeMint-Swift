@@ -78,8 +78,8 @@ struct FundConfig: Codable {
     }
 }
 
-struct FundEntry: Codable, Identifiable {
-    var id: String { "\(date)-\(UUID().uuidString.prefix(4))" }
+struct FundEntry: Identifiable {
+    let id: String
     var date: String
     var value: Double
     var cash: Double?
@@ -102,6 +102,65 @@ struct FundEntry: Codable, Identifiable {
     var margin_locked: Double?
     var fee: Double?
     var margin: Double?
+
+    init(date: String, value: Double, cash: Double? = nil, action: FundAction? = nil,
+         amount: Double? = nil, shares: Double? = nil, price: Double? = nil,
+         dividend: Double? = nil, expense: Double? = nil, cash_interest: Double? = nil,
+         fund_size: Double? = nil, margin_available: Double? = nil, margin_borrowed: Double? = nil,
+         margin_expense: Double? = nil, notes: String? = nil, contracts: Double? = nil,
+         entry_price: Double? = nil, liquidation_price: Double? = nil, unrealized_pnl: Double? = nil,
+         margin_locked: Double? = nil, fee: Double? = nil, margin: Double? = nil) {
+        self.id = UUID().uuidString
+        self.date = date; self.value = value; self.cash = cash; self.action = action
+        self.amount = amount; self.shares = shares; self.price = price
+        self.dividend = dividend; self.expense = expense; self.cash_interest = cash_interest
+        self.fund_size = fund_size; self.margin_available = margin_available
+        self.margin_borrowed = margin_borrowed; self.margin_expense = margin_expense
+        self.notes = notes; self.contracts = contracts; self.entry_price = entry_price
+        self.liquidation_price = liquidation_price; self.unrealized_pnl = unrealized_pnl
+        self.margin_locked = margin_locked; self.fee = fee; self.margin = margin
+    }
+}
+
+// Computed summary for a fund — eliminates repeated computation across views
+struct FundSummary {
+    let fund: FundData
+    let state: FundState
+    let recommendation: Recommendation?
+    let currentValue: Double
+    let startDate: String
+    let daysActive: Int
+    let twfs: Double
+    let realizedAPY: Double
+    let liquidGain: Double
+    let liquidAPY: Double
+    let isCash: Bool
+    let features: FundTypeFeatures
+
+    init(_ fund: FundData, asOfDate: String? = nil) {
+        let today = asOfDate ?? todayString()
+        let trades = entriesToTrades(fund.entries)
+        let cashflows = entriesToCashFlows(fund.entries)
+        let dividends = entriesToDividends(fund.entries)
+        let expenses = entriesToExpenses(fund.entries)
+        let value = getLatestValue(fund.entries)
+        let start = getFundStartDate(fund.entries)
+        let days = max(1, daysBetween(start, today))
+
+        self.fund = fund
+        self.currentValue = value
+        self.startDate = start
+        self.daysActive = days
+        self.isCash = EscapeMint.isCashFund(fund.config.fund_type)
+        self.features = getFeatures(fund.config.fund_type)
+        self.state = computeFundState(config: fund.config, trades: trades, cashflows: cashflows, dividends: dividends, expenses: expenses, actualValue: value, asOfDate: today)
+        self.recommendation = computeRecommendation(config: fund.config, state: self.state)
+        self.twfs = computeTimeWeightedFundSize(trades: trades, startDate: start, asOfDate: today)
+        let basis = self.twfs > 0 ? self.twfs : self.state.startInputUsd
+        self.realizedAPY = computeRealizedAPY(self.state.realizedGainsUsd, basis, days)
+        self.liquidGain = self.state.gainUsd + self.state.realizedGainsUsd
+        self.liquidAPY = computeRealizedAPY(self.liquidGain, basis, days)
+    }
 }
 
 struct FundData: Identifiable {
