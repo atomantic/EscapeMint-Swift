@@ -32,9 +32,13 @@ struct DerivativesChartPoint: Identifiable {
 
 func computeDerivativesChartData(entries: [FundEntry], config: FundConfig) -> [DerivativesChartPoint] {
     let cm = config.contract_multiplier ?? 0.01
+    let imr = config.initial_margin_rate ?? 0.25
+    let mmr = config.maintenance_margin_rate ?? 0.20
     let startDate = entries.first?.date ?? ""
 
     var position = 0.0
+    var marginBalance = 0.0
+    var lastTradePrice = 0.0 // per-contract price for unrealized estimation
     var cumFunding = 0.0
     var cumInterest = 0.0
     var cumRebates = 0.0
@@ -48,49 +52,80 @@ func computeDerivativesChartData(entries: [FundEntry], config: FundConfig) -> [D
         let contracts = entry.contracts ?? 0
         let amount = entry.amount ?? 0
         let fee = entry.fee ?? 0
+        let tradePrice = entry.price ?? 0
 
         switch action {
+        case .DEPOSIT:
+            marginBalance += abs(amount)
+        case .WITHDRAW:
+            marginBalance -= abs(amount)
         case .BUY:
             position += contracts
             totalBuyCost += abs(amount)
             totalBuyContracts += contracts
-            cumFees += abs(fee)
+            let absFee = abs(fee)
+            cumFees += absFee
+            marginBalance -= absFee
+            if tradePrice > 0 { lastTradePrice = tradePrice }
         case .SELL:
             let sellContracts = min(contracts, totalBuyContracts)
             if sellContracts > 0 {
                 let avgCostPerContract = totalBuyCost / totalBuyContracts
                 let costOfSold = avgCostPerContract * sellContracts
-                cumRealized += abs(amount) - costOfSold
+                let pnl = abs(amount) - costOfSold
+                cumRealized += pnl
+                marginBalance += pnl
                 totalBuyCost -= costOfSold
                 totalBuyContracts -= sellContracts
             }
             position = max(0, position - contracts)
-            cumFees += abs(fee)
+            let absFee = abs(fee)
+            cumFees += absFee
+            marginBalance -= absFee
+            if tradePrice > 0 { lastTradePrice = tradePrice }
         case .FUNDING:
             cumFunding += amount
+            marginBalance += amount
         case .INTEREST:
             cumInterest += amount
+            marginBalance += amount
         case .REBATE:
             cumRebates += amount
+            marginBalance += amount
         case .FEE:
-            cumFees += abs(amount)
+            let absFee = abs(amount)
+            cumFees += absFee
+            marginBalance -= absFee
         default:
             break
         }
 
-        let avgEntry = entry.entry_price ?? 0
-        let liqPrice = entry.liquidation_price ?? 0
-        let marginBalance = entry.cash ?? 0
-        let marginLocked = entry.margin_locked ?? 0
-        let unrealized = entry.unrealized_pnl ?? 0
+        // Use TSV values if available, otherwise compute from trade data
+        let avgCostPerContract = totalBuyContracts > 0 ? totalBuyCost / totalBuyContracts : 0
+        let avgEntry = entry.entry_price ?? (position > 0 ? avgCostPerContract / cm : 0)
+        let costBasis = totalBuyCost
+        let marginLocked = entry.margin_locked ?? (position > 0 ? position * avgCostPerContract * imr : 0)
 
-        let costBasis = position * avgEntry * cm
+        // Unrealized P&L: use TSV if available, else estimate from last trade price
+        let unrealized = entry.unrealized_pnl ?? ((lastTradePrice - avgCostPerContract) * position)
         let positionValue = costBasis + unrealized
+
+        // Liquidation price: use TSV if available, else compute
+        let liqPrice: Double = entry.liquidation_price ?? {
+            guard position > 0 else { return 0 }
+            let notionalSize = position * cm
+            let lp = (costBasis - marginBalance) / (notionalSize * (1.0 - mmr))
+            return lp > 0 ? lp : 0
+        }()
+
+        // Margin balance: prefer TSV cash if available
+        let effectiveMarginBalance = entry.cash ?? marginBalance
+
         let capturedProfit = cumRealized + cumFunding + cumInterest + cumRebates - cumFees
         let liquidPL = capturedProfit + unrealized
 
         let days = Double(max(1, daysBetween(startDate, entry.date)))
-        let capitalBase = max(1.0, marginBalance - liquidPL)
+        let capitalBase = max(1.0, effectiveMarginBalance - liquidPL)
         let realizedAPY = capturedProfit / capitalBase * (365.0 / days)
         let liquidAPY = liquidPL / capitalBase * (365.0 / days)
 
@@ -102,7 +137,7 @@ func computeDerivativesChartData(entries: [FundEntry], config: FundConfig) -> [D
             avgEntry: avgEntry,
             liqPrice: liqPrice,
             position: position,
-            marginBalance: marginBalance,
+            marginBalance: effectiveMarginBalance,
             marginLocked: marginLocked,
             capturedProfit: capturedProfit,
             liquidPL: liquidPL,

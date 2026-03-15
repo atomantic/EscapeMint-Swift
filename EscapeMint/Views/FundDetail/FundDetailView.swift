@@ -259,6 +259,7 @@ struct FundDetailView: View {
 
     @ViewBuilder
     private func derivativesChartContent() -> some View {
+        // iOS: stacked layout with Current State card at top
         if let cm = summary?.closedMetrics {
             ClosedFundStateCard(closedMetrics: cm)
         }
@@ -288,10 +289,28 @@ struct FundDetailView: View {
 
     @ViewBuilder
     private func chartsGridMac(fund: FundData, summary: FundSummary) -> some View {
-        LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
-            if fund.config.fund_type == .derivatives {
-                derivativesChartContent()
-            } else {
+        if fund.config.fund_type == .derivatives {
+            // First row: 3 columns (Current State + P&L + APY)
+            LazyVGrid(columns: Array(repeating: .init(.flexible()), count: 3), spacing: 12) {
+                if let cm = summary.closedMetrics {
+                    ClosedFundStateCard(closedMetrics: cm)
+                }
+                if let pts = derivPoints {
+                    DerivativesPLChart(points: pts)
+                    DerivativesAPYChart(points: pts)
+                }
+            }
+            // Remaining rows: 2 columns
+            LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
+                if let pts = derivPoints {
+                    DerivativesValueChart(points: pts)
+                    DerivativesPriceChart(points: pts)
+                    DerivativesMarginChart(points: pts)
+                    DerivativesCapturedProfitChart(points: pts)
+                }
+            }
+        } else {
+            LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
                 standardChartContent(fund: fund)
             }
         }
