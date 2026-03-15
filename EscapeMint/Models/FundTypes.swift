@@ -64,6 +64,9 @@ struct FundConfig: Codable {
     var maintenance_margin_rate: Double?
     var contract_multiplier: Double?
 
+    // Chart bounds (persisted per-fund)
+    var chart_bounds: [String: ChartBounds]?
+
     enum CodingKeys: String, CodingKey {
         case platform = "__platform"
         case ticker = "__ticker"
@@ -75,7 +78,15 @@ struct FundConfig: Codable {
         case margin_apr, margin_access_usd, margin_enabled
         case accumulate, dividend_reinvest, interest_reinvest, expense_from_fund
         case initial_margin_rate, maintenance_margin_rate, contract_multiplier
+        case chart_bounds
     }
+}
+
+struct ChartBounds: Codable, Equatable {
+    var yMin: Double?
+    var yMax: Double?
+
+    var isEmpty: Bool { yMin == nil && yMax == nil }
 }
 
 struct FundEntry: Identifiable {

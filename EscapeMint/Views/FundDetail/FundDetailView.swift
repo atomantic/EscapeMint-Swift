@@ -263,11 +263,12 @@ struct FundDetailView: View {
         if let cm = summary?.closedMetrics {
             ClosedFundStateCard(closedMetrics: cm)
         }
-        if let pts = derivPoints {
-            DerivativesPLChart(points: pts)
-            DerivativesAPYChart(points: pts)
+        if let pts = derivPoints, let fund {
+            let cb = fund.config.chart_bounds
+            DerivativesPLChart(points: pts, fundId: fund.id, bounds: cb?["pnl"])
+            DerivativesAPYChart(points: pts, fundId: fund.id, bounds: cb?["apy"])
             DerivativesValueChart(points: pts)
-            DerivativesPriceChart(points: pts)
+            DerivativesPriceChart(points: pts, fundId: fund.id, bounds: cb?["derivativesPrice"])
             DerivativesMarginChart(points: pts)
             DerivativesCapturedProfitChart(points: pts)
         } else {
@@ -291,20 +292,21 @@ struct FundDetailView: View {
     private func chartsGridMac(fund: FundData, summary: FundSummary) -> some View {
         if fund.config.fund_type == .derivatives {
             // First row: 3 columns (Current State + P&L + APY)
+            let cb = fund.config.chart_bounds
             LazyVGrid(columns: Array(repeating: .init(.flexible()), count: 3), spacing: 12) {
                 if let cm = summary.closedMetrics {
                     ClosedFundStateCard(closedMetrics: cm)
                 }
                 if let pts = derivPoints {
-                    DerivativesPLChart(points: pts)
-                    DerivativesAPYChart(points: pts)
+                    DerivativesPLChart(points: pts, fundId: fund.id, bounds: cb?["pnl"])
+                    DerivativesAPYChart(points: pts, fundId: fund.id, bounds: cb?["apy"])
                 }
             }
             // Remaining rows: 2 columns
             LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
                 if let pts = derivPoints {
                     DerivativesValueChart(points: pts)
-                    DerivativesPriceChart(points: pts)
+                    DerivativesPriceChart(points: pts, fundId: fund.id, bounds: cb?["derivativesPrice"])
                     DerivativesMarginChart(points: pts)
                     DerivativesCapturedProfitChart(points: pts)
                 }
@@ -587,8 +589,8 @@ struct FundDetailView: View {
                 selectedEntryIndex = entryIndex
                 showEditEntry = true
             } label: {
-                Image(systemName: "pencil.circle.fill")
-                    .font(.caption).foregroundColor(.mint.opacity(0.7))
+                Image(systemName: "info.circle")
+                    .font(.caption).foregroundColor(.secondary)
             }
             .buttonStyle(.plain)
             .frame(width: 30)

@@ -111,11 +111,11 @@ func computeDerivativesChartData(entries: [FundEntry], config: FundConfig) -> [D
         let positionValue = costBasis + unrealized
 
         // Liquidation price: use TSV if available, else compute
+        // Negative = over-collateralized (safe), shown below zero on chart
         let liqPrice: Double = entry.liquidation_price ?? {
             guard position > 0 else { return 0 }
             let notionalSize = position * cm
-            let lp = (costBasis - marginBalance) / (notionalSize * (1.0 - mmr))
-            return lp > 0 ? lp : 0
+            return (costBasis - marginBalance) / (notionalSize * (1.0 - mmr))
         }()
 
         // Margin balance: prefer TSV cash if available
@@ -190,15 +190,113 @@ struct ClosedFundStateCard: View {
     }
 }
 
+// MARK: - Chart Bounds Editor
+
+struct ChartBoundsButton: View {
+    let fundId: String
+    let boundsKey: String
+    let isPercent: Bool
+    var bounds: ChartBounds?
+    @State private var showPopover = false
+    @State private var minText = ""
+    @State private var maxText = ""
+
+    private var hasCustomBounds: Bool { bounds?.yMin != nil || bounds?.yMax != nil }
+
+    var body: some View {
+        Button { showPopover.toggle() } label: {
+            Image(systemName: "slider.horizontal.3")
+                .font(.caption)
+                .foregroundColor(hasCustomBounds ? .mint : .textMuted)
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $showPopover) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Y-Axis Bounds").font(.caption).fontWeight(.semibold).foregroundColor(.textMuted)
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Min").font(.caption2).foregroundColor(.textMuted)
+                        TextField("Auto", text: $minText)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 90)
+                            .font(.caption)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Max").font(.caption2).foregroundColor(.textMuted)
+                        TextField("Auto", text: $maxText)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 90)
+                            .font(.caption)
+                    }
+                }
+                HStack {
+                    Button("Clear") {
+                        saveBounds(ChartBounds())
+                        showPopover = false
+                    }
+                    .font(.caption).foregroundColor(.red)
+                    Spacer()
+                    Button("Apply") {
+                        let yMin = Double(minText).map { isPercent ? $0 / 100.0 : $0 }
+                        let yMax = Double(maxText).map { isPercent ? $0 / 100.0 : $0 }
+                        saveBounds(ChartBounds(yMin: yMin, yMax: yMax))
+                        showPopover = false
+                    }
+                    .font(.caption).fontWeight(.medium).foregroundColor(.mint)
+                }
+            }
+            .padding(12)
+            .frame(minWidth: 220)
+            .onAppear {
+                if isPercent {
+                    minText = bounds?.yMin.map { String(format: "%.1f", $0 * 100) } ?? ""
+                    maxText = bounds?.yMax.map { String(format: "%.1f", $0 * 100) } ?? ""
+                } else {
+                    minText = bounds?.yMin.map { String(format: "%.0f", $0) } ?? ""
+                    maxText = bounds?.yMax.map { String(format: "%.0f", $0) } ?? ""
+                }
+            }
+        }
+    }
+
+    private func saveBounds(_ newBounds: ChartBounds) {
+        let store = FundDataStore.shared
+        guard var config = store.fund(byId: fundId)?.config else { return }
+        var allBounds = config.chart_bounds ?? [:]
+        if newBounds.isEmpty {
+            allBounds.removeValue(forKey: boundsKey)
+        } else {
+            allBounds[boundsKey] = newBounds
+        }
+        config.chart_bounds = allBounds.isEmpty ? nil : allBounds
+        Task { await store.updateConfig(fundId: fundId, config: config) }
+    }
+}
+
+/// Apply optional Y-axis bounds to a Chart via `.chartYScale`
+extension View {
+    @ViewBuilder
+    func chartYBounds(_ bounds: ChartBounds?) -> some View {
+        if let b = bounds, let yMin = b.yMin, let yMax = b.yMax, yMin < yMax {
+            self.chartYScale(domain: yMin...yMax)
+        } else {
+            self
+        }
+    }
+}
+
 // MARK: - P&L Chart (Derivatives)
 
 struct DerivativesPLChart: View {
     let points: [DerivativesChartPoint]
+    var fundId: String = ""
+    var bounds: ChartBounds?
 
     var body: some View {
         EMChartCard(title: "P&L") {
             LegendDot(color: .orange, label: "Liquid")
             LegendDot(color: .mint, label: "Realized")
+            if !fundId.isEmpty { ChartBoundsButton(fundId: fundId, boundsKey: "pnl", isPercent: false, bounds: bounds) }
         } chart: {
             if !points.isEmpty {
                 let hasNeg = points.contains { $0.capturedProfit < 0 || $0.liquidPL < 0 }
@@ -217,6 +315,7 @@ struct DerivativesPLChart: View {
                 .chartForegroundStyleScale(["Liquid": Color.orange, "Realized": Color.mint])
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emCurrencyAxis() }
+                .chartYBounds(bounds)
                 .chartLegend(.hidden)
                 .frame(height: 160)
             } else {
@@ -230,11 +329,14 @@ struct DerivativesPLChart: View {
 
 struct DerivativesAPYChart: View {
     let points: [DerivativesChartPoint]
+    var fundId: String = ""
+    var bounds: ChartBounds?
 
     var body: some View {
         EMChartCard(title: "APY") {
             LegendDot(color: .orange, label: "Liquid")
             LegendDot(color: .mint, label: "Realized")
+            if !fundId.isEmpty { ChartBoundsButton(fundId: fundId, boundsKey: "apy", isPercent: true, bounds: bounds) }
         } chart: {
             if !points.isEmpty {
                 let hasNeg = points.contains { $0.realizedAPY < 0 || $0.liquidAPY < 0 }
@@ -253,6 +355,7 @@ struct DerivativesAPYChart: View {
                 .chartForegroundStyleScale(["Liquid": Color.orange, "Realized": Color.mint])
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emPercentAxis() }
+                .chartYBounds(bounds)
                 .chartLegend(.hidden)
                 .frame(height: 160)
             } else {
@@ -308,33 +411,35 @@ struct DerivativesValueChart: View {
 
 struct DerivativesPriceChart: View {
     let points: [DerivativesChartPoint]
+    var fundId: String = ""
+    var bounds: ChartBounds?
 
     var body: some View {
         let withPosition = points.filter { $0.position > 0 && $0.avgEntry > 0 }
         EMChartCard(title: "Price & Liquidation") {
             LegendDot(color: .orange, label: "Avg Entry")
             LegendDot(color: .mint, label: "Liq Price")
+            if !fundId.isEmpty { ChartBoundsButton(fundId: fundId, boundsKey: "derivativesPrice", isPercent: false, bounds: bounds) }
         } chart: {
             if withPosition.count >= 2 {
-                let hasNegLiq = withPosition.contains { $0.liqPrice < 0 }
+                let hasNeg = withPosition.contains { $0.liqPrice < 0 }
                 Chart {
                     ForEach(withPosition) { pt in
                         let d = isoDateFormatter.date(from: pt.date) ?? Date()
                         LineMark(x: .value("Date", d), y: .value("Avg Entry", pt.avgEntry))
                             .foregroundStyle(by: .value("Series", "Avg Entry"))
                             .interpolationMethod(.monotone)
-                        if pt.liqPrice != 0 {
-                            LineMark(x: .value("Date", d), y: .value("Liq Price", pt.liqPrice))
-                                .foregroundStyle(by: .value("Series", "Liq Price"))
-                                .interpolationMethod(.monotone)
-                                .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 2]))
-                        }
+                        LineMark(x: .value("Date", d), y: .value("Liq Price", pt.liqPrice))
+                            .foregroundStyle(by: .value("Series", "Liq Price"))
+                            .interpolationMethod(.monotone)
+                            .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 2]))
                     }
-                    if hasNegLiq { emZeroLine() }
+                    if hasNeg { emZeroLine() }
                 }
                 .chartForegroundStyleScale(["Avg Entry": Color.orange, "Liq Price": Color.mint])
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emCurrencyAxis() }
+                .chartYBounds(bounds)
                 .chartLegend(.hidden)
                 .frame(height: 160)
             } else {
@@ -362,13 +467,10 @@ struct DerivativesMarginChart: View {
                         let d = isoDateFormatter.date(from: pt.date) ?? Date()
                         AreaMark(x: .value("Date", d), y: .value("Cash", pt.marginBalance))
                             .foregroundStyle(Color.blue.opacity(0.15))
-                            .interpolationMethod(.linear)
+                            .interpolationMethod(.monotone)
                         LineMark(x: .value("Date", d), y: .value("Cash", pt.marginBalance))
                             .foregroundStyle(by: .value("Series", "Cash"))
                             .interpolationMethod(.monotone)
-                        AreaMark(x: .value("Date", d), y: .value("Margin Locked", pt.marginLocked))
-                            .foregroundStyle(Color.orange.opacity(0.2))
-                            .interpolationMethod(.linear)
                         LineMark(x: .value("Date", d), y: .value("Margin Locked", pt.marginLocked))
                             .foregroundStyle(by: .value("Series", "Margin Locked"))
                             .interpolationMethod(.monotone)
