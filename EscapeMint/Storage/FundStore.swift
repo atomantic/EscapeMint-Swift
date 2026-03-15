@@ -85,6 +85,31 @@ actor FundStore {
             .compactMap { readFund(tsvURL: $0) }
     }
 
+    /// Read only JSON configs (no TSV entries) — returns FundData with empty entries for instant sidebar/nav
+    func readAllFundConfigs() -> [FundData] {
+        let dir = fundsDirectory
+        guard let files = try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
+            return []
+        }
+        return files
+            .filter { $0.pathExtension == "json" }
+            .compactMap { jsonURL -> FundData? in
+                guard let configData = try? Data(contentsOf: jsonURL),
+                      var config = try? JSONDecoder().decode(FundConfig.self, from: configData),
+                      let platform = config.platform, let ticker = config.ticker else { return nil }
+                config.platform = nil
+                config.ticker = nil
+                return FundData(platform: platform, ticker: ticker, config: config, entries: [])
+            }
+    }
+
+    /// Read entries for a single fund by its id (platform-ticker)
+    func readFundEntries(id: String) -> [FundEntry] {
+        let tsvURL = fundsDirectory.appendingPathComponent("\(id).tsv")
+        guard let content = try? String(contentsOf: tsvURL, encoding: .utf8) else { return [] }
+        return parseTSV(content)
+    }
+
     func readFund(tsvURL: URL) -> FundData? {
         let configURL = tsvURL.deletingPathExtension().appendingPathExtension("json")
         guard fileManager.fileExists(atPath: configURL.path),

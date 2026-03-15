@@ -29,7 +29,7 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if !store.isLoaded {
+            if !store.isConfigLoaded {
                 loadingView
             } else {
                 #if os(macOS)

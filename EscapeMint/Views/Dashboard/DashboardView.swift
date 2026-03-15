@@ -58,10 +58,30 @@ struct DashboardView: View {
     // MARK: - macOS Dashboard
 
     @ViewBuilder
+    private var loadingBanner: some View {
+        if !store.isLoaded {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Loading fund data\u{2026} \(store.loadedFundCount)/\(store.totalFundCount)")
+                    .font(.caption).foregroundColor(.textSecondary)
+                Spacer()
+                ProgressView(value: store.loadProgress)
+                    .frame(width: 120)
+                    .tint(.mint)
+            }
+            .padding(10)
+            .background(Color.bgCard)
+            .cornerRadius(8)
+        }
+    }
+
+    @ViewBuilder
     private var macDashboard: some View {
         ScrollView {
             VStack(spacing: 16) {
                 dashboardHeader
+                loadingBanner
                 if !store.actionableFunds.isEmpty {
                     ActionableFundsBanner(actionableFunds: store.actionableFunds, dismissedIds: $dismissedAlertIds)
                 }
@@ -86,6 +106,9 @@ struct DashboardView: View {
             VStack(spacing: 12) {
                 // iOS header controls
                 iosHeaderControls
+                if !store.isLoaded {
+                    loadingBanner.padding(.horizontal)
+                }
                 if !store.actionableFunds.isEmpty {
                     ActionableFundsBanner(actionableFunds: store.actionableFunds, dismissedIds: $dismissedAlertIds)
                         .padding(.horizontal)

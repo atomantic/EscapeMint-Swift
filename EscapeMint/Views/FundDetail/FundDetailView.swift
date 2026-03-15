@@ -589,7 +589,7 @@ struct FundDetailView: View {
                 selectedEntryIndex = entryIndex
                 showEditEntry = true
             } label: {
-                Image(systemName: "info.circle")
+                Image(systemName: "ellipsis.circle")
                     .font(.caption).foregroundColor(.secondary)
             }
             .buttonStyle(.plain)
@@ -616,8 +616,8 @@ struct FundDetailView: View {
                     Text(formatCurrency(amt)).font(.caption).foregroundColor(.textSecondary)
                         .frame(width: 70, alignment: .trailing)
                 }
-                Image(systemName: "pencil.circle.fill")
-                    .font(.caption).foregroundColor(.mint.opacity(0.7))
+                Image(systemName: "ellipsis.circle")
+                    .font(.caption).foregroundColor(.secondary)
             }
             .padding(.vertical, 4).padding(.horizontal, 6)
             .background(reverseIdx.isMultiple(of: 2) ? Color.clear : Color.textPrimary.opacity(0.04))
