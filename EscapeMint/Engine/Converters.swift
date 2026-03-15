@@ -2,7 +2,7 @@ import Foundation
 
 func entriesToTrades(_ entries: [FundEntry]) -> [Trade] {
     entries.compactMap { e in
-        guard let amount = e.amount, e.action == .BUY || e.action == .SELL else { return nil }
+        guard let amount = e.amount, amount != 0, e.action == .BUY || e.action == .SELL else { return nil }
         var trade = Trade(date: e.date, amountUsd: amount, type: e.action == .BUY ? .buy : .sell)
         trade.shares = e.shares
         if e.action == .BUY || e.value > 0 { trade.value = e.value }
@@ -22,7 +22,7 @@ func entriesToCashFlows(_ entries: [FundEntry]) -> [CashFlow] {
                     type: amount > 0 ? .deposit : .withdrawal
                 )
             }
-            guard e.action == .DEPOSIT || e.action == .WITHDRAW else { return nil }
+            guard e.action == .DEPOSIT || e.action == .WITHDRAW, amount != 0 else { return nil }
             return CashFlow(
                 date: e.date,
                 amountUsd: amount,
@@ -51,7 +51,7 @@ func getLatestValue(_ entries: [FundEntry]) -> Double {
 
 func getFundStartDate(_ entries: [FundEntry]) -> String {
     guard let first = entries.min(by: { $0.date < $1.date }) else {
-        return ISO8601DateFormatter().string(from: Date()).prefix(10).description
+        return todayString()
     }
     return first.date
 }

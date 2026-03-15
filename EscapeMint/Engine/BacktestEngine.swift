@@ -48,8 +48,8 @@ struct BacktestConfig {
 
     // Optional
     var marginAccessUSD: Double = 0
-    var marginAPR: Double = 0
-    var cashAPY: Double = 0.044
+    var marginAPR: Double = 0.05
+    var cashAPY: Double = 0.04
 
     var totalAllocation: Double {
         spxlPct + vtiPct + brgnxPct + tqqqPct + btcPct + gldPct + slvPct
@@ -141,41 +141,47 @@ enum BacktestPreset: String, CaseIterable, Identifiable {
 
         switch self {
         case .blend:
-            // Use defaults
-            break
+            // Blend uses base defaults; harvest overrides match web's getDefaultConfig
+            if !accumulate {
+                c.targetAPY = 0.40
+                c.inputMid = 200
+                c.inputMax = 250
+            }
         case .tqqq:
             c.spxlPct = 0; c.vtiPct = 0; c.brgnxPct = 0
             c.tqqqPct = 1.0; c.btcPct = 0; c.gldPct = 0; c.slvPct = 0
             c.targetAPY = accumulate ? 0.20 : 0.52
+            if !accumulate { c.inputMax = 350 }
         case .spxl:
             c.spxlPct = 1.0; c.vtiPct = 0; c.brgnxPct = 0
             c.tqqqPct = 0; c.btcPct = 0; c.gldPct = 0; c.slvPct = 0
-            c.targetAPY = accumulate ? 0.10 : 0.26
+            c.targetAPY = 0.10
+            if !accumulate { c.inputMax = 200 }
         case .vti:
             c.spxlPct = 0; c.vtiPct = 1.0; c.brgnxPct = 0
             c.tqqqPct = 0; c.btcPct = 0; c.gldPct = 0; c.slvPct = 0
-            c.targetAPY = accumulate ? 0.10 : 0.26
+            c.targetAPY = 0.10
+            if !accumulate { c.inputMax = 150 }
         case .brgnx:
             c.spxlPct = 0; c.vtiPct = 0; c.brgnxPct = 1.0
             c.tqqqPct = 0; c.btcPct = 0; c.gldPct = 0; c.slvPct = 0
-            c.targetAPY = accumulate ? 0.10 : 0.26
+            c.targetAPY = 0.10
+            if !accumulate { c.inputMax = 150 }
         case .btc:
             c.spxlPct = 0; c.vtiPct = 0; c.brgnxPct = 0
             c.tqqqPct = 0; c.btcPct = 1.0; c.gldPct = 0; c.slvPct = 0
             c.targetAPY = accumulate ? 0.30 : 0.80
+            if !accumulate { c.inputMax = 200 }
         case .gld:
             c.spxlPct = 0; c.vtiPct = 0; c.brgnxPct = 0
             c.tqqqPct = 0; c.btcPct = 0; c.gldPct = 1.0; c.slvPct = 0
-            c.targetAPY = accumulate ? 0.08 : 0.20
+            c.targetAPY = 0.08
+            if !accumulate { c.inputMax = 150 }
         case .slv:
             c.spxlPct = 0; c.vtiPct = 0; c.brgnxPct = 0
             c.tqqqPct = 0; c.btcPct = 0; c.gldPct = 0; c.slvPct = 1.0
-            c.targetAPY = accumulate ? 0.10 : 0.26
-        }
-
-        // Harvest mode defaults
-        if !accumulate {
-            c.targetAPY = max(c.targetAPY, 0.40)
+            c.targetAPY = 0.10
+            if !accumulate { c.inputMax = 150 }
         }
 
         return c

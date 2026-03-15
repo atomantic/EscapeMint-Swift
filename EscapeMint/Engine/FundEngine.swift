@@ -20,7 +20,7 @@ func detectFullLiquidation(trade: Trade, sumShares: Double, totalBuys: Double, t
 // MARK: - Core Computations
 
 func computeStartInput(trades: [Trade], asOfDate: String, config: FundConfig? = nil) -> Double {
-    let isAccumulateMode = config?.accumulate ?? true
+    let isAccumulateMode = config?.accumulate == true
     var totalBuys = 0.0
     var totalSells = 0.0
     var sumShares = 0.0
@@ -87,7 +87,7 @@ func computeExpectedTarget(config: FundConfig, trades: [Trade], asOfDate: String
                 totalSells = 0
                 sumShares = 0
             } else {
-                let isAccumulateMode = config.accumulate ?? true
+                let isAccumulateMode = config.accumulate == true
                 if isAccumulateMode {
                     totalSells = 0
                 } else if startInput > 0 {
@@ -331,8 +331,8 @@ func computeLimit(config: FundConfig, state: FundState) -> Double {
     let maxAtPct = config.max_at_pct ?? -0.25
 
     if state.startInputUsd == 0 { return minUsd }
-    if state.gainPct < 0 && state.gainPct <= maxAtPct { return maxUsd }
-    if state.gainPct < 0 { return midUsd }
+    if state.gainUsd < 0 && state.gainPct <= maxAtPct { return maxUsd }
+    if state.gainUsd < 0 { return midUsd }
     return minUsd
 }
 
@@ -358,7 +358,7 @@ func computeRecommendation(config: FundConfig, state: FundState) -> Recommendati
     // SELL: above target by more than min_profit AND in profit
     let minProfit = config.min_profit_usd ?? 0
     if state.targetDiffUsd > minProfit && state.gainUsd > 0 {
-        let accumulate = config.accumulate ?? true
+        let accumulate = config.accumulate == true
         let sellAmount = accumulate ? limit : state.actualValueUsd
         let reasoning = accumulate
             ? "Above target by \(formatCurrency(state.targetDiffUsd)) (> \(formatCurrency(minProfit)) threshold). Sell \(formatCurrency(sellAmount))."
@@ -375,9 +375,9 @@ func computeRecommendation(config: FundConfig, state: FundState) -> Recommendati
     }
 
     let reasoning: String
-    if state.gainPct < 0 && state.gainPct <= (config.max_at_pct ?? -0.25) {
+    if state.gainUsd < 0 && state.gainPct < (config.max_at_pct ?? -0.25) {
         reasoning = "Significant loss (\(formatPercent(state.gainPct))). DCA max amount: \(formatCurrency(limit))."
-    } else if state.gainPct < 0 {
+    } else if state.gainUsd < 0 {
         reasoning = "Below cost basis (\(formatPercent(state.gainPct)) loss). DCA mid amount: \(formatCurrency(limit))."
     } else {
         reasoning = "On track or above cost. DCA min amount: \(formatCurrency(limit))."
@@ -667,10 +667,9 @@ func computeActionableFunds(_ funds: [FundData], asOfDate: String? = nil) -> [Ac
               let intervalDays = config.interval_days,
               intervalDays > 0 else { return nil }
 
-        // Find last entry date
+        // Find last entry date — skip funds with no entries (matches web app)
         guard let lastEntry = fund.entries.last else {
-            // No entries = overdue (fund was created but never acted on)
-            return ActionableFund(id: fund.id, fund: fund, daysOverdue: intervalDays, intervalDays: intervalDays)
+            return nil
         }
 
         let daysSinceLastEntry = daysBetween(lastEntry.date, today)

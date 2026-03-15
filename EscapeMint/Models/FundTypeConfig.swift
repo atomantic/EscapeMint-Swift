@@ -51,7 +51,7 @@ let fundTypeDefaults: [FundType: FundConfig] = [
         target_apy: 0.10, interval_days: 7,
         input_min_usd: 100, input_mid_usd: 150, input_max_usd: 200,
         max_at_pct: -0.25, min_profit_usd: 100, cash_apy: 0.044,
-        manage_cash: true, accumulate: true
+        manage_cash: true, margin_apr: 0.0725, accumulate: true
     ),
     .crypto: FundConfig(
         fund_type: .crypto, status: .active,
@@ -80,7 +80,7 @@ let categoryConfig: [FundCategory: (label: String, shortLabel: String, color: Co
     .liquidity: ("Liquidity", "Liq", .blue),
     .yield: ("Yield", "Yld", .green),
     .sov: ("Store of Value", "SoV", .yellow),
-    .volatility: ("Volatility", "Vol", .purple),
+    .volatility: ("Volatility", "Vol", .red),
 ]
 
 func isCashFund(_ type: FundType?) -> Bool {

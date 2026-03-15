@@ -50,7 +50,7 @@ struct IntroGuideView: View {
             footer
         }
         .background(Color.bg)
-        .frame(minWidth: 600, idealWidth: 700, minHeight: 500, idealHeight: 650)
+        .frame(minWidth: 700, idealWidth: 900, minHeight: 500, idealHeight: 700)
         .task { modePreloader.preload() }
     }
 

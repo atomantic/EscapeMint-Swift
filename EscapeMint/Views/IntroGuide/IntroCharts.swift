@@ -646,7 +646,7 @@ struct ModeComparisonChart: View {
 
         let yMax: Double = {
             var m = 0.0
-            for e in result.entries { m = max(m, e.fundSize, e.invested + e.cash, e.expectedTarget) }
+            for e in result.entries { m = max(m, e.equity, e.invested + e.cash, e.expectedTarget) }
             return m * 1.1
         }()
 
@@ -659,16 +659,20 @@ struct ModeComparisonChart: View {
                 let entry = sampled[i]
                 let date = isoDateFormatter.date(from: entry.date) ?? Date()
 
+                // Cash + Invested combined fill (green) — draws first, behind
+                AreaMark(x: .value("Date", date), y: .value("Total", entry.invested + entry.cash))
+                    .foregroundStyle(Color.mint.opacity(0.5))
+                    .interpolationMethod(.stepCenter)
+                // Invested area (purple) — draws on top, covers bottom portion
                 AreaMark(x: .value("Date", date), y: .value("Invested", entry.invested))
-                    .foregroundStyle(investedPurple.opacity(0.4))
-                    .interpolationMethod(.monotone)
-                AreaMark(x: .value("Date", date), yStart: .value("InvBase", entry.invested), yEnd: .value("InvPlusCash", entry.invested + entry.cash))
-                    .foregroundStyle(Color.mint.opacity(0.4))
-                    .interpolationMethod(.monotone)
+                    .foregroundStyle(investedPurple.opacity(0.6))
+                    .interpolationMethod(.stepCenter)
+                // Target line (dashed cyan)
                 LineMark(x: .value("Date", date), y: .value("Target", entry.expectedTarget), series: .value("Series", "Target"))
                     .foregroundStyle(Color.cyan)
                     .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
                     .interpolationMethod(.monotone)
+                // Value/equity line (orange)
                 LineMark(x: .value("Date", date), y: .value("Value", entry.equity), series: .value("Series", "Value"))
                     .foregroundStyle(Color.orange)
                     .lineStyle(StrokeStyle(lineWidth: 2))
