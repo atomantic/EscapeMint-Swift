@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var showImport = false
     @State private var statusMessage = ""
     @State private var showStatus = false
+    @State private var showClearConfirm = false
     @AppStorage("escapemint-show-intro-on-launch") var showIntroOnLaunch = false
     @State private var showIntroGuide = false
 
@@ -47,7 +48,7 @@ struct SettingsView: View {
 
                 Section("Actions") {
                     Button("Generate Test Data") { generateTestData() }
-                    Button("Clear All Data", role: .destructive) { clearData() }
+                    Button("Clear All Data", role: .destructive) { showClearConfirm = true }
                 }
 
                 Section("About") {
@@ -72,6 +73,12 @@ struct SettingsView: View {
             .animation(.easeInOut(duration: 0.3), value: showStatus)
             .sheet(isPresented: $showIntroGuide) {
                 IntroGuideView(isPresented: $showIntroGuide)
+            }
+            .alert("Clear All Data?", isPresented: $showClearConfirm) {
+                Button("Cancel", role: .cancel) {}
+                Button("Clear", role: .destructive) { clearDataWithBackup() }
+            } message: {
+                Text("A backup will be saved automatically before clearing. This cannot be undone.")
             }
         }
     }
@@ -255,12 +262,30 @@ struct SettingsView: View {
         }
     }
 
-    private func clearData() {
+    private func clearDataWithBackup() {
         Task {
-            try? await FundStore.shared.deleteAllFunds()
-            await refreshStats()
-            notifyFundsChanged()
-            showToast("All data cleared")
+            let stats = await FundStore.shared.dataStats()
+            if stats.fundCount > 0 {
+                do {
+                    let backupURL = try await FundStore.shared.exportToBackupJSON()
+                    // Move backup to Documents for persistence
+                    let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                    let dest = docs.appendingPathComponent(backupURL.lastPathComponent)
+                    try? FileManager.default.removeItem(at: dest)
+                    try FileManager.default.moveItem(at: backupURL, to: dest)
+                    try? await FundStore.shared.deleteAllFunds()
+                    await refreshStats()
+                    notifyFundsChanged()
+                    showToast("Backed up \(stats.fundCount) fund(s), then cleared")
+                } catch {
+                    showToast("Backup failed: \(error.localizedDescription)")
+                }
+            } else {
+                try? await FundStore.shared.deleteAllFunds()
+                await refreshStats()
+                notifyFundsChanged()
+                showToast("All data cleared")
+            }
         }
     }
 }

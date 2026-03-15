@@ -317,6 +317,70 @@ actor FundStore {
         return exported
     }
 
+    /// Export all funds to a single backup JSON file, returning its URL.
+    func exportToBackupJSON() throws -> URL {
+        let funds = readAllFunds()
+        var fundsArray: [[String: Any]] = []
+
+        for fund in funds {
+            var configDict: [String: Any] = [:]
+            let configData = try JSONEncoder.pretty.encode(fund.config)
+            if let parsed = try JSONSerialization.jsonObject(with: configData) as? [String: Any] {
+                configDict = parsed
+            }
+
+            let entriesArray: [[String: Any]] = fund.entries.map { entry in
+                var d: [String: Any] = ["date": entry.date, "value": entry.value]
+                if let v = entry.cash { d["cash"] = v }
+                if let v = entry.action { d["action"] = v.rawValue }
+                if let v = entry.amount { d["amount"] = v }
+                if let v = entry.shares { d["shares"] = v }
+                if let v = entry.price { d["price"] = v }
+                if let v = entry.dividend { d["dividend"] = v }
+                if let v = entry.expense { d["expense"] = v }
+                if let v = entry.cash_interest { d["cash_interest"] = v }
+                if let v = entry.fund_size { d["fund_size"] = v }
+                if let v = entry.margin_available { d["margin_available"] = v }
+                if let v = entry.margin_borrowed { d["margin_borrowed"] = v }
+                if let v = entry.margin_expense { d["margin_expense"] = v }
+                if let v = entry.notes, !v.isEmpty { d["notes"] = v }
+                if let v = entry.contracts { d["contracts"] = v }
+                if let v = entry.entry_price { d["entry_price"] = v }
+                if let v = entry.liquidation_price { d["liquidation_price"] = v }
+                if let v = entry.unrealized_pnl { d["unrealized_pnl"] = v }
+                if let v = entry.margin_locked { d["margin_locked"] = v }
+                if let v = entry.fee { d["fee"] = v }
+                if let v = entry.margin { d["margin"] = v }
+                return d
+            }
+
+            fundsArray.append([
+                "id": fund.id,
+                "platform": fund.platform,
+                "ticker": fund.ticker,
+                "config": configDict,
+                "entries": entriesArray
+            ])
+        }
+
+        let backup: [String: Any] = [
+            "version": 1,
+            "exported": ISO8601DateFormatter().string(from: Date()),
+            "funds": fundsArray
+        ]
+
+        let data = try JSONSerialization.data(withJSONObject: backup, options: [.prettyPrinted, .sortedKeys])
+
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd-HHmmss"
+        let filename = "escapemint-backup-\(df.string(from: Date())).json"
+
+        let tempDir = FileManager.default.temporaryDirectory
+        let backupURL = tempDir.appendingPathComponent(filename)
+        try data.write(to: backupURL)
+        return backupURL
+    }
+
     struct DataStats {
         let fundCount: Int
         let totalBytes: Int

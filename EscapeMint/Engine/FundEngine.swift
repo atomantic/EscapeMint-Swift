@@ -656,7 +656,7 @@ struct ActionableFund: Identifiable {
 
 func computeActionableFunds(_ funds: [FundData], asOfDate: String? = nil) -> [ActionableFund] {
     let today = asOfDate ?? todayString()
-    let urgencyThresholdDays = 7
+
 
     return funds.compactMap { fund -> ActionableFund? in
         let config = fund.config
@@ -676,8 +676,8 @@ func computeActionableFunds(_ funds: [FundData], asOfDate: String? = nil) -> [Ac
         let daysSinceLastEntry = daysBetween(lastEntry.date, today)
         let daysOverdue = daysSinceLastEntry - intervalDays
 
-        // Only show if within urgency threshold (upcoming by ≤7 days, or overdue)
-        guard daysOverdue >= -urgencyThresholdDays else { return nil }
+        // Only show if due today or overdue
+        guard daysOverdue >= 0 else { return nil }
 
         return ActionableFund(id: fund.id, fund: fund, daysOverdue: daysOverdue, intervalDays: intervalDays)
     }

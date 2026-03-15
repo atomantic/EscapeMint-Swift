@@ -543,6 +543,21 @@ struct BacktestView: View {
                            sub: "\(result.totalSells) sells",
                            color: .purple)
             }
+        } else if isRunning {
+            metricsPlaceholder
+        }
+    }
+
+    @ViewBuilder
+    private var metricsPlaceholder: some View {
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 8)
+        LazyVGrid(columns: columns, spacing: 8) {
+            ForEach(["Final Value", "Liquid APY", "Realized APY", "Unrealized Gain",
+                     "Realized Gain", "Liquid P&L", "Total Invested", "Total Extracted"], id: \.self) { label in
+                MetricCard(label: label, value: "---", sub: "loading...", color: .textMuted)
+                    .redacted(reason: .placeholder)
+                    .shimmer()
+            }
         }
     }
 
@@ -568,7 +583,40 @@ struct BacktestView: View {
                     .accessibilityIdentifier("chart-apy-breakdown")
             }
             .frame(height: 200)
+        } else if isRunning {
+            chartsPlaceholder
         }
+    }
+
+    @ViewBuilder
+    private var chartsPlaceholder: some View {
+        HStack(spacing: 12) {
+            chartPlaceholderCard("Value & Allocation")
+            chartPlaceholderCard("Captured Profit")
+        }
+        .frame(height: 200)
+
+        HStack(spacing: 12) {
+            chartPlaceholderCard("Gain Breakdown")
+            chartPlaceholderCard("APY Breakdown")
+        }
+        .frame(height: 200)
+    }
+
+    private func chartPlaceholderCard(_ title: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption).fontWeight(.medium).foregroundColor(.textSecondary)
+            Spacer()
+            HStack {
+                Spacer()
+                ProgressView()
+                    .scaleEffect(0.8)
+                Spacer()
+            }
+            Spacer()
+        }
+        .chartCard()
     }
 
     @ViewBuilder
@@ -779,7 +827,9 @@ struct BacktestView: View {
 
     @ViewBuilder
     private var entriesTable: some View {
-        if let result, !result.entries.isEmpty {
+        if result == nil, isRunning {
+            tablePlaceholder
+        } else if let result, !result.entries.isEmpty {
             let sorted = sortOrder == .asc ? result.entries : result.entries.reversed()
 
             VStack(spacing: 0) {
@@ -837,6 +887,56 @@ struct BacktestView: View {
                     .stroke(Color.textMuted.opacity(0.2), lineWidth: 1)
             )
         }
+    }
+
+    @ViewBuilder
+    private var tablePlaceholder: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                ForEach(["Date", "Fund Size", "Equity", "Cash", "Action", "Amount", "Invested", "Unrealized", "Realized"], id: \.self) { title in
+                    Text(title)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.textMuted)
+                        .frame(width: 85, alignment: title == "Date" ? .leading : .trailing)
+                        .padding(.horizontal, 4)
+                }
+            }
+            .padding(.vertical, 6)
+            .background(Color.bgCard)
+
+            Divider().background(Color.textMuted.opacity(0.3))
+
+            VStack(spacing: 0) {
+                ForEach(0..<8, id: \.self) { _ in
+                    HStack(spacing: 0) {
+                        ForEach(0..<9, id: \.self) { _ in
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.textMuted.opacity(0.1))
+                                .frame(width: 65, height: 10)
+                                .padding(.horizontal, 4)
+                        }
+                    }
+                    .padding(.vertical, 6)
+                    Divider().background(Color.textMuted.opacity(0.15))
+                }
+            }
+            .shimmer()
+
+            HStack {
+                ProgressView().scaleEffect(0.7)
+                Text("Loading entries...")
+                    .font(.caption2).foregroundColor(.textMuted)
+                Spacer()
+            }
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(Color.bg.opacity(0.5))
+        }
+        .background(Color.bgCard)
+        .cornerRadius(10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.textMuted.opacity(0.2), lineWidth: 1)
+        )
     }
 
     private func tableHeaderCell(_ title: String, width: CGFloat, sortable: Bool = false) -> some View {
@@ -976,7 +1076,9 @@ struct BacktestView: View {
         let hist = historicalData
         let dr = dateRange
         backtestTask = Task {
-            let r = runBacktest(config: cfg, historicalData: hist, dateRange: dr)
+            let r = await Task.detached(priority: .userInitiated) {
+                runBacktest(config: cfg, historicalData: hist, dateRange: dr)
+            }.value
             guard !Task.isCancelled else { return }
             result = r
             isRunning = false
@@ -1137,7 +1239,7 @@ private struct CompactSlider: View {
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
-                    .onDragEnd { drag in
+                    .onChanged { drag in
                         let pct = max(0, min(1, drag.location.x / geo.size.width))
                         let raw = range.lowerBound + pct * span
                         let stepped = step > 0 ? (raw / step).rounded() * step : raw
@@ -1147,6 +1249,39 @@ private struct CompactSlider: View {
             )
         }
         .frame(height: 14)
+    }
+}
+
+// MARK: - Shimmer Effect
+
+private struct ShimmerModifier: ViewModifier {
+    @State private var phase: CGFloat = -1
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(
+                LinearGradient(
+                    colors: [.clear, Color.white.opacity(0.15), .clear],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .offset(x: phase * 300)
+                .mask(content)
+            )
+            .onAppear {
+                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                    phase = 1
+                }
+            }
+            .onDisappear {
+                phase = -1
+            }
+    }
+}
+
+private extension View {
+    func shimmer() -> some View {
+        modifier(ShimmerModifier())
     }
 }
 

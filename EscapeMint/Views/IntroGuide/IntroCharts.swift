@@ -80,7 +80,7 @@ private let cachedHistoricalData: [String: HistoricalData] = loadHistoricalData(
 /// Uses 200 points for smooth step-based area fills
 private let sharedPriceTargetData: (data: [PriceTargetPoint], yMin: Double, yMax: Double) = {
     var pts: [PriceTargetPoint] = []
-    let points = 200
+    let points = 120
     for i in 0...points {
         let progress = Double(i) / Double(points)
         let x = progress * 60.0
@@ -93,6 +93,35 @@ private let sharedPriceTargetData: (data: [PriceTargetPoint], yMin: Double, yMax
     let allValues = pts.flatMap { [$0.price, $0.target] }
     return (pts, (allValues.min() ?? 0) * 0.85, (allValues.max() ?? 200) * 1.1)
 }()
+
+/// Shared chart content: optional buy zone (green), sell zone (configurable color), price + target lines
+@ChartContentBuilder
+private func priceTargetZones(_ visible: [PriceTargetPoint], sellColor: Color, showBuyZone: Bool = true) -> some ChartContent {
+    if showBuyZone {
+        ForEach(visible) { point in
+            let bottom = point.price < point.target ? point.price : point.target
+            AreaMark(x: .value("X", point.x), yStart: .value("BuyTop", point.target), yEnd: .value("BuyBot", bottom))
+                .foregroundStyle(Color.mint.opacity(0.4))
+                .interpolationMethod(.stepCenter)
+        }
+    }
+    ForEach(visible) { point in
+        let top = point.price > point.target ? point.price : point.target
+        AreaMark(x: .value("X", point.x), yStart: .value("SellBot", point.target), yEnd: .value("SellTop", top))
+            .foregroundStyle(sellColor.opacity(0.4))
+            .interpolationMethod(.stepCenter)
+    }
+    ForEach(visible) { point in
+        LineMark(x: .value("X", point.x), y: .value("TargetLine", point.target), series: .value("Series", "Target"))
+            .foregroundStyle(Color.orange)
+            .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 5]))
+            .interpolationMethod(.catmullRom)
+        LineMark(x: .value("X", point.x), y: .value("PriceLine", point.price), series: .value("Series", "Price"))
+            .foregroundStyle(Color.textPrimary)
+            .lineStyle(StrokeStyle(lineWidth: 2.5))
+            .interpolationMethod(.catmullRom)
+    }
+}
 
 /// Finds local minima (BUY) and maxima (SELL) relative to target line
 private func findBuySellBadges(in data: [PriceTargetPoint]) -> [BuySellBadge] {
@@ -303,8 +332,12 @@ struct TraditionalDCAChart: View {
         self.data = shared.data
         self.yMin = shared.yMin
         self.yMax = shared.yMax
-        self.buyPoints = [5, 15, 25, 35, 45, 55].enumerated().map { idx, pos in
-            BuySellBadge(id: idx, x: Double(pos), price: shared.data[pos].price, isBuy: true)
+        // Place BUY badges at evenly-spaced x positions across the chart
+        let targetXs: [Double] = [5, 15, 25, 35, 45, 55]
+        self.buyPoints = targetXs.enumerated().compactMap { idx, targetX in
+            // Find the data point closest to this x position
+            guard let pt = shared.data.min(by: { abs($0.x - targetX) < abs($1.x - targetX) }) else { return nil }
+            return BuySellBadge(id: idx, x: Double(pt.id), price: pt.price, isBuy: true)
         }
     }
 
@@ -318,23 +351,7 @@ struct TraditionalDCAChart: View {
             let visible = Array(data.prefix(visibleCount))
 
             Chart {
-                ForEach(visible) { point in
-                    if point.price > point.target {
-                        AreaMark(x: .value("X", point.x), yStart: .value("Target", point.target), yEnd: .value("SellTop", point.price))
-                            .foregroundStyle(Color.orange.opacity(0.3))
-                            .interpolationMethod(.stepCenter)
-                    }
-                }
-                ForEach(visible) { point in
-                    LineMark(x: .value("X", point.x), y: .value("Target", point.target), series: .value("Series", "Target"))
-                        .foregroundStyle(Color.orange)
-                        .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 5]))
-                        .interpolationMethod(.catmullRom)
-                    LineMark(x: .value("X", point.x), y: .value("Price", point.price), series: .value("Series", "Price"))
-                        .foregroundStyle(Color.textPrimary)
-                        .lineStyle(StrokeStyle(lineWidth: 2.5))
-                        .interpolationMethod(.catmullRom)
-                }
+                priceTargetZones(visible, sellColor: .orange, showBuyZone: false)
             }
             .chartXAxis(.hidden)
             .chartXScale(domain: 0...60)
@@ -390,21 +407,7 @@ struct BuySellZonesChart: View {
             let visible = Array(data.prefix(visibleCount))
 
             Chart {
-                ForEach(visible) { point in
-                    AreaMark(x: .value("X", point.x), yStart: .value("Price", point.price), yEnd: .value("Target", point.target))
-                        .foregroundStyle(point.price >= point.target ? Color.red.opacity(0.4) : Color.mint.opacity(0.4))
-                        .interpolationMethod(.stepCenter)
-                }
-                ForEach(visible) { point in
-                    LineMark(x: .value("X", point.x), y: .value("TargetLine", point.target), series: .value("Series", "Target"))
-                        .foregroundStyle(Color.orange)
-                        .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 5]))
-                        .interpolationMethod(.catmullRom)
-                    LineMark(x: .value("X", point.x), y: .value("PriceLine", point.price), series: .value("Series", "Price"))
-                        .foregroundStyle(Color.textPrimary)
-                        .lineStyle(StrokeStyle(lineWidth: 2.5))
-                        .interpolationMethod(.catmullRom)
-                }
+                priceTargetZones(visible, sellColor: .red)
             }
             .chartXAxis(.hidden)
             .chartXScale(domain: 0...60)
@@ -582,11 +585,11 @@ struct ModeComparisonChart: View {
 
     @ViewBuilder
     private func modeChart(result: BacktestResult, targetAPY: Double, title: String, color: Color) -> some View {
-        let sampled = sampleArray(result.entries, maxPoints: 60)
+        let sampled = sampleArray(result.entries, maxPoints: 200)
 
         let yMax: Double = {
             var m = 0.0
-            for e in result.entries { m = max(m, e.fundSize, e.invested + e.cash) }
+            for e in result.entries { m = max(m, e.fundSize, e.invested + e.cash, e.expectedTarget) }
             return m * 1.1
         }()
 
@@ -598,22 +601,21 @@ struct ModeComparisonChart: View {
             Chart(sampled.indices, id: \.self) { i in
                 let entry = sampled[i]
                 let date = isoDateFormatter.date(from: entry.date) ?? Date()
-                let expectedTarget = entry.invested * (1.0 + targetAPY * Double(i) * 7.0 / 365.0)
 
                 AreaMark(x: .value("Date", date), y: .value("Invested", entry.invested))
                     .foregroundStyle(investedPurple.opacity(0.4))
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
                 AreaMark(x: .value("Date", date), yStart: .value("InvBase", entry.invested), yEnd: .value("InvPlusCash", entry.invested + entry.cash))
                     .foregroundStyle(Color.mint.opacity(0.4))
-                    .interpolationMethod(.catmullRom)
-                LineMark(x: .value("Date", date), y: .value("Target", expectedTarget), series: .value("Series", "Target"))
+                    .interpolationMethod(.monotone)
+                LineMark(x: .value("Date", date), y: .value("Target", entry.expectedTarget), series: .value("Series", "Target"))
                     .foregroundStyle(Color.cyan)
                     .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
                 LineMark(x: .value("Date", date), y: .value("Value", entry.equity), series: .value("Series", "Value"))
                     .foregroundStyle(Color.orange)
                     .lineStyle(StrokeStyle(lineWidth: 2))
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
             }
             .chartXAxis { emDateAxisTemporal() }
             .chartYScale(domain: 0...yMax)
