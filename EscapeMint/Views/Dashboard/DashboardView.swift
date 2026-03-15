@@ -414,8 +414,10 @@ struct DashboardView: View {
     private func loadFunds() {
         Task {
             funds = await FundStore.shared.readAllFunds()
+            // Compute portfolio first (single pass over all funds)
             portfolio = computePortfolioMetrics(funds)
-            summaries = funds.map { FundSummary($0) }
+            // Build summaries from pre-computed portfolio data instead of recomputing
+            summaries = computeSummariesFromPortfolio(funds: funds, portfolio: portfolio)
                 .sorted { $0.currentValue > $1.currentValue }
             actionableFunds = computeActionableFunds(funds)
             updateDockBadge(actionableFunds.count)

@@ -7,7 +7,7 @@ struct BacktestView: View {
     @State private var historicalData: [String: HistoricalData] = [:]
     @State private var selectedPreset: BacktestPreset = .blend
     @State private var isRunning = false
-    @State private var showIntro = false
+    @State private var showIntroGuide = false
 
     // First-run detection
     @AppStorage("escapemint-intro-completed") private var introCompleted = false
@@ -36,6 +36,9 @@ struct BacktestView: View {
                 runBacktestAsync()
             }
         }
+        .sheet(isPresented: $showIntroGuide) {
+            IntroGuideView(isPresented: $showIntroGuide)
+        }
     }
 
     // MARK: - Header
@@ -50,6 +53,13 @@ struct BacktestView: View {
                     .font(.subheadline).foregroundColor(.textSecondary)
             }
             Spacer()
+            Button {
+                showIntroGuide = true
+            } label: {
+                Label("Guide", systemImage: "book.fill")
+                    .font(.callout)
+            }
+            .buttonStyle(.bordered).tint(.mint)
         }
     }
 
@@ -77,18 +87,26 @@ struct BacktestView: View {
 
             HStack {
                 Button {
-                    introCompleted = true
-                    runBacktestAsync()
+                    showIntroGuide = true
                 } label: {
-                    Label("Get Started", systemImage: "arrow.right.circle.fill")
+                    Label("Read Full Guide", systemImage: "book.fill")
                         .font(.callout).fontWeight(.medium)
                 }
                 .buttonStyle(.borderedProminent).tint(.mint)
 
                 Button {
                     introCompleted = true
+                    runBacktestAsync()
                 } label: {
-                    Text("Skip Intro")
+                    Label("Get Started", systemImage: "arrow.right.circle.fill")
+                        .font(.callout).fontWeight(.medium)
+                }
+                .buttonStyle(.bordered).tint(.mint)
+
+                Button {
+                    introCompleted = true
+                } label: {
+                    Text("Skip")
                         .font(.callout)
                 }
                 .buttonStyle(.bordered).tint(.textSecondary)
@@ -271,7 +289,7 @@ struct BacktestView: View {
             Text("Portfolio Value Over Time")
                 .font(.headline).foregroundColor(.textPrimary)
 
-            let sampled = sampleBacktestEntries(result.entries, maxPoints: 80)
+            let sampled = sampleArray(result.entries, maxPoints: 80)
             Chart(sampled.indices, id: \.self) { i in
                 let entry = sampled[i]
                 AreaMark(x: .value("Date", entry.date), y: .value("Value", entry.totalValue))
@@ -285,26 +303,8 @@ struct BacktestView: View {
                     .interpolationMethod(.catmullRom)
                     .lineStyle(StrokeStyle(dash: [4, 4]))
             }
-            .chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: 5)) { value in
-                    AxisValueLabel {
-                        if let str = value.as(String.self) {
-                            Text(String(str.suffix(5)))
-                                .font(.caption2).foregroundColor(.textMuted)
-                        }
-                    }
-                }
-            }
-            .chartYAxis {
-                AxisMarks(position: .leading) { value in
-                    AxisValueLabel {
-                        if let v = value.as(Double.self) {
-                            Text(formatCurrency(v))
-                                .font(.caption2).foregroundColor(.textMuted)
-                        }
-                    }
-                }
-            }
+            .chartXAxis { emDateAxis() }
+            .chartYAxis { emCurrencyAxis() }
             .chartLegend(.hidden)
             .frame(height: 250)
 
@@ -332,11 +332,4 @@ struct BacktestView: View {
             }
         }
     }
-}
-
-private func sampleBacktestEntries(_ entries: [BacktestResult.BacktestEntry], maxPoints: Int) -> [BacktestResult.BacktestEntry] {
-    let step = max(1, entries.count / maxPoints)
-    return entries.enumerated()
-        .filter { $0.offset % step == 0 || $0.offset == entries.count - 1 }
-        .map(\.element)
 }

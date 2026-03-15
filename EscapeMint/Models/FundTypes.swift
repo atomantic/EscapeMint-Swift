@@ -156,6 +156,15 @@ struct FundSummary {
         self.state = result.state
         self.recommendation = computeRecommendation(config: fund.config, state: result.state)
     }
+
+    init(_ fund: FundData, metrics: FundMetrics, state: FundState) {
+        self.fund = fund
+        self.isCash = EscapeMint.isCashFund(fund.config.fund_type)
+        self.features = getFeatures(fund.config.fund_type)
+        self.metrics = metrics
+        self.state = state
+        self.recommendation = computeRecommendation(config: fund.config, state: state)
+    }
 }
 
 struct FundData: Identifiable {
@@ -276,4 +285,5 @@ struct PortfolioMetrics {
     var cashBalance: Double = 0
     var totalInterest: Double = 0
     var funds: [FundMetrics] = []
+    var states: [FundState] = []
 }

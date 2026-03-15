@@ -14,6 +14,9 @@ struct EscapeMintApp: App {
 
 struct ContentView: View {
     @State private var appearance = AppearanceManager.shared
+    @AppStorage("escapemint-intro-completed") private var introCompleted = false
+    @AppStorage("escapemint-show-intro-on-launch") private var showIntroOnLaunch = false
+    @State private var showIntroGuide = false
 
     var body: some View {
         Group {
@@ -35,6 +38,14 @@ struct ContentView: View {
             #endif
         }
         .preferredColorScheme(appearance.mode.colorScheme)
+        .sheet(isPresented: $showIntroGuide) {
+            IntroGuideView(isPresented: $showIntroGuide)
+        }
+        .onAppear {
+            if !introCompleted || showIntroOnLaunch {
+                showIntroGuide = true
+            }
+        }
     }
 }
 
@@ -42,6 +53,7 @@ struct ContentView: View {
 struct MacContentView: View {
     @State private var funds: [FundData] = []
     @State private var summaries: [String: FundSummary] = [:]
+    @State private var actionableCount: Int = 0
     @State private var selectedNav: NavItem? = .dashboard
 
     enum NavItem: Hashable {
@@ -125,15 +137,6 @@ struct MacContentView: View {
             Section("Navigation") {
                 HStack {
                     Label("Dashboard", systemImage: "chart.bar.fill")
-                    let actionableCount = summaries.values.compactMap { s -> Bool? in
-                        let config = s.fund.config
-                        guard config.status != .closed,
-                              !isCashFund(config.fund_type),
-                              config.fund_type != .derivatives,
-                              let interval = config.interval_days, interval > 0,
-                              let last = s.fund.entries.last else { return nil }
-                        return daysBetween(last.date, todayString()) >= interval ? true : nil
-                    }.count
                     if actionableCount > 0 {
                         Spacer()
                         Text("\(actionableCount)")
@@ -268,6 +271,7 @@ struct MacContentView: View {
             sums[fund.id] = FundSummary(fund)
         }
         summaries = sums
+        actionableCount = computeActionableFunds(funds).count
     }
 }
 #endif

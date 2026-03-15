@@ -9,6 +9,8 @@ struct SettingsView: View {
     @State private var showImport = false
     @State private var statusMessage = ""
     @State private var showStatus = false
+    @AppStorage("escapemint-show-intro-on-launch") var showIntroOnLaunch = false
+    @State private var showIntroGuide = false
 
     var body: some View {
         NavigationStack {
@@ -20,6 +22,13 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                }
+
+                Section("Intro Guide") {
+                    Toggle("Show intro on launch", isOn: $showIntroOnLaunch)
+                    Button("Show Intro Guide") {
+                        showIntroGuide = true
+                    }
                 }
 
                 Section("Storage") {
@@ -61,6 +70,9 @@ struct SettingsView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.3), value: showStatus)
+            .sheet(isPresented: $showIntroGuide) {
+                IntroGuideView(isPresented: $showIntroGuide)
+            }
         }
     }
 

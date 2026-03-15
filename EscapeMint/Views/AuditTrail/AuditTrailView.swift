@@ -54,28 +54,14 @@ struct AuditTrailView: View {
         return Array(result.prefix(500))
     }
 
-    private var totalBuys: Double {
-        filteredEntries
-            .filter { $0.action == .BUY }
-            .compactMap(\.amount)
-            .reduce(0, +)
-    }
-
-    private var totalSells: Double {
-        filteredEntries
-            .filter { $0.action == .SELL }
-            .compactMap(\.amount)
-            .reduce(0, +)
-    }
-
-    private var netFlow: Double {
-        totalBuys - totalSells
-    }
-
-    private var totalDividends: Double {
-        filteredEntries
-            .compactMap(\.dividend)
-            .reduce(0, +)
+    private var stats: (buys: Double, sells: Double, dividends: Double) {
+        var buys = 0.0, sells = 0.0, divs = 0.0
+        for entry in filteredEntries {
+            if entry.action == .BUY, let amt = entry.amount { buys += amt }
+            if entry.action == .SELL, let amt = entry.amount { sells += amt }
+            if let d = entry.dividend { divs += d }
+        }
+        return (buys, sells, divs)
     }
 
     var body: some View {
@@ -93,12 +79,13 @@ struct AuditTrailView: View {
                 }
 
                 // MARK: - Stats Cards
+                let s = stats
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 5), spacing: 12) {
                     statCard(title: "Total Entries", value: "\(filteredEntries.count)")
-                    statCard(title: "Total Buys", value: formatCurrency(totalBuys), color: .mint)
-                    statCard(title: "Total Sells", value: formatCurrency(totalSells), color: .red)
-                    statCard(title: "Net Flow", value: formatCurrency(netFlow), color: netFlow >= 0 ? .mint : .red)
-                    statCard(title: "Dividends", value: formatCurrency(totalDividends), color: .mint)
+                    statCard(title: "Total Buys", value: formatCurrency(s.buys), color: .mint)
+                    statCard(title: "Total Sells", value: formatCurrency(s.sells), color: .red)
+                    statCard(title: "Net Flow", value: formatCurrency(s.buys - s.sells), color: s.buys - s.sells >= 0 ? .mint : .red)
+                    statCard(title: "Dividends", value: formatCurrency(s.dividends), color: .mint)
                 }
 
                 // MARK: - Filters

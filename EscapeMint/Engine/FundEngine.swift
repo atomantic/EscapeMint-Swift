@@ -510,6 +510,18 @@ func computeFundMetricsForFund(_ fund: FundData, asOfDate: String) -> (metrics: 
 
 // MARK: - Portfolio Aggregate
 
+/// Build FundSummary array from pre-computed portfolio metrics, avoiding double computation.
+/// Uses the metrics and states already computed by computePortfolioMetrics.
+func computeSummariesFromPortfolio(funds: [FundData], portfolio: PortfolioMetrics) -> [FundSummary] {
+    guard funds.count == portfolio.funds.count, funds.count == portfolio.states.count else {
+        // Fallback if sizes mismatch
+        return funds.map { FundSummary($0) }
+    }
+    return zip(funds, zip(portfolio.funds, portfolio.states)).map { fund, pair in
+        FundSummary(fund, metrics: pair.0, state: pair.1)
+    }
+}
+
 func computePortfolioMetrics(_ funds: [FundData], asOfDate: String? = nil) -> PortfolioMetrics {
     let today = asOfDate ?? todayString()
     let computed: [(FundMetrics, FundState)] = funds.map { computeFundMetricsForFund($0, asOfDate: today) }
@@ -609,7 +621,8 @@ func computePortfolioMetrics(_ funds: [FundData], asOfDate: String? = nil) -> Po
         portfolioDays: effectivePortfolioDays,
         cashBalance: cashBalance,
         totalInterest: totalInterest,
-        funds: fundsWithShares
+        funds: fundsWithShares,
+        states: computed.map(\.1)
     )
 }
 

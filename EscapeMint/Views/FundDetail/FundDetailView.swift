@@ -8,12 +8,13 @@ struct FundDetailView: View {
     @State private var showEditFund = false
     @State private var showEditEntry = false
     @State private var selectedEntry: FundEntry?
+    @State private var summary: FundSummary?
     @State private var showStats = true
 
     var body: some View {
         Group {
-            if let fund {
-                fundContent(fund)
+            if let fund, let summary {
+                fundContent(fund, summary: summary)
             } else {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -51,8 +52,7 @@ struct FundDetailView: View {
     }
 
     @ViewBuilder
-    private func fundContent(_ fund: FundData) -> some View {
-        let summary = FundSummary(fund)
+    private func fundContent(_ fund: FundData, summary: FundSummary) -> some View {
         let state = summary.state
         let rec = summary.recommendation
         let features = summary.features
@@ -375,7 +375,9 @@ struct FundDetailView: View {
     }
 
     private func loadFund() async {
-        fund = await FundStore.shared.readFundById(fundId)
+        let loaded = await FundStore.shared.readFundById(fundId)
+        fund = loaded
+        summary = loaded.map { FundSummary($0) }
     }
 }
 
@@ -400,10 +402,10 @@ struct StatBox: View {
 
 // MARK: - Charts
 
-private func sampleEntries(_ entries: [FundEntry], maxPoints: Int = 60) -> [FundEntry] {
-    let step = max(1, entries.count / maxPoints)
-    return entries.enumerated()
-        .filter { $0.offset % step == 0 || $0.offset == entries.count - 1 }
+func sampleArray<T>(_ items: [T], maxPoints: Int = 60) -> [T] {
+    let step = max(1, items.count / maxPoints)
+    return items.enumerated()
+        .filter { $0.offset % step == 0 || $0.offset == items.count - 1 }
         .map(\.element)
 }
 
@@ -432,7 +434,7 @@ private struct ProfitPoint: Identifiable {
 }
 
 private func computePLPoints(entries: [FundEntry], config: FundConfig) -> [PLPoint] {
-    let sampled = sampleEntries(entries)
+    let sampled = sampleArray(entries)
     return sampled.map { entry in
         let prior = entries.filter { $0.date <= entry.date }
         let trades = entriesToTrades(prior)
@@ -445,7 +447,7 @@ private func computePLPoints(entries: [FundEntry], config: FundConfig) -> [PLPoi
 }
 
 private func computeAPYPoints(entries: [FundEntry], config: FundConfig) -> [APYPoint] {
-    let sampled = sampleEntries(entries)
+    let sampled = sampleArray(entries)
     return sampled.map { entry in
         let prior = entries.filter { $0.date <= entry.date }
         let trades = entriesToTrades(prior)
@@ -483,7 +485,7 @@ struct ValueChartView: View {
     let entries: [FundEntry]
 
     var body: some View {
-        let sampled = sampleEntries(entries)
+        let sampled = sampleArray(entries)
 
         VStack(alignment: .leading, spacing: 8) {
             Text("Value Over Time")
@@ -598,7 +600,7 @@ struct CapturedProfitChartView: View {
 // MARK: - Chart Axis Builders
 
 @AxisContentBuilder
-private func emDateAxis() -> some AxisContent {
+func emDateAxis() -> some AxisContent {
     AxisMarks(values: .automatic(desiredCount: 4)) { value in
         AxisValueLabel {
             if let str = value.as(String.self) {
@@ -610,7 +612,7 @@ private func emDateAxis() -> some AxisContent {
 }
 
 @AxisContentBuilder
-private func emCurrencyAxis() -> some AxisContent {
+func emCurrencyAxis() -> some AxisContent {
     AxisMarks(position: .leading) { value in
         AxisValueLabel {
             if let v = value.as(Double.self) {
@@ -622,7 +624,7 @@ private func emCurrencyAxis() -> some AxisContent {
 }
 
 @AxisContentBuilder
-private func emPercentAxis() -> some AxisContent {
+func emPercentAxis() -> some AxisContent {
     AxisMarks(position: .leading) { value in
         AxisValueLabel {
             if let v = value.as(Double.self) {

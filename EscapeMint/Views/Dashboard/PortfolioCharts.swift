@@ -152,11 +152,7 @@ struct DashboardAPYChart: View {
             }
         }
         let sortedDates = allDates.sorted()
-        // Sample to max 60 points
-        let step = max(1, sortedDates.count / 60)
-        let sampled = sortedDates.enumerated()
-            .filter { $0.offset % step == 0 || $0.offset == sortedDates.count - 1 }
-            .map(\.element)
+        let sampled = sampleArray(sortedDates)
 
         return sampled.map { date in
             let pm = computePortfolioMetrics(funds, asOfDate: date)
@@ -190,26 +186,8 @@ struct DashboardAPYChart: View {
                         .interpolationMethod(.catmullRom)
                 }
                 .chartForegroundStyleScale(["Realized": Color.mint, "Liquid": Color.blue])
-                .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                        AxisValueLabel {
-                            if let str = value.as(String.self) {
-                                Text(String(str.suffix(5)))
-                                    .font(.caption2).foregroundColor(.textMuted)
-                            }
-                        }
-                    }
-                }
-                .chartYAxis {
-                    AxisMarks(position: .leading) { value in
-                        AxisValueLabel {
-                            if let v = value.as(Double.self) {
-                                Text(formatPercent(v))
-                                    .font(.caption2).foregroundColor(.textMuted)
-                            }
-                        }
-                    }
-                }
+                .chartXAxis { emDateAxis() }
+                .chartYAxis { emPercentAxis() }
                 .chartLegend(.hidden)
                 .frame(height: 180)
             } else {
@@ -243,10 +221,7 @@ struct DashboardGainChart: View {
             }
         }
         let sortedDates = allDates.sorted()
-        let step = max(1, sortedDates.count / 60)
-        let sampled = sortedDates.enumerated()
-            .filter { $0.offset % step == 0 || $0.offset == sortedDates.count - 1 }
-            .map(\.element)
+        let sampled = sampleArray(sortedDates)
 
         return sampled.map { date in
             let pm = computePortfolioMetrics(funds, asOfDate: date)
@@ -288,26 +263,8 @@ struct DashboardGainChart: View {
                         .interpolationMethod(.catmullRom)
                 }
                 .chartForegroundStyleScale(["Realized": Color.mint, "Unrealized": Color.orange, "Liquid": Color.blue])
-                .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                        AxisValueLabel {
-                            if let str = value.as(String.self) {
-                                Text(String(str.suffix(5)))
-                                    .font(.caption2).foregroundColor(.textMuted)
-                            }
-                        }
-                    }
-                }
-                .chartYAxis {
-                    AxisMarks(position: .leading) { value in
-                        AxisValueLabel {
-                            if let v = value.as(Double.self) {
-                                Text(formatCurrency(v))
-                                    .font(.caption2).foregroundColor(.textMuted)
-                            }
-                        }
-                    }
-                }
+                .chartXAxis { emDateAxis() }
+                .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
                 .frame(height: 180)
             } else {

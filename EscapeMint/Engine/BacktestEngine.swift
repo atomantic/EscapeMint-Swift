@@ -79,7 +79,7 @@ struct BacktestResult {
         let cash: Double
         let totalValue: Double
         let costBasis: Double
-        let action: String?
+        let action: FundAction?
         let amount: Double?
     }
 }
@@ -171,22 +171,27 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
     }
     guard let dates = commonDates?.sorted(), dates.count >= 2 else { return nil }
 
+    // Build price lookup dictionaries for O(1) access
+    var priceLookups: [String: [String: Double]] = [:]
+    for (ticker, _) in allocations {
+        guard let hist = historicalData[ticker] else { return nil }
+        priceLookups[ticker] = Dictionary(uniqueKeysWithValues: hist.prices.map { ($0.date, $0.value) })
+    }
+
     // Build blended price series (normalized to 100 at start)
     var basePrices: [String: Double] = [:]
     for (ticker, _) in allocations {
-        guard let hist = historicalData[ticker],
-              let firstPrice = hist.prices.first(where: { $0.date == dates[0] }) else { return nil }
-        basePrices[ticker] = firstPrice.value
+        guard let firstPrice = priceLookups[ticker]?[dates[0]] else { return nil }
+        basePrices[ticker] = firstPrice
     }
 
     var blendedPrices: [(date: String, price: Double)] = []
     for date in dates {
         var blended = 0.0
         for (ticker, pct) in allocations {
-            guard let hist = historicalData[ticker],
-                  let base = basePrices[ticker],
-                  let pricePoint = hist.prices.first(where: { $0.date == date }) else { continue }
-            let normalized = (pricePoint.value / base) * 100.0
+            guard let base = basePrices[ticker],
+                  let priceValue = priceLookups[ticker]?[date] else { continue }
+            let normalized = (priceValue / base) * 100.0
             blended += normalized * pct
         }
         blendedPrices.append((date, blended))
@@ -247,7 +252,7 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
         )
 
         let rec = computeRecommendation(config: fundConfig, state: state)
-        var action: String?
+        var action: FundAction?
         var amount: Double?
 
         if let rec {
@@ -257,7 +262,7 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
                 shares += buyShares
                 cash -= buyAmount
                 costBasis += buyAmount
-                action = "BUY"
+                action = .BUY
                 amount = buyAmount
             } else if rec.action == .SELL && rec.amount > 0 && shares > 0 {
                 let sellAmount = min(rec.amount, equity)
@@ -266,7 +271,7 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
                 cash += sellAmount
                 let sellFraction = costBasis > 0 ? sellAmount / equity : 1.0
                 costBasis = max(0, costBasis * (1.0 - sellFraction))
-                action = "SELL"
+                action = .SELL
                 amount = sellAmount
             }
         }

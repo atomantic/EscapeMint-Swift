@@ -11,7 +11,7 @@ struct PlatformsView: View {
     @State private var renameErrorMessage = ""
 
     struct PlatformInfo: Identifiable {
-        let id: String
+        var id: String { name }
         let name: String
         let fundCount: Int
         let activeFundCount: Int
@@ -23,7 +23,6 @@ struct PlatformsView: View {
         let grouped = Dictionary(grouping: funds, by: { $0.platform })
         return grouped.map { platform, platformFunds in
             PlatformInfo(
-                id: platform,
                 name: platform,
                 fundCount: platformFunds.count,
                 activeFundCount: platformFunds.filter { $0.config.status != .closed }.count,
@@ -229,13 +228,7 @@ struct PlatformsView: View {
         Task {
             let platformFunds = funds.filter { $0.platform == oldName }
             for fund in platformFunds {
-                // Read, rename, write new, delete old
                 let newId = "\(cleanName)-\(fund.ticker)"
-                var newFund = fund
-                newFund.platform = cleanName
-                var newConfig = fund.config
-                newConfig.platform = cleanName
-                newFund.config = newConfig
                 try? await FundStore.shared.writeFund(FundData(platform: cleanName, ticker: fund.ticker, config: fund.config, entries: fund.entries))
                 if newId != fund.id {
                     try? await FundStore.shared.deleteFund(id: fund.id)
