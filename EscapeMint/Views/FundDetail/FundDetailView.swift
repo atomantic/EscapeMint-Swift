@@ -691,76 +691,84 @@ struct ValueChartView: View {
 struct PLChartView: View {
     let entries: [FundEntry]
     let config: FundConfig
+    @State private var points: [PLPoint]?
 
     var body: some View {
-        let points = computePLPoints(entries: entries, config: config)
-        let hasNegative = points.contains { $0.realized < 0 || $0.liquid < 0 }
-
         EMChartCard(title: "P&L Over Time") {
-            if let last = points.last {
+            if let last = points?.last {
                 LegendDot(color: .mint, label: "R: \(formatCurrency(last.realized))")
                 LegendDot(color: .blue, label: "L: \(formatCurrency(last.liquid))")
             }
         } chart: {
-            Chart {
-                ForEach(points) { pt in
-                    let d = isoDateFormatter.date(from: pt.date) ?? Date()
-                    AreaMark(x: .value("Date", d), y: .value("Liquid", pt.liquid))
-                        .foregroundStyle(Color.blue.opacity(0.1))
-                        .interpolationMethod(.catmullRom)
-                    LineMark(x: .value("Date", d), y: .value("Realized", pt.realized))
-                        .foregroundStyle(by: .value("Type", "Realized"))
-                        .interpolationMethod(.catmullRom)
-                    LineMark(x: .value("Date", d), y: .value("Liquid", pt.liquid))
-                        .foregroundStyle(by: .value("Type", "Liquid"))
-                        .interpolationMethod(.catmullRom)
+            if let points {
+                let hasNegative = points.contains { $0.realized < 0 || $0.liquid < 0 }
+                Chart {
+                    ForEach(points) { pt in
+                        let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                        AreaMark(x: .value("Date", d), y: .value("Liquid", pt.liquid))
+                            .foregroundStyle(Color.blue.opacity(0.1))
+                            .interpolationMethod(.catmullRom)
+                        LineMark(x: .value("Date", d), y: .value("Realized", pt.realized))
+                            .foregroundStyle(by: .value("Type", "Realized"))
+                            .interpolationMethod(.catmullRom)
+                        LineMark(x: .value("Date", d), y: .value("Liquid", pt.liquid))
+                            .foregroundStyle(by: .value("Type", "Liquid"))
+                            .interpolationMethod(.catmullRom)
+                    }
+                    if hasNegative { emZeroLine() }
                 }
-                if hasNegative { emZeroLine() }
+                .chartForegroundStyleScale(["Realized": Color.mint, "Liquid": Color.blue])
+                .chartXAxis { emDateAxisTemporal() }
+                .chartYAxis { emCurrencyAxis() }
+                .chartLegend(.hidden)
+                .frame(height: 160)
+            } else {
+                ProgressView().frame(height: 160)
             }
-            .chartForegroundStyleScale(["Realized": Color.mint, "Liquid": Color.blue])
-            .chartXAxis { emDateAxisTemporal() }
-            .chartYAxis { emCurrencyAxis() }
-            .chartLegend(.hidden)
-            .frame(height: 160)
         }
+        .task { points = computePLPoints(entries: entries, config: config) }
     }
 }
 
 struct APYChartView: View {
     let entries: [FundEntry]
     let config: FundConfig
+    @State private var points: [APYPoint]?
 
     var body: some View {
-        let points = computeAPYPoints(entries: entries, config: config)
-        let hasNegative = points.contains { $0.realizedAPY < 0 || $0.liquidAPY < 0 }
-
         EMChartCard(title: "APY Over Time") {
-            if let last = points.last {
+            if let last = points?.last {
                 LegendDot(color: .mint, label: "R: \(formatPercent(last.realizedAPY))")
                 LegendDot(color: .blue, label: "L: \(formatPercent(last.liquidAPY))")
             }
         } chart: {
-            Chart {
-                ForEach(points) { pt in
-                    let d = isoDateFormatter.date(from: pt.date) ?? Date()
-                    AreaMark(x: .value("Date", d), y: .value("L.APY", pt.liquidAPY))
-                        .foregroundStyle(Color.blue.opacity(0.1))
-                        .interpolationMethod(.catmullRom)
-                    LineMark(x: .value("Date", d), y: .value("R.APY", pt.realizedAPY))
-                        .foregroundStyle(by: .value("Type", "Realized"))
-                        .interpolationMethod(.catmullRom)
-                    LineMark(x: .value("Date", d), y: .value("L.APY", pt.liquidAPY))
-                        .foregroundStyle(by: .value("Type", "Liquid"))
-                        .interpolationMethod(.catmullRom)
+            if let points {
+                let hasNegative = points.contains { $0.realizedAPY < 0 || $0.liquidAPY < 0 }
+                Chart {
+                    ForEach(points) { pt in
+                        let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                        AreaMark(x: .value("Date", d), y: .value("L.APY", pt.liquidAPY))
+                            .foregroundStyle(Color.blue.opacity(0.1))
+                            .interpolationMethod(.catmullRom)
+                        LineMark(x: .value("Date", d), y: .value("R.APY", pt.realizedAPY))
+                            .foregroundStyle(by: .value("Type", "Realized"))
+                            .interpolationMethod(.catmullRom)
+                        LineMark(x: .value("Date", d), y: .value("L.APY", pt.liquidAPY))
+                            .foregroundStyle(by: .value("Type", "Liquid"))
+                            .interpolationMethod(.catmullRom)
+                    }
+                    if hasNegative { emZeroLine() }
                 }
-                if hasNegative { emZeroLine() }
+                .chartForegroundStyleScale(["Realized": Color.mint, "Liquid": Color.blue])
+                .chartXAxis { emDateAxisTemporal() }
+                .chartYAxis { emPercentAxis() }
+                .chartLegend(.hidden)
+                .frame(height: 160)
+            } else {
+                ProgressView().frame(height: 160)
             }
-            .chartForegroundStyleScale(["Realized": Color.mint, "Liquid": Color.blue])
-            .chartXAxis { emDateAxisTemporal() }
-            .chartYAxis { emPercentAxis() }
-            .chartLegend(.hidden)
-            .frame(height: 160)
         }
+        .task { points = computeAPYPoints(entries: entries, config: config) }
     }
 }
 
