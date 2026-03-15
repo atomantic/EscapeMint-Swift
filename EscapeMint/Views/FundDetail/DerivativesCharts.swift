@@ -273,16 +273,12 @@ struct ChartBoundsButton: View {
     }
 }
 
-/// Apply optional Y-axis bounds to a Chart via `.chartYScale`
-extension View {
-    @ViewBuilder
-    func chartYBounds(_ bounds: ChartBounds?) -> some View {
-        if let b = bounds, let yMin = b.yMin, let yMax = b.yMax, yMin < yMax {
-            self.chartYScale(domain: yMin...yMax)
-        } else {
-            self
-        }
-    }
+/// Compute a Y-axis domain from optional bounds, falling back to auto-range from data values
+func chartYDomain(_ bounds: ChartBounds?, points values: [Double]) -> ClosedRange<Double> {
+    let yMin = bounds?.yMin ?? (values.min() ?? 0)
+    let yMax = bounds?.yMax ?? (values.max() ?? 1)
+    guard yMin < yMax else { return 0...1 }
+    return yMin...yMax
 }
 
 // MARK: - P&L Chart (Derivatives)
@@ -315,7 +311,7 @@ struct DerivativesPLChart: View {
                 .chartForegroundStyleScale(["Liquid": Color.orange, "Realized": Color.mint])
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emCurrencyAxis() }
-                .chartYBounds(bounds)
+                .chartYScale(domain: chartYDomain(bounds, points: points.flatMap { [$0.liquidPL, $0.capturedProfit] }))
                 .chartLegend(.hidden)
                 .frame(height: 160)
             } else {
@@ -355,7 +351,7 @@ struct DerivativesAPYChart: View {
                 .chartForegroundStyleScale(["Liquid": Color.orange, "Realized": Color.mint])
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emPercentAxis() }
-                .chartYBounds(bounds)
+                .chartYScale(domain: chartYDomain(bounds, points: points.flatMap { [$0.liquidAPY, $0.realizedAPY] }))
                 .chartLegend(.hidden)
                 .frame(height: 160)
             } else {
@@ -439,7 +435,7 @@ struct DerivativesPriceChart: View {
                 .chartForegroundStyleScale(["Avg Entry": Color.orange, "Liq Price": Color.mint])
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emCurrencyAxis() }
-                .chartYBounds(bounds)
+                .chartYScale(domain: chartYDomain(bounds, points: withPosition.flatMap { [$0.avgEntry, $0.liqPrice] }))
                 .chartLegend(.hidden)
                 .frame(height: 160)
             } else {
