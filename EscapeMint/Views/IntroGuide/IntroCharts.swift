@@ -94,23 +94,9 @@ private let sharedPriceTargetData: (data: [PriceTargetPoint], yMin: Double, yMax
     return (pts, (allValues.min() ?? 0) * 0.85, (allValues.max() ?? 200) * 1.1)
 }()
 
-/// Shared chart content: optional buy zone (green), sell zone (configurable color), price + target lines
+/// Line marks only (no AreaMark — fills drawn via Canvas in chartBackground)
 @ChartContentBuilder
-private func priceTargetZones(_ visible: [PriceTargetPoint], sellColor: Color, showBuyZone: Bool = true) -> some ChartContent {
-    if showBuyZone {
-        ForEach(visible) { point in
-            let bottom = point.price < point.target ? point.price : point.target
-            AreaMark(x: .value("X", point.x), yStart: .value("BuyTop", point.target), yEnd: .value("BuyBot", bottom))
-                .foregroundStyle(Color.mint.opacity(0.4))
-                .interpolationMethod(.stepCenter)
-        }
-    }
-    ForEach(visible) { point in
-        let top = point.price > point.target ? point.price : point.target
-        AreaMark(x: .value("X", point.x), yStart: .value("SellBot", point.target), yEnd: .value("SellTop", top))
-            .foregroundStyle(sellColor.opacity(0.4))
-            .interpolationMethod(.stepCenter)
-    }
+private func priceTargetLines(_ visible: [PriceTargetPoint]) -> some ChartContent {
     ForEach(visible) { point in
         LineMark(x: .value("X", point.x), y: .value("TargetLine", point.target), series: .value("Series", "Target"))
             .foregroundStyle(Color.orange)
@@ -120,6 +106,69 @@ private func priceTargetZones(_ visible: [PriceTargetPoint], sellColor: Color, s
             .foregroundStyle(Color.textPrimary)
             .lineStyle(StrokeStyle(lineWidth: 2.5))
             .interpolationMethod(.catmullRom)
+    }
+}
+
+/// Draws buy (green) and sell (configurable color) zone fills using Canvas for pixel-perfect rendering
+private func zoneBackground(data: [PriceTargetPoint], visibleCount: Int, sellColor: Color, showBuyZone: Bool = true, xDomain: ClosedRange<Double>, yDomain: ClosedRange<Double>) -> some View {
+    GeometryReader { geo in
+        Canvas { context, size in
+            let visible = Array(data.prefix(visibleCount))
+            guard visible.count >= 2 else { return }
+
+            func sx(_ x: Double) -> CGFloat {
+                let span = xDomain.upperBound - xDomain.lowerBound
+                return CGFloat((x - xDomain.lowerBound) / span) * size.width
+            }
+            func sy(_ y: Double) -> CGFloat {
+                let span = yDomain.upperBound - yDomain.lowerBound
+                return size.height - CGFloat((y - yDomain.lowerBound) / span) * size.height
+            }
+
+            var buyPath = Path()
+            var sellPath = Path()
+
+            for i in 0..<visible.count - 1 {
+                let p0 = visible[i], p1 = visible[i + 1]
+                let d0 = p0.price - p0.target, d1 = p1.price - p1.target
+
+                if d0 * d1 >= 0 {
+                    // Same zone — add trapezoid
+                    var trap = Path()
+                    trap.move(to: CGPoint(x: sx(p0.x), y: sy(p0.target)))
+                    trap.addLine(to: CGPoint(x: sx(p0.x), y: sy(p0.price)))
+                    trap.addLine(to: CGPoint(x: sx(p1.x), y: sy(p1.price)))
+                    trap.addLine(to: CGPoint(x: sx(p1.x), y: sy(p1.target)))
+                    trap.closeSubpath()
+                    if d0 >= 0 { sellPath.addPath(trap) }
+                    else { buyPath.addPath(trap) }
+                } else {
+                    // Crossover — split into two triangles
+                    let t = d0 / (d0 - d1)
+                    let cx = p0.x + t * (p1.x - p0.x)
+                    let cy = p0.target + t * (p1.target - p0.target)
+
+                    var tri0 = Path()
+                    tri0.move(to: CGPoint(x: sx(p0.x), y: sy(p0.target)))
+                    tri0.addLine(to: CGPoint(x: sx(p0.x), y: sy(p0.price)))
+                    tri0.addLine(to: CGPoint(x: sx(cx), y: sy(cy)))
+                    tri0.closeSubpath()
+                    if d0 >= 0 { sellPath.addPath(tri0) } else { buyPath.addPath(tri0) }
+
+                    var tri1 = Path()
+                    tri1.move(to: CGPoint(x: sx(cx), y: sy(cy)))
+                    tri1.addLine(to: CGPoint(x: sx(p1.x), y: sy(p1.price)))
+                    tri1.addLine(to: CGPoint(x: sx(p1.x), y: sy(p1.target)))
+                    tri1.closeSubpath()
+                    if d1 >= 0 { sellPath.addPath(tri1) } else { buyPath.addPath(tri1) }
+                }
+            }
+
+            if showBuyZone {
+                context.fill(buyPath, with: .color(.mint.opacity(0.4)))
+            }
+            context.fill(sellPath, with: .color(sellColor.opacity(0.4)))
+        }
     }
 }
 
@@ -350,14 +399,16 @@ struct TraditionalDCAChart: View {
             let visibleCount = max(1, Int(animationProgress * Double(data.count)))
             let visible = Array(data.prefix(visibleCount))
 
-            Chart {
-                priceTargetZones(visible, sellColor: .orange, showBuyZone: false)
-            }
+            Chart { priceTargetLines(visible) }
             .chartXAxis(.hidden)
             .chartXScale(domain: 0...60)
             .chartYScale(domain: yMin...yMax)
             .chartYAxis { introDollarAxis() }
             .chartLegend(.hidden)
+            .chartBackground { _ in
+                zoneBackground(data: data, visibleCount: visibleCount, sellColor: .orange,
+                               showBuyZone: false, xDomain: 0...60, yDomain: yMin...yMax)
+            }
             .chartOverlay { proxy in
                 GeometryReader { geo in
                     badgeOverlay(badges: buyPoints, data: data, visibleCount: visibleCount, proxy: proxy, geo: geo)
@@ -406,14 +457,16 @@ struct BuySellZonesChart: View {
             let visibleCount = max(1, Int(animationProgress * Double(data.count)))
             let visible = Array(data.prefix(visibleCount))
 
-            Chart {
-                priceTargetZones(visible, sellColor: .red)
-            }
+            Chart { priceTargetLines(visible) }
             .chartXAxis(.hidden)
             .chartXScale(domain: 0...60)
             .chartYScale(domain: yMin...yMax)
             .chartYAxis { introDollarAxis() }
             .chartLegend(.hidden)
+            .chartBackground { _ in
+                zoneBackground(data: data, visibleCount: visibleCount, sellColor: .red,
+                               xDomain: 0...60, yDomain: yMin...yMax)
+            }
             .chartOverlay { proxy in
                 GeometryReader { geo in
                     badgeOverlay(badges: badges, data: data, visibleCount: visibleCount, proxy: proxy, geo: geo)

@@ -8,6 +8,14 @@ struct EscapeMintApp: App {
         }
         #if os(macOS)
         .defaultSize(width: 1200, height: 800)
+        .commands {
+            CommandGroup(replacing: .appTermination) {
+                Button("Quit EscapeMint") {
+                    NSApplication.shared.terminate(nil)
+                }
+                .keyboardShortcut("q", modifiers: .command)
+            }
+        }
         #endif
     }
 }

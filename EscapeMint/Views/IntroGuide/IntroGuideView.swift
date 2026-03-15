@@ -51,13 +51,6 @@ struct IntroGuideView: View {
         }
         .background(Color.bg)
         .frame(minWidth: 600, idealWidth: 700, minHeight: 500, idealHeight: 650)
-        #if os(macOS)
-        .background {
-            Button("") { NSApplication.shared.terminate(nil) }
-                .keyboardShortcut("q", modifiers: .command)
-                .hidden()
-        }
-        #endif
         .task { modePreloader.preload() }
     }
 
