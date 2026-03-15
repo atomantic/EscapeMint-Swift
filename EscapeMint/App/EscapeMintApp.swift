@@ -144,6 +144,43 @@ struct MacContentView: View {
         return grouped.keys.sorted().map { ($0, grouped[$0]!) }
     }
 
+    @State private var collapsedPlatforms: Set<String> = []
+
+    private func sidebarPlatformKey(_ platform: String, closed: Bool) -> String {
+        "\(closed ? "closed" : "active"):\(platform)"
+    }
+
+    private func isSidebarCollapsed(_ platform: String, closed: Bool) -> Bool {
+        collapsedPlatforms.contains(sidebarPlatformKey(platform, closed: closed))
+    }
+
+    private func toggleSidebarPlatform(_ platform: String, closed: Bool) {
+        let key = sidebarPlatformKey(platform, closed: closed)
+        withAnimation(.easeInOut(duration: 0.2)) {
+            if collapsedPlatforms.contains(key) {
+                collapsedPlatforms.remove(key)
+            } else {
+                collapsedPlatforms.insert(key)
+            }
+        }
+        saveSidebarCollapsedState()
+    }
+
+    private func saveSidebarCollapsedState() {
+        UserDefaults.standard.set(Array(collapsedPlatforms), forKey: "escapemint-sidebar-collapsed")
+    }
+
+    private func loadSidebarCollapsedState() {
+        if let saved = UserDefaults.standard.stringArray(forKey: "escapemint-sidebar-collapsed") {
+            collapsedPlatforms = Set(saved)
+        } else {
+            for (platform, _) in groupedClosed {
+                collapsedPlatforms.insert(sidebarPlatformKey(platform, closed: true))
+            }
+            saveSidebarCollapsedState()
+        }
+    }
+
     var body: some View {
         NavigationSplitView {
             sidebar
@@ -153,6 +190,15 @@ struct MacContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .selectFund)) { note in
             if let id = note.object as? String {
                 selectedNav = .fund(id)
+                // Auto-expand platform if collapsed
+                if let fund = store.funds.first(where: { $0.id == id }) {
+                    let closed = fund.config.status == .closed
+                    let key = sidebarPlatformKey(fund.platform, closed: closed)
+                    if collapsedPlatforms.contains(key) {
+                        withAnimation(.easeInOut(duration: 0.2)) { _ = collapsedPlatforms.remove(key) }
+                        saveSidebarCollapsedState()
+                    }
+                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .selectDashboard)) { _ in
@@ -209,40 +255,53 @@ struct MacContentView: View {
             // Active funds grouped by platform
             Section("Active Funds") {
                 ForEach(groupedActive, id: \.0) { platform, platformFunds in
-                    // Platform header — tappable to view platform detail
+                    // Platform header — chevron collapses, name navigates to platform
                     HStack {
-                        Image(systemName: "building.2")
-                            .font(.caption).foregroundColor(.textMuted)
-                        Text(platform.capitalized)
-                            .font(.callout).fontWeight(.medium)
-                        Spacer()
-                        Text("\(platformFunds.count)")
-                            .font(.caption2)
-                            .foregroundColor(.textMuted)
-                    }
-                    .tag(NavItem.platform(platform))
-
-                    // Individual funds
-                    ForEach(platformFunds) { fund in
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(Color.forCategory(fund.config.category))
-                                .frame(width: 6, height: 6)
-                            Text(fund.ticker.uppercased())
-                                .font(.callout)
-                            Spacer()
-                            if let rec = store.summaryMap[fund.id]?.recommendation {
-                                let isHold = rec.action == .HOLD
-                                Text(rec.action.rawValue)
-                                    .font(.caption2).fontWeight(.semibold)
-                                    .foregroundColor(isHold ? .textMuted : .white)
-                                    .padding(.horizontal, 4).padding(.vertical, 1)
-                                    .background(rec.action == .BUY ? Color.mintDark : rec.action == .SELL ? Color.red : Color.bgInput)
-                                    .cornerRadius(3)
-                            }
+                        Button { toggleSidebarPlatform(platform, closed: false) } label: {
+                            Image(systemName: isSidebarCollapsed(platform, closed: false) ? "chevron.right" : "chevron.down")
+                                .font(.caption2).foregroundColor(.textMuted)
+                                .frame(width: 12)
                         }
-                        .padding(.leading, 12)
-                        .tag(NavItem.fund(fund.id))
+                        .buttonStyle(.plain)
+
+                        HStack {
+                            Image(systemName: "building.2")
+                                .font(.caption).foregroundColor(.textMuted)
+                            Text(platform.capitalized)
+                                .font(.callout).fontWeight(.medium)
+                                .foregroundColor(selectedNav == .platform(platform) ? .mint : .textPrimary)
+                            Spacer()
+                            Text("\(platformFunds.count)")
+                                .font(.caption2)
+                                .foregroundColor(.textMuted)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture { selectedNav = .platform(platform) }
+                    }
+
+                    // Individual funds (collapsible)
+                    if !isSidebarCollapsed(platform, closed: false) {
+                        ForEach(platformFunds) { fund in
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(Color.forCategory(fund.config.category))
+                                    .frame(width: 6, height: 6)
+                                Text(fund.ticker.uppercased())
+                                    .font(.callout)
+                                Spacer()
+                                if let rec = store.summaryMap[fund.id]?.recommendation {
+                                    let isHold = rec.action == .HOLD
+                                    Text(rec.action.rawValue)
+                                        .font(.caption2).fontWeight(.semibold)
+                                        .foregroundColor(isHold ? .textMuted : .white)
+                                        .padding(.horizontal, 4).padding(.vertical, 1)
+                                        .background(rec.action == .BUY ? Color.mintDark : rec.action == .SELL ? Color.red : Color.bgInput)
+                                        .cornerRadius(3)
+                                }
+                            }
+                            .padding(.leading, 12)
+                            .tag(NavItem.fund(fund.id))
+                        }
                     }
                 }
             }
@@ -251,29 +310,41 @@ struct MacContentView: View {
                 Section("Closed Funds") {
                     ForEach(groupedClosed, id: \.0) { platform, platformFunds in
                         HStack {
-                            Image(systemName: "building.2")
-                                .font(.caption).foregroundColor(.textMuted)
-                            Text(platform.capitalized)
-                                .font(.callout).fontWeight(.medium)
-                                .foregroundColor(.textMuted)
-                            Spacer()
-                            Text("\(platformFunds.count)")
-                                .font(.caption2)
-                                .foregroundColor(.textMuted)
-                        }
-                        .tag(NavItem.platform(platform))
+                            Button { toggleSidebarPlatform(platform, closed: true) } label: {
+                                Image(systemName: isSidebarCollapsed(platform, closed: true) ? "chevron.right" : "chevron.down")
+                                    .font(.caption2).foregroundColor(.textMuted)
+                                    .frame(width: 12)
+                            }
+                            .buttonStyle(.plain)
 
-                        ForEach(platformFunds) { fund in
-                            HStack(spacing: 6) {
-                                Circle()
-                                    .fill(Color.forCategory(fund.config.category))
-                                    .frame(width: 6, height: 6)
-                                Text(fund.ticker.uppercased())
-                                    .font(.callout)
+                            HStack {
+                                Image(systemName: "building.2")
+                                    .font(.caption).foregroundColor(.textMuted)
+                                Text(platform.capitalized)
+                                    .font(.callout).fontWeight(.medium)
+                                    .foregroundColor(selectedNav == .platform(platform) ? .mint : .textMuted)
+                                Spacer()
+                                Text("\(platformFunds.count)")
+                                    .font(.caption2)
                                     .foregroundColor(.textMuted)
                             }
-                            .padding(.leading, 12)
-                            .tag(NavItem.fund(fund.id))
+                            .contentShape(Rectangle())
+                            .onTapGesture { selectedNav = .platform(platform) }
+                        }
+
+                        if !isSidebarCollapsed(platform, closed: true) {
+                            ForEach(platformFunds) { fund in
+                                HStack(spacing: 6) {
+                                    Circle()
+                                        .fill(Color.forCategory(fund.config.category))
+                                        .frame(width: 6, height: 6)
+                                    Text(fund.ticker.uppercased())
+                                        .font(.callout)
+                                        .foregroundColor(.textMuted)
+                                }
+                                .padding(.leading, 12)
+                                .tag(NavItem.fund(fund.id))
+                            }
                         }
                     }
                 }
@@ -300,6 +371,7 @@ struct MacContentView: View {
         .scrollContentBackground(.hidden)
         .background(Color.bg)
         .toolbar(.hidden, for: .automatic)
+        .onAppear { loadSidebarCollapsedState() }
     }
 
     @ViewBuilder

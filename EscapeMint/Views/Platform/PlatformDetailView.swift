@@ -60,9 +60,9 @@ struct PlatformDetailView: View {
     private var metricsPanel: some View {
         let totalFundSize = platformSummaries.reduce(0.0) { $0 + ($1.fund.config.fund_size_usd ?? 0) }
         let totalValue = activeSummaries.reduce(0.0) { $0 + $1.currentValue }
-        let totalInvested = activeSummaries.reduce(0.0) { $0 + $1.state.startInputUsd }
+        let totalInvested = platformSummaries.reduce(0.0) { $0 + $1.effectiveInvested }
         let totalUnrealized = activeSummaries.reduce(0.0) { $0 + $1.unrealizedGains }
-        let totalRealized = platformSummaries.reduce(0.0) { $0 + $1.state.realizedGainsUsd }
+        let totalRealized = platformSummaries.reduce(0.0) { $0 + $1.effectiveRealized }
         let liquidPL = totalUnrealized + totalRealized
         let liquidPct = totalInvested > 0 ? liquidPL / totalInvested : 0
 
@@ -92,10 +92,15 @@ struct PlatformDetailView: View {
         // Single-pass reduce over summaries
         var totalCash = 0.0, totalDividends = 0.0, totalExpenses = 0.0, totalInterest = 0.0
         let _ = platformSummaries.forEach { s in
-            if s.fund.config.status != .closed { totalCash += s.state.cashAvailableUsd }
-            totalDividends += entriesToDividends(s.fund.entries).reduce(0.0) { $0 + $1.amountUsd }
-            totalExpenses += entriesToExpenses(s.fund.entries).reduce(0.0) { $0 + $1.amountUsd }
-            totalInterest += s.state.cashInterestUsd
+            if s.fund.config.status != .closed {
+                totalCash += s.state.cashAvailableUsd
+                totalInterest += s.state.cashInterestUsd
+            } else {
+                totalCash += s.fund.entries.last?.cash ?? 0
+                totalInterest += s.closedMetrics?.totalCashInterestUsd ?? 0
+            }
+            totalDividends += s.closedMetrics?.totalDividendsUsd ?? s.fund.entries.reduce(0.0) { $0 + ($1.dividend ?? 0) }
+            totalExpenses += s.closedMetrics?.totalExpensesUsd ?? s.fund.entries.reduce(0.0) { $0 + ($1.expense ?? 0) }
         }
 
         let cols = platformAdaptiveColumns(mac: 5, ios: 3)
@@ -167,19 +172,19 @@ struct PlatformDetailView: View {
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                             Text(formatCurrency(s.currentValue))
                                 .frame(maxWidth: .infinity, alignment: .trailing)
-                            Text(formatCurrency(s.state.startInputUsd))
+                            Text(formatCurrency(s.effectiveInvested))
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                             Text(formatCurrency(s.unrealizedGains))
                                 .foregroundColor(s.unrealizedGains >= 0 ? .mint : .red)
                                 .frame(maxWidth: .infinity, alignment: .trailing)
-                            Text(formatCurrency(s.state.realizedGainsUsd))
-                                .foregroundColor(s.state.realizedGainsUsd > 0 ? .mint : .red)
+                            Text(formatCurrency(s.effectiveRealized))
+                                .foregroundColor(s.effectiveRealized > 0 ? .mint : .red)
                                 .frame(maxWidth: .infinity, alignment: .trailing)
-                            Text(formatPercent(s.realizedAPY))
-                                .foregroundColor(s.realizedAPY > 0 ? .mint : .red)
+                            Text(formatPercent(s.effectiveRealizedAPY))
+                                .foregroundColor(s.effectiveRealizedAPY > 0 ? .mint : .red)
                                 .frame(maxWidth: .infinity, alignment: .trailing)
-                            Text(formatPercent(s.liquidAPY))
-                                .foregroundColor(s.liquidAPY > 0 ? .mint : .red)
+                            Text(formatPercent(s.effectiveLiquidAPY))
+                                .foregroundColor(s.effectiveLiquidAPY > 0 ? .mint : .red)
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                             Text("\(s.fund.entries.count)").foregroundColor(.textMuted)
                                 .frame(maxWidth: .infinity, alignment: .trailing)
@@ -228,8 +233,8 @@ struct PlatformDetailView: View {
 
                         LazyVGrid(columns: [.init(.flexible()), .init(.flexible()), .init(.flexible())], spacing: 4) {
                             fundMiniStat("Value", formatCurrency(s.currentValue))
-                            fundMiniStat("Realized", formatCurrency(s.state.realizedGainsUsd), color: s.state.realizedGainsUsd > 0 ? .mint : .red)
-                            fundMiniStat("L.APY", formatPercent(s.liquidAPY), color: s.liquidAPY > 0 ? .mint : .red)
+                            fundMiniStat("Realized", formatCurrency(s.effectiveRealized), color: s.effectiveRealized > 0 ? .mint : .red)
+                            fundMiniStat("L.APY", formatPercent(s.effectiveLiquidAPY), color: s.effectiveLiquidAPY > 0 ? .mint : .red)
                         }
                     }
                     .padding(12)

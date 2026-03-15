@@ -12,6 +12,7 @@ struct FundDetailView: View {
     @State private var visibleColumns: Set<String> = []
     @State private var showColumnConfig = false
     @State private var showStats = true
+    @State private var derivPoints: [DerivativesChartPoint]?
 
     private var fund: FundData? { store.fund(byId: fundId) }
     private var summary: FundSummary? { store.summary(byId: fundId) }
@@ -107,7 +108,11 @@ struct FundDetailView: View {
                 // Collapsible Stats section
                 DisclosureGroup(isExpanded: $showStats) {
                     VStack(spacing: 12) {
-                        statsGrid(state: state, summary: summary)
+                        if let cm = summary.closedMetrics {
+                            ClosedFundStateCard(closedMetrics: cm)
+                        } else {
+                            statsGrid(state: state, summary: summary)
+                        }
 
                         // Charts
                         if fund.entries.count >= 3 {
@@ -123,6 +128,13 @@ struct FundDetailView: View {
                         .font(.headline).foregroundColor(.textPrimary)
                 }
                 .tint(.textSecondary)
+                .task(id: fund.id) {
+                    if fund.config.fund_type == .derivatives {
+                        derivPoints = computeDerivativesChartData(entries: fund.entries, config: fund.config)
+                    } else {
+                        derivPoints = nil
+                    }
+                }
 
                 // Entries table
                 entriesTable(fund)
@@ -179,6 +191,10 @@ struct FundDetailView: View {
                 }
             }
             Spacer()
+            if config.status == .closed, let lastCash = fund.entries.last?.cash {
+                Text("Cash: \(formatCurrency(lastCash))")
+                    .fontWeight(.medium)
+            }
             Text("Size: \(formatCurrency(config.fund_size_usd ?? 0))")
                 .fontWeight(.medium)
         }
@@ -241,16 +257,41 @@ struct FundDetailView: View {
         StatBox(label: "Cash", value: formatCurrency(state.cashAvailableUsd))
     }
 
+    // MARK: - Charts
+
+    @ViewBuilder
+    private func derivativesChartContent() -> some View {
+        if let pts = derivPoints {
+            DerivativesPLChart(points: pts)
+            DerivativesAPYChart(points: pts)
+            DerivativesValueChart(points: pts)
+            DerivativesPriceChart(points: pts)
+            DerivativesMarginChart(points: pts)
+            DerivativesCapturedProfitChart(points: pts)
+        } else {
+            ProgressView().frame(height: 160)
+        }
+    }
+
+    @ViewBuilder
+    private func standardChartContent(fund: FundData) -> some View {
+        ValueChartView(entries: fund.entries)
+        PLChartView(entries: fund.entries, config: fund.config)
+        APYChartView(entries: fund.entries, config: fund.config)
+        if fund.entries.contains(where: { ($0.dividend ?? 0) > 0 || ($0.cash_interest ?? 0) > 0 }) {
+            CapturedProfitChartView(entries: fund.entries)
+        }
+    }
+
     // MARK: - Charts (macOS - 2 columns)
 
     @ViewBuilder
     private func chartsGridMac(fund: FundData, summary: FundSummary) -> some View {
         LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
-            ValueChartView(entries: fund.entries)
-            PLChartView(entries: fund.entries, config: fund.config)
-            APYChartView(entries: fund.entries, config: fund.config)
-            if fund.entries.contains(where: { ($0.dividend ?? 0) > 0 || ($0.cash_interest ?? 0) > 0 }) {
-                CapturedProfitChartView(entries: fund.entries)
+            if fund.config.fund_type == .derivatives {
+                derivativesChartContent()
+            } else {
+                standardChartContent(fund: fund)
             }
         }
     }
@@ -259,11 +300,10 @@ struct FundDetailView: View {
 
     @ViewBuilder
     private func chartsStackIOS(fund: FundData, summary: FundSummary) -> some View {
-        ValueChartView(entries: fund.entries)
-        PLChartView(entries: fund.entries, config: fund.config)
-        APYChartView(entries: fund.entries, config: fund.config)
-        if fund.entries.contains(where: { ($0.dividend ?? 0) > 0 || ($0.cash_interest ?? 0) > 0 }) {
-            CapturedProfitChartView(entries: fund.entries)
+        if fund.config.fund_type == .derivatives {
+            derivativesChartContent()
+        } else {
+            standardChartContent(fund: fund)
         }
     }
 
@@ -275,7 +315,7 @@ struct FundDetailView: View {
         ("value", "Value", true, []),
         ("amount", "Amount", true, []),
         ("shares", "Shares", true, [.cash, .derivatives]),
-        ("price", "Price", true, [.cash, .derivatives]),
+        ("price", "Price", true, [.cash]),
         ("dividend", "Dividend", true, [.crypto, .derivatives, .cash]),
         ("expense", "Expense", false, []),
         ("cash_interest", "Interest", false, []),
@@ -285,8 +325,11 @@ struct FundDetailView: View {
         ("margin_borrowed", "Margin Borrowed", false, [.crypto]),
         ("notes", "Notes", false, []),
         ("contracts", "Contracts", false, [.cash, .stock, .crypto]),
-        ("entry_price", "Entry Price", false, [.cash, .stock, .crypto]),
+        ("entry_price", "Avg Entry", false, [.cash, .stock, .crypto]),
         ("fee", "Fee", false, [.cash, .stock, .crypto]),
+        ("margin_locked", "Margin Locked", false, [.cash, .stock, .crypto]),
+        ("liquidation_price", "Liq Price", false, [.cash, .stock, .crypto]),
+        ("unrealized_pnl", "Unrealized", false, [.cash, .stock, .crypto]),
     ]
 
     private func availableColumns(for fundType: FundType?) -> [(id: String, label: String)] {
@@ -298,9 +341,13 @@ struct FundDetailView: View {
 
     private func defaultVisibleColumns(for fundType: FundType?) -> Set<String> {
         let ft = fundType ?? .stock
-        return Set(Self.allEntryColumns
+        var cols = Set(Self.allEntryColumns
             .filter { $0.defaultVisible && !$0.excludeFrom.contains(ft) }
             .map(\.id))
+        if ft == .derivatives {
+            cols.formUnion(["contracts", "price", "entry_price", "fee", "cash", "margin_locked", "liquidation_price", "unrealized_pnl"])
+        }
+        return cols
     }
 
     private func initVisibleColumnsIfNeeded(for fund: FundData) {
@@ -494,6 +541,15 @@ struct FundDetailView: View {
         case "fee":
             Text(entry.fee.map { formatCurrency($0) } ?? "")
                 .foregroundColor(.red)
+        case "margin_locked":
+            Text(entry.margin_locked.map { formatCurrency($0) } ?? "")
+                .foregroundColor(.orange)
+        case "liquidation_price":
+            Text(entry.liquidation_price.map { formatCurrency($0) } ?? "")
+                .foregroundColor(.textSecondary)
+        case "unrealized_pnl":
+            Text(entry.unrealized_pnl.map { formatCurrency($0) } ?? "")
+                .foregroundColor((entry.unrealized_pnl ?? 0) >= 0 ? .mint : .red)
         default:
             Text("")
         }

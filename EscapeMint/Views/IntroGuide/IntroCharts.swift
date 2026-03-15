@@ -537,6 +537,14 @@ struct LeverageComparisonChart: View {
             let visibleCount = max(1, Int(animationProgress * Double(sampled.count)))
             let visible = Array(sampled.prefix(visibleCount))
 
+            // Compute fixed x-scale from full data so axis doesn't shift during animation
+            let xDomain: ClosedRange<Date> = {
+                let dates = fullData.compactMap { isoDateFormatter.date(from: $0.date) }
+                let minDate = dates.min() ?? Date()
+                let maxDate = dates.max() ?? Date()
+                return minDate...maxDate
+            }()
+
             Chart {
                 ForEach(visible) { point in
                     let date = isoDateFormatter.date(from: point.date) ?? Date()
@@ -547,6 +555,7 @@ struct LeverageComparisonChart: View {
                 }
             }
             .chartXAxis { emDateAxisTemporal() }
+            .chartXScale(domain: xDomain)
             .chartYScale(domain: fullRange)
             .chartYAxis { introKAxis() }
             .chartLegend(.hidden)

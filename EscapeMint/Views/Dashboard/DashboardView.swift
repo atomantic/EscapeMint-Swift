@@ -10,6 +10,7 @@ struct DashboardView: View {
     @State private var platformFilter: String? = nil
     @State private var viewMode: ViewMode = .grid
     @State private var dismissedAlertIds: Set<String> = []
+    @State private var collapsedDashPlatforms: Set<String> = []
 
     enum ViewMode: String, CaseIterable {
         case grid = "Grid"
@@ -51,6 +52,7 @@ struct DashboardView: View {
         .onChange(of: showCharts) { _, on in
             if on && timeSeries.isEmpty { timeSeries = computePortfolioTimeSeries(store.funds) }
         }
+        .onAppear { loadDashCollapsedState() }
     }
 
     // MARK: - macOS Dashboard
@@ -318,24 +320,29 @@ struct DashboardView: View {
         let grouped = Dictionary(grouping: activeSummaries, by: { $0.fund.platform })
         ForEach(grouped.keys.sorted(), id: \.self) { platform in
             Section {
-                #if os(macOS)
-                let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: max(1, min(3, activeSummaries.count)))
-                LazyVGrid(columns: columns, spacing: 10) {
+                if !isDashCollapsed(platform, closed: false) {
+                    #if os(macOS)
+                    let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: max(1, min(3, activeSummaries.count)))
+                    LazyVGrid(columns: columns, spacing: 10) {
+                        ForEach(grouped[platform]!, id: \.fund.id) { summary in
+                            FundCardView(summary: summary)
+                                .onTapGesture { navigateToFund(summary.fund.id) }
+                        }
+                    }
+                    #else
                     ForEach(grouped[platform]!, id: \.fund.id) { summary in
-                        FundCardView(summary: summary)
-                            .onTapGesture { navigateToFund(summary.fund.id) }
+                        NavigationLink(destination: FundDetailView(fundId: summary.fund.id)) {
+                            FundCardView(summary: summary)
+                        }
+                        .buttonStyle(.plain)
                     }
+                    #endif
                 }
-                #else
-                ForEach(grouped[platform]!, id: \.fund.id) { summary in
-                    NavigationLink(destination: FundDetailView(fundId: summary.fund.id)) {
-                        FundCardView(summary: summary)
-                    }
-                    .buttonStyle(.plain)
-                }
-                #endif
             } header: {
                 HStack {
+                    Image(systemName: isDashCollapsed(platform, closed: false) ? "chevron.right" : "chevron.down")
+                        .font(.caption2).foregroundColor(.textMuted)
+                        .frame(width: 12)
                     Text(platform.capitalized)
                         .font(.caption).fontWeight(.semibold)
                         .foregroundColor(.textSecondary)
@@ -345,33 +352,48 @@ struct DashboardView: View {
                 }
                 .padding(.top, 8)
                 .contentShape(Rectangle())
-                .onTapGesture { navigateToPlatform(platform) }
+                .onTapGesture { toggleDashPlatform(platform, closed: false) }
             }
         }
 
         if !closedSummaries.isEmpty {
-            Section {
-                #if os(macOS)
-                let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: max(1, min(3, closedSummaries.count)))
-                LazyVGrid(columns: columns, spacing: 10) {
-                    ForEach(closedSummaries, id: \.fund.id) { summary in
-                        FundCardView(summary: summary)
-                            .onTapGesture { navigateToFund(summary.fund.id) }
+            let closedGrouped = Dictionary(grouping: closedSummaries, by: { $0.fund.platform })
+            ForEach(closedGrouped.keys.sorted(), id: \.self) { platform in
+                Section {
+                    if !isDashCollapsed(platform, closed: true) {
+                        #if os(macOS)
+                        let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: max(1, min(3, closedGrouped[platform]!.count)))
+                        LazyVGrid(columns: columns, spacing: 10) {
+                            ForEach(closedGrouped[platform]!, id: \.fund.id) { summary in
+                                FundCardView(summary: summary)
+                                    .onTapGesture { navigateToFund(summary.fund.id) }
+                            }
+                        }
+                        #else
+                        ForEach(closedGrouped[platform]!, id: \.fund.id) { summary in
+                            NavigationLink(destination: FundDetailView(fundId: summary.fund.id)) {
+                                FundCardView(summary: summary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        #endif
                     }
-                }
-                #else
-                ForEach(closedSummaries, id: \.fund.id) { summary in
-                    NavigationLink(destination: FundDetailView(fundId: summary.fund.id)) {
-                        FundCardView(summary: summary)
+                } header: {
+                    HStack {
+                        Image(systemName: isDashCollapsed(platform, closed: true) ? "chevron.right" : "chevron.down")
+                            .font(.caption2).foregroundColor(.textMuted)
+                            .frame(width: 12)
+                        Text("\(platform.capitalized) (Closed)")
+                            .font(.caption).fontWeight(.semibold)
+                            .foregroundColor(.textMuted)
+                        Spacer()
+                        Text("\(closedGrouped[platform]!.count) funds")
+                            .font(.caption2).foregroundColor(.textMuted)
                     }
-                    .buttonStyle(.plain)
-                }
-                #endif
-            } header: {
-                Text("Closed")
-                    .font(.caption).fontWeight(.semibold)
-                    .foregroundColor(.textSecondary)
                     .padding(.top, 8)
+                    .contentShape(Rectangle())
+                    .onTapGesture { toggleDashPlatform(platform, closed: true) }
+                }
             }
         }
 
@@ -478,6 +500,40 @@ struct DashboardView: View {
                 .padding(.top, 4)
             }
             .padding(.top, 60)
+        }
+    }
+
+    // MARK: - Platform Collapse
+
+    private func dashPlatformKey(_ platform: String, closed: Bool) -> String {
+        "\(closed ? "closed" : "active"):\(platform)"
+    }
+
+    private func isDashCollapsed(_ platform: String, closed: Bool) -> Bool {
+        collapsedDashPlatforms.contains(dashPlatformKey(platform, closed: closed))
+    }
+
+    private func toggleDashPlatform(_ platform: String, closed: Bool) {
+        let key = dashPlatformKey(platform, closed: closed)
+        withAnimation(.easeInOut(duration: 0.2)) {
+            if collapsedDashPlatforms.contains(key) {
+                collapsedDashPlatforms.remove(key)
+            } else {
+                collapsedDashPlatforms.insert(key)
+            }
+        }
+        UserDefaults.standard.set(Array(collapsedDashPlatforms), forKey: "escapemint-dashboard-collapsed")
+    }
+
+    private func loadDashCollapsedState() {
+        if let saved = UserDefaults.standard.stringArray(forKey: "escapemint-dashboard-collapsed") {
+            collapsedDashPlatforms = Set(saved)
+        } else {
+            let closedGrouped = Dictionary(grouping: closedSummaries, by: { $0.fund.platform })
+            for platform in closedGrouped.keys {
+                collapsedDashPlatforms.insert(dashPlatformKey(platform, closed: true))
+            }
+            UserDefaults.standard.set(Array(collapsedDashPlatforms), forKey: "escapemint-dashboard-collapsed")
         }
     }
 

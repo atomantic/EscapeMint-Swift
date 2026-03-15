@@ -130,6 +130,13 @@ struct FundSummary {
     let metrics: FundMetrics
     let isCash: Bool
     let features: FundTypeFeatures
+    let closedMetrics: ClosedFundMetrics?
+
+    // Effective values — prefer closedMetrics for closed funds, fall back to state/metrics
+    var effectiveInvested: Double { closedMetrics?.totalInvestedUsd ?? state.startInputUsd }
+    var effectiveRealized: Double { closedMetrics?.netGainUsd ?? state.realizedGainsUsd }
+    var effectiveRealizedAPY: Double { closedMetrics?.apy ?? realizedAPY }
+    var effectiveLiquidAPY: Double { closedMetrics?.apy ?? liquidAPY }
 
     // Convenience accessors from metrics
     var currentValue: Double { metrics.currentValue }
@@ -155,6 +162,7 @@ struct FundSummary {
         self.metrics = result.metrics
         self.state = result.state
         self.recommendation = computeRecommendation(config: fund.config, state: result.state)
+        self.closedMetrics = Self.buildClosedMetrics(fund: fund, asOfDate: today)
     }
 
     init(_ fund: FundData, metrics: FundMetrics, state: FundState) {
@@ -164,6 +172,19 @@ struct FundSummary {
         self.metrics = metrics
         self.state = state
         self.recommendation = computeRecommendation(config: fund.config, state: state)
+        self.closedMetrics = Self.buildClosedMetrics(fund: fund, asOfDate: todayString())
+    }
+
+    private static func buildClosedMetrics(fund: FundData, asOfDate: String) -> ClosedFundMetrics? {
+        guard fund.config.status == .closed else { return nil }
+        let trades = entriesToTrades(fund.entries)
+        let dividends = entriesToDividends(fund.entries)
+        let expenses = entriesToExpenses(fund.entries)
+        let cashflows = entriesToCashFlows(fund.entries)
+        let ci = computeCashInterest(config: fund.config, trades: trades, cashflows: cashflows, asOfDate: asOfDate)
+        let startDate = getFundStartDate(fund.entries)
+        let endDate = fund.entries.last?.date ?? asOfDate
+        return computeClosedFundMetrics(trades: trades, dividends: dividends, expenses: expenses, cashInterest: ci, startDate: startDate, endDate: endDate)
     }
 }
 
