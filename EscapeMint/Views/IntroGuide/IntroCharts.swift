@@ -101,11 +101,11 @@ private func priceTargetLines(_ visible: [PriceTargetPoint]) -> some ChartConten
         LineMark(x: .value("X", point.x), y: .value("TargetLine", point.target), series: .value("Series", "Target"))
             .foregroundStyle(Color.orange)
             .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 5]))
-            .interpolationMethod(.catmullRom)
+            .interpolationMethod(.monotone)
         LineMark(x: .value("X", point.x), y: .value("PriceLine", point.price), series: .value("Series", "Price"))
             .foregroundStyle(Color.textPrimary)
             .lineStyle(StrokeStyle(lineWidth: 2.5))
-            .interpolationMethod(.catmullRom)
+            .interpolationMethod(.monotone)
     }
 }
 
@@ -269,11 +269,11 @@ struct MarketGrowthChart: View {
             Chart(visible) { point in
                 AreaMark(x: .value("Year", point.year), y: .value("Value", point.value))
                     .foregroundStyle(Color.mint.opacity(0.15))
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
                 LineMark(x: .value("Year", point.year), y: .value("Value", point.value))
                     .foregroundStyle(Color.mint)
                     .lineStyle(StrokeStyle(lineWidth: 3))
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
             }
             .chartYScale(domain: 0...(data.last?.value ?? 700) * 1.1)
             .chartXScale(domain: 2005...2025)
@@ -341,15 +341,15 @@ struct VolatilityComparisonChart: View {
                 ForEach(visible) { point in
                     AreaMark(x: .value("X", point.x), y: .value("RealityFill", point.volatile))
                         .foregroundStyle(Color.mint.opacity(0.1))
-                        .interpolationMethod(.catmullRom)
+                        .interpolationMethod(.monotone)
                     LineMark(x: .value("X", point.x), y: .value("Expected", point.straight), series: .value("Series", "Expected"))
                         .foregroundStyle(Color.textMuted)
                         .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 5]))
-                        .interpolationMethod(.catmullRom)
+                        .interpolationMethod(.monotone)
                     LineMark(x: .value("X", point.x), y: .value("Reality", point.volatile), series: .value("Series", "Reality"))
                         .foregroundStyle(Color.mint)
                         .lineStyle(StrokeStyle(lineWidth: 2.5))
-                        .interpolationMethod(.catmullRom)
+                        .interpolationMethod(.monotone)
                 }
             }
             .chartXAxis(.hidden)
@@ -541,9 +541,9 @@ struct LeverageComparisonChart: View {
                 ForEach(visible) { point in
                     let date = isoDateFormatter.date(from: point.date) ?? Date()
                     LineMark(x: .value("Date", date), y: .value("BRGNX", point.brgnx), series: .value("Series", "BRGNX"))
-                        .foregroundStyle(Color.blue).lineStyle(StrokeStyle(lineWidth: 2)).interpolationMethod(.catmullRom)
+                        .foregroundStyle(Color.blue).lineStyle(StrokeStyle(lineWidth: 2)).interpolationMethod(.monotone)
                     LineMark(x: .value("Date", date), y: .value("SPXL", point.spxl), series: .value("Series", "SPXL"))
-                        .foregroundStyle(Color.mint).lineStyle(StrokeStyle(lineWidth: 2)).interpolationMethod(.catmullRom)
+                        .foregroundStyle(Color.mint).lineStyle(StrokeStyle(lineWidth: 2)).interpolationMethod(.monotone)
                 }
             }
             .chartXAxis { emDateAxisTemporal() }

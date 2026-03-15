@@ -676,10 +676,10 @@ struct ValueChartView: View {
                 let d = isoDateFormatter.date(from: entry.date) ?? Date()
                 AreaMark(x: .value("Date", d), y: .value("Value", entry.value))
                     .foregroundStyle(Color.mint.opacity(0.15))
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
                 LineMark(x: .value("Date", d), y: .value("Value", entry.value))
                     .foregroundStyle(Color.mint)
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
             }
             .chartXAxis { emDateAxisTemporal() }
             .chartYAxis { emCurrencyAxis() }
@@ -707,13 +707,13 @@ struct PLChartView: View {
                         let d = isoDateFormatter.date(from: pt.date) ?? Date()
                         AreaMark(x: .value("Date", d), y: .value("Liquid", pt.liquid))
                             .foregroundStyle(Color.blue.opacity(0.1))
-                            .interpolationMethod(.catmullRom)
+                            .interpolationMethod(.monotone)
                         LineMark(x: .value("Date", d), y: .value("Realized", pt.realized))
                             .foregroundStyle(by: .value("Type", "Realized"))
-                            .interpolationMethod(.catmullRom)
+                            .interpolationMethod(.monotone)
                         LineMark(x: .value("Date", d), y: .value("Liquid", pt.liquid))
                             .foregroundStyle(by: .value("Type", "Liquid"))
-                            .interpolationMethod(.catmullRom)
+                            .interpolationMethod(.monotone)
                     }
                     if hasNegative { emZeroLine() }
                 }
@@ -749,13 +749,13 @@ struct APYChartView: View {
                         let d = isoDateFormatter.date(from: pt.date) ?? Date()
                         AreaMark(x: .value("Date", d), y: .value("L.APY", pt.liquidAPY))
                             .foregroundStyle(Color.blue.opacity(0.1))
-                            .interpolationMethod(.catmullRom)
+                            .interpolationMethod(.monotone)
                         LineMark(x: .value("Date", d), y: .value("R.APY", pt.realizedAPY))
                             .foregroundStyle(by: .value("Type", "Realized"))
-                            .interpolationMethod(.catmullRom)
+                            .interpolationMethod(.monotone)
                         LineMark(x: .value("Date", d), y: .value("L.APY", pt.liquidAPY))
                             .foregroundStyle(by: .value("Type", "Liquid"))
-                            .interpolationMethod(.catmullRom)
+                            .interpolationMethod(.monotone)
                     }
                     if hasNegative { emZeroLine() }
                 }
@@ -788,13 +788,13 @@ struct CapturedProfitChartView: View {
                 let d = isoDateFormatter.date(from: pt.date) ?? Date()
                 AreaMark(x: .value("Date", d), y: .value("Total", pt.total))
                     .foregroundStyle(Color.mint.opacity(0.15))
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
                 LineMark(x: .value("Date", d), y: .value("Dividends", pt.cumDividend))
                     .foregroundStyle(by: .value("Type", "Dividends"))
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
                 LineMark(x: .value("Date", d), y: .value("Interest", pt.cumInterest))
                     .foregroundStyle(by: .value("Type", "Interest"))
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
             }
             .chartForegroundStyleScale(["Dividends": Color.green, "Interest": Color.yellow])
             .chartXAxis { emDateAxisTemporal() }

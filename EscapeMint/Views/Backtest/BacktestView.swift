@@ -637,16 +637,16 @@ struct BacktestView: View {
             Chart(entries) { entry in
                 AreaMark(x: .value("Date", entry.dateValue), y: .value("Invested", entry.invested))
                     .foregroundStyle(Color.purple.opacity(0.3))
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
                 AreaMark(x: .value("Date", entry.dateValue), y: .value("Cash", entry.cash))
                     .foregroundStyle(Color.green.opacity(0.2))
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
                 LineMark(x: .value("Date", entry.dateValue), y: .value("Value", entry.equity))
                     .foregroundStyle(Color.orange)
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
                 LineMark(x: .value("Date", entry.dateValue), y: .value("Target", entry.expectedTarget))
                     .foregroundStyle(Color.cyan)
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
                     .lineStyle(StrokeStyle(dash: [4, 3]))
             }
             .chartXAxis { emDateAxisTemporal() }
@@ -683,16 +683,16 @@ struct BacktestView: View {
             Chart(entries) { entry in
                 AreaMark(x: .value("Date", entry.dateValue), y: .value("Extracted", entry.totalExtracted))
                     .foregroundStyle(Color.blue.opacity(0.3))
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
                 LineMark(x: .value("Date", entry.dateValue), y: .value("Extracted", entry.totalExtracted))
                     .foregroundStyle(Color.blue)
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
                 LineMark(x: .value("Date", entry.dateValue), y: .value("Interest", entry.sumCashInterest))
                     .foregroundStyle(Color.cyan)
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
                 LineMark(x: .value("Date", entry.dateValue), y: .value("Dividends", entry.sumDividends))
                     .foregroundStyle(Color.mint)
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
             }
             .chartXAxis { emDateAxisTemporal() }
             .chartYAxis { emCurrencyAxis() }
@@ -730,13 +730,13 @@ struct BacktestView: View {
                 ForEach(entries) { e in
                     LineMark(x: .value("Date", e.dateValue), y: .value("Gain", e.liquidPnL))
                         .foregroundStyle(by: .value("Series", "Liquid"))
-                        .interpolationMethod(.catmullRom)
+                        .interpolationMethod(.monotone)
                     LineMark(x: .value("Date", e.dateValue), y: .value("Gain", e.unrealized))
                         .foregroundStyle(by: .value("Series", "Unrealized"))
-                        .interpolationMethod(.catmullRom)
+                        .interpolationMethod(.monotone)
                     LineMark(x: .value("Date", e.dateValue), y: .value("Gain", e.realized))
                         .foregroundStyle(by: .value("Series", "Realized"))
-                        .interpolationMethod(.catmullRom)
+                        .interpolationMethod(.monotone)
                 }
                 if hasNegative { emZeroLine() }
             }
@@ -796,13 +796,13 @@ struct BacktestView: View {
                 ForEach(apyEntries) { e in
                     LineMark(x: .value("Date", e.dateValue), y: .value("APY", e.liquidAPY))
                         .foregroundStyle(by: .value("Series", "Liquid"))
-                        .interpolationMethod(.catmullRom)
+                        .interpolationMethod(.monotone)
                     LineMark(x: .value("Date", e.dateValue), y: .value("APY", e.unrealizedAPY))
                         .foregroundStyle(by: .value("Series", "Unrealized"))
-                        .interpolationMethod(.catmullRom)
+                        .interpolationMethod(.monotone)
                     LineMark(x: .value("Date", e.dateValue), y: .value("APY", e.realizedAPY))
                         .foregroundStyle(by: .value("Series", "Realized"))
-                        .interpolationMethod(.catmullRom)
+                        .interpolationMethod(.monotone)
                 }
                 if hasNegative { emZeroLine() }
             }
