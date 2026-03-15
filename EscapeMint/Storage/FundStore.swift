@@ -118,6 +118,13 @@ actor FundStore {
         handle.closeFile()
     }
 
+    func replaceEntries(fundId: String, entries: [FundEntry]) throws {
+        let tsvURL = fundsDirectory.appendingPathComponent("\(fundId).tsv")
+        guard fileManager.fileExists(atPath: tsvURL.path) else { return }
+        let tsv = buildTSV(entries)
+        try tsv.write(to: tsvURL, atomically: true, encoding: .utf8)
+    }
+
     func updateConfig(fundId: String, config: FundConfig) throws {
         let configURL = fundsDirectory.appendingPathComponent("\(fundId).json")
         guard fileManager.fileExists(atPath: configURL.path) else { return }

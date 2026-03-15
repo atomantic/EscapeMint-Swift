@@ -613,6 +613,55 @@ func computePortfolioMetrics(_ funds: [FundData], asOfDate: String? = nil) -> Po
     )
 }
 
+// MARK: - Actionable Funds (Attention Alerts)
+
+struct ActionableFund: Identifiable {
+    let id: String
+    let fund: FundData
+    let daysOverdue: Int      // positive = overdue, 0 = due today, negative = upcoming
+    let intervalDays: Int
+
+    var urgency: Urgency {
+        if daysOverdue > 0 { return .overdue }
+        if daysOverdue == 0 { return .dueToday }
+        return .upcoming
+    }
+
+    enum Urgency {
+        case overdue, dueToday, upcoming
+    }
+}
+
+func computeActionableFunds(_ funds: [FundData], asOfDate: String? = nil) -> [ActionableFund] {
+    let today = asOfDate ?? todayString()
+    let urgencyThresholdDays = 7
+
+    return funds.compactMap { fund -> ActionableFund? in
+        let config = fund.config
+        // Skip closed, cash, derivatives, and funds without intervals
+        guard config.status != .closed,
+              !isCashFund(config.fund_type),
+              config.fund_type != .derivatives,
+              let intervalDays = config.interval_days,
+              intervalDays > 0 else { return nil }
+
+        // Find last entry date
+        guard let lastEntry = fund.entries.last else {
+            // No entries = overdue (fund was created but never acted on)
+            return ActionableFund(id: fund.id, fund: fund, daysOverdue: intervalDays, intervalDays: intervalDays)
+        }
+
+        let daysSinceLastEntry = daysBetween(lastEntry.date, today)
+        let daysOverdue = daysSinceLastEntry - intervalDays
+
+        // Only show if within urgency threshold (upcoming by ≤7 days, or overdue)
+        guard daysOverdue >= -urgencyThresholdDays else { return nil }
+
+        return ActionableFund(id: fund.id, fund: fund, daysOverdue: daysOverdue, intervalDays: intervalDays)
+    }
+    .sorted { $0.daysOverdue > $1.daysOverdue } // Most overdue first
+}
+
 // MARK: - Formatters (cached)
 
 private let currencyFormatter: NumberFormatter = {

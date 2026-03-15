@@ -10,6 +10,8 @@ struct DashboardView: View {
     @State private var showCharts = false
     @State private var platformFilter: String? = nil
     @State private var viewMode: ViewMode = .grid
+    @State private var actionableFunds: [ActionableFund] = []
+    @State private var dismissedAlertIds: Set<String> = []
 
     enum ViewMode: String, CaseIterable {
         case grid = "Grid"
@@ -59,6 +61,9 @@ struct DashboardView: View {
         ScrollView {
             VStack(spacing: 16) {
                 dashboardHeader
+                if !actionableFunds.isEmpty {
+                    ActionableFundsBanner(actionableFunds: actionableFunds, dismissedIds: $dismissedAlertIds)
+                }
                 metricsGrid
                 if showCharts && !funds.isEmpty {
                     dashboardCharts
@@ -195,62 +200,18 @@ struct DashboardView: View {
 
     @ViewBuilder
     private var dashboardCharts: some View {
-        // Placeholder for category/allocation charts
-        HStack(spacing: 12) {
-            categoryPieChart
-            platformPieChart
+        // Allocation pie charts row
+        HStack(alignment: .top, spacing: 12) {
+            FundAllocationChart(summaries: activeSummaries)
+            PortfolioAllocationChart(summaries: activeSummaries)
+            PlatformAllocationChart(summaries: activeSummaries)
         }
-    }
 
-    @ViewBuilder
-    private var categoryPieChart: some View {
-        let categoryData = Dictionary(grouping: activeSummaries.filter { !$0.isCash }, by: { $0.fund.config.category ?? .volatility })
-        let slices = categoryData.map { (cat, sums) -> (FundCategory, Double) in
-            (cat, sums.reduce(0.0) { $0 + $1.currentValue })
-        }.sorted { $0.1 > $1.1 }
-
-        VStack(alignment: .leading, spacing: 8) {
-            Text("By Category")
-                .font(.headline).foregroundColor(.textPrimary)
-            ForEach(slices, id: \.0) { cat, value in
-                HStack {
-                    Circle().fill(Color.forCategory(cat)).frame(width: 8, height: 8)
-                    Text(categoryConfig[cat]?.label ?? cat.rawValue)
-                        .font(.caption).foregroundColor(.textSecondary)
-                    Spacer()
-                    Text(formatCurrency(value))
-                        .font(.caption).foregroundColor(.textPrimary)
-                }
-            }
+        // Time series charts row
+        HStack(alignment: .top, spacing: 12) {
+            DashboardAPYChart(funds: funds)
+            DashboardGainChart(funds: funds)
         }
-        .padding(12)
-        .background(Color.bgCard)
-        .cornerRadius(12)
-    }
-
-    @ViewBuilder
-    private var platformPieChart: some View {
-        let platformData = Dictionary(grouping: activeSummaries, by: { $0.fund.platform })
-        let slices = platformData.map { (platform, sums) -> (String, Double) in
-            (platform, sums.reduce(0.0) { $0 + $1.currentValue })
-        }.sorted { $0.1 > $1.1 }
-
-        VStack(alignment: .leading, spacing: 8) {
-            Text("By Platform")
-                .font(.headline).foregroundColor(.textPrimary)
-            ForEach(slices, id: \.0) { platform, value in
-                HStack {
-                    Text(platform.capitalized)
-                        .font(.caption).foregroundColor(.textSecondary)
-                    Spacer()
-                    Text(formatCurrency(value))
-                        .font(.caption).foregroundColor(.textPrimary)
-                }
-            }
-        }
-        .padding(12)
-        .background(Color.bgCard)
-        .cornerRadius(12)
     }
 
     // MARK: - Toolbar Row
@@ -456,7 +417,17 @@ struct DashboardView: View {
             portfolio = computePortfolioMetrics(funds)
             summaries = funds.map { FundSummary($0) }
                 .sorted { $0.currentValue > $1.currentValue }
+            actionableFunds = computeActionableFunds(funds)
+            updateDockBadge(actionableFunds.count)
         }
+    }
+
+    private func updateDockBadge(_ count: Int) {
+        #if os(macOS)
+        DispatchQueue.main.async {
+            NSApp.dockTile.badgeLabel = count > 0 ? "\(count)" : nil
+        }
+        #endif
     }
 
     private func pickAndImport() {

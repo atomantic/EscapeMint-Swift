@@ -76,7 +76,8 @@ Match the web app's fund detail page:
   - [x] Captured Profit Chart (Dividends + Interest cumulative) — Swift Charts
 - [x] Full entries table on macOS (Date, Action, Value, Amount, Shares, Dividend, Unrealized, Realized, Fund Size)
 - [x] Compact entries list on iOS (last 30 reversed)
-- [ ] Edit entry buttons per row (deferred — needs edit modal)
+- [x] Edit entry buttons per row (pencil icon on macOS, tap on iOS → EditEntryView sheet)
+- [x] Delete entry (via EditEntryView with confirmation dialog)
 - [x] "+ Take Action" button
 - [ ] Audited status badge (deferred — needs config field in UI)
 
@@ -98,6 +99,72 @@ Port remaining engine features:
 - [x] Import from web app's `data/funds/` directory (file picker → copy TSV/JSON files)
 - [x] Import available from both Dashboard (macOS) and Settings
 - [ ] Shared iCloud Documents folder (deferred to Phase 3)
+
+---
+
+## Phase 1.5: Web App Feature Parity
+
+**Goal**: Close all feature gaps between the macOS app and the web app (`../EscapeMint/`).
+
+### 1.5A. Actionable Funds — Attention Alerts
+
+Match the web app's `ActionableFundsBanner`:
+- [x] Engine: `computeActionableFunds()` — find funds overdue/due for DCA based on `interval_days` and last entry date
+- [x] `ActionableFundsBanner` on Dashboard — color-coded urgency (red=overdue, amber=due today, yellow=upcoming)
+- [x] Dismissible per-session (in-memory set)
+- [x] Click alert → navigate to fund detail
+- [x] macOS dock badge count for actionable funds (`NSApp.dockTile.badgeLabel`)
+- [x] Sidebar badge count on Dashboard nav item
+
+### 1.5B. Dashboard Charts — Pie Charts
+
+Replace text-only category/platform lists with real pie charts:
+- [x] Fund Allocation pie chart (Swift Charts `SectorMark`) with legend
+- [x] Platform Allocation pie chart with legend
+- [x] Portfolio Allocation pie chart (Liquidity/Yield/SOV/Volatility by value)
+
+### 1.5C. Dashboard Charts — Time Series
+
+Match the web app's portfolio-level time series:
+- [x] APY Over Time chart (Realized + Liquid APY lines)
+- [x] Gain ($) Over Time chart (Realized + Unrealized + Liquid lines)
+
+### 1.5D. Sidebar Navigation — Missing Links
+
+Add web app's nav items to sidebar:
+- [x] Backtest nav link
+- [x] Audit Trail nav link
+- [x] Platforms nav link
+
+### 1.5E. Audit Trail View
+
+Match the web app's audit trail page:
+- [x] All entries across all funds in a single table
+- [x] Filters: Platform, Action Type, Date Range (From/To), Ticker search
+- [x] Aggregate stats cards: total entries, total buys, total sells, net flow, total dividends
+- [x] Click ticker → navigate to fund detail
+- [x] Pagination (first 500 entries)
+
+### 1.5F. Platforms Management View
+
+Match the web app's platforms page:
+- [x] List all platforms with fund counts and total value
+- [x] Click platform → navigate to platform detail
+- [x] Context menu delete (with guard against platforms with funds)
+- [x] Add Fund button (opens CreateFundView — platforms are created implicitly with funds)
+- [x] Rename platform (inline editor via context menu, migrates all fund files)
+
+### 1.5G. Backtest View + First-Run Wizard
+
+Match the web app's backtest page and use it as intro:
+- [x] First-run detection (`@AppStorage` flag → show backtest intro)
+- [x] Asset allocation sliders (SPXL, VTI, BRGNX, TQQQ, BTC, GLD, SLV)
+- [x] Investment params: initial cash, weekly DCA, target APY, min profit
+- [x] Accumulate vs Harvest mode toggle
+- [x] Presets (8 quick-start configs: Blend, TQQQ, SPXL, VTI, BRGNX, BTC, GLD, SLV)
+- [x] Historical price data bundled (7 JSON files from web app)
+- [x] Backtest engine: blended price normalization, DCA simulation, recommendation engine
+- [x] Results: metric cards (final value, invested, gain, APY, max drawdown) + portfolio value chart
 
 ---
 
@@ -171,6 +238,14 @@ xcodebuild build -project EscapeMint.xcodeproj -scheme EscapeMint_macOS \
 | `EscapeMint/Storage/FundStore.swift` | TSV/JSON file I/O (actor-based) |
 | `EscapeMint/Views/Dashboard/DashboardView.swift` | Main dashboard + FundCardView + aggregate |
 | `EscapeMint/Views/FundDetail/FundDetailView.swift` | Fund detail + charts + entries |
+| `EscapeMint/Engine/BacktestEngine.swift` | Backtest types, presets, historical data loader, simulation |
+| `EscapeMint/Views/Backtest/BacktestView.swift` | Backtest UI: intro wizard, config, results chart |
+| `EscapeMint/Views/AuditTrail/AuditTrailView.swift` | Audit trail: filterable cross-fund entries table |
+| `EscapeMint/Views/Platforms/PlatformsView.swift` | Platforms management: list, navigate, delete |
+| `EscapeMint/Views/FundDetail/EditEntryView.swift` | Edit/delete individual entries |
+| `EscapeMint/Views/Dashboard/ActionableFundsBanner.swift` | Attention alerts for overdue/due funds |
+| `EscapeMint/Views/Dashboard/PortfolioCharts.swift` | Pie charts + time series charts for dashboard |
+| `EscapeMint/Resources/*.json` | Historical price data (7 tickers, weekly) |
 | `deploy.sh` | Local TestFlight deployment script |
 
 ## References

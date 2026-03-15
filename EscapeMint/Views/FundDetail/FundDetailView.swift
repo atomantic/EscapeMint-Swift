@@ -6,6 +6,8 @@ struct FundDetailView: View {
     @State private var fund: FundData?
     @State private var showAddEntry = false
     @State private var showEditFund = false
+    @State private var showEditEntry = false
+    @State private var selectedEntry: FundEntry?
     @State private var showStats = true
 
     var body: some View {
@@ -35,6 +37,13 @@ struct FundDetailView: View {
         .sheet(isPresented: $showEditFund) {
             if let fund {
                 EditFundView(fund: fund) {
+                    Task { await loadFund() }
+                }
+            }
+        }
+        .sheet(isPresented: $showEditEntry) {
+            if let fund, let entry = selectedEntry {
+                EditEntryView(entry: entry, fundId: fund.id, fundType: fund.config.fund_type ?? .stock) {
                     Task { await loadFund() }
                 }
             }
@@ -276,6 +285,7 @@ struct FundDetailView: View {
             if fund.entries.contains(where: { $0.fund_size != nil }) {
                 Text("Fund Size").frame(width: 80, alignment: .trailing)
             }
+            Text("").frame(width: 30) // Edit column
         }
         .font(.caption2).fontWeight(.semibold)
         .foregroundColor(.textMuted)
@@ -313,6 +323,15 @@ struct FundDetailView: View {
                 Text(entry.fund_size.map { formatCurrency($0) } ?? "").frame(width: 80, alignment: .trailing)
                     .foregroundColor(.textSecondary)
             }
+            Button {
+                selectedEntry = entry
+                showEditEntry = true
+            } label: {
+                Image(systemName: "pencil")
+                    .font(.caption2).foregroundColor(.textMuted)
+            }
+            .buttonStyle(.plain)
+            .frame(width: 30)
         }
         .font(.caption)
         .foregroundColor(.textPrimary)
@@ -332,6 +351,11 @@ struct FundDetailView: View {
                     Text(formatCurrency(amt)).font(.caption).foregroundColor(.textSecondary)
                         .frame(width: 70, alignment: .trailing)
                 }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                selectedEntry = entry
+                showEditEntry = true
             }
         }
 

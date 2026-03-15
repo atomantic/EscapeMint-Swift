@@ -10,17 +10,26 @@
 		0A946C739855BA689CE4EC01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4141AFA78E93A2BB544FFD49 /* Assets.xcassets */; };
 		0AC07BA8470D75514734E39D /* PlatformDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D9016C221D8B41402E543CF /* PlatformDetailView.swift */; };
 		0CA6CF646D2EF74DD5AC7700 /* FundEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADF82E9F62C6337CA018D70F /* FundEngine.swift */; };
+		0FC73A03BA9BAE5BA0A47AE8 /* BacktestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A9C1C2AB4CC69B168913475 /* BacktestView.swift */; };
 		11C864866C071577BE475340 /* PlatformModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E936380A18BD7F2191F202E /* PlatformModifiers.swift */; };
+		1AA71BFCED97656280FF3C07 /* BacktestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A9C1C2AB4CC69B168913475 /* BacktestView.swift */; };
 		1B21A19E3A1DBE5232B4E2FF /* CreateFundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716845DB9D559691A02AEFAE /* CreateFundView.swift */; };
 		1CA8B07A2B186B8B449AE2D3 /* CreateFundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716845DB9D559691A02AEFAE /* CreateFundView.swift */; };
+		215E053FDD165C9E469C48A6 /* PortfolioCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5730A378FC32A73CBE470B4D /* PortfolioCharts.swift */; };
 		237C11327A55B367CD5EC233 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0536F00CCC4E2347521E1B56 /* Theme.swift */; };
 		2C7C7FEBEC9E2493FF061567 /* PlatformDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D9016C221D8B41402E543CF /* PlatformDetailView.swift */; };
+		2CCCC96D9726E43C2600B59B /* ActionableFundsBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA79537E5DE06EC77B10C04 /* ActionableFundsBanner.swift */; };
+		3361AFF542BA7F42EDE09394 /* PlatformsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC7805190DCC3C9CC32685C4 /* PlatformsView.swift */; };
 		3CC59A024D8346DE8F6B4F08 /* AddEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFF252A47ECBD98740348309 /* AddEntryView.swift */; };
+		3FF9F76DC70C4D2D2AAA77E2 /* EditEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB98C8C76DB995DB12DB51C /* EditEntryView.swift */; };
 		42536F85618CDA7693CC33F2 /* EscapeMintApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89B67B9D0233CE75C2517D8B /* EscapeMintApp.swift */; };
 		43ABDDC343390B9A629C8276 /* FundStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8234569B6F7DD6620418A099 /* FundStore.swift */; };
 		4410F30862490B374CCE6632 /* EditFundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5178FBFF2608094D106457C0 /* EditFundView.swift */; };
+		496BA8A4C43BF265DAF6205F /* vti-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 72B24FDF289E498E5460BB1F /* vti-weekly.json */; };
+		55587AFF22810DD9D1BB3D76 /* slv-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 8BE8950DBDF58E24133D5122 /* slv-weekly.json */; };
 		58D0B9DE1C246402ADD32CF6 /* AppearanceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0653A0CB7C81F563F38D00C1 /* AppearanceManager.swift */; };
 		59C7ACF796B9A37DB6B2F832 /* Converters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15B673A9482FD463F5027CA9 /* Converters.swift */; };
+		5C9B25248B881F120DC7AC22 /* PortfolioCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5730A378FC32A73CBE470B4D /* PortfolioCharts.swift */; };
 		5E2FF513C6EB32565600A3A4 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6AFD1F57B408213E9E0D3B /* DashboardView.swift */; };
 		5E57D2379D4A66CC5609FA44 /* FundTypeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84E4D35AF8187D701960FA42 /* FundTypeConfig.swift */; };
 		6699AD40036B9A80E20F5A66 /* EngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DEB29D5F7AD42857B739CEE /* EngineTests.swift */; };
@@ -28,19 +37,38 @@
 		7C8493E3B622C77F494D3D53 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A691160995BF44A1DFE5634 /* SettingsView.swift */; };
 		7D9CEDB96C240E4C9B866F50 /* PlatformModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E936380A18BD7F2191F202E /* PlatformModifiers.swift */; };
 		800271A5BCD7F0CD15434FED /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0536F00CCC4E2347521E1B56 /* Theme.swift */; };
+		82B10A98F56FB62DE964F54F /* gld-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 2FA36F78945896AA5A44225F /* gld-weekly.json */; };
+		84A52F16EF27156A386853DE /* BacktestEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E725D16A17E4F0835D06D981 /* BacktestEngine.swift */; };
+		8B2DE7CE44327991FE480DB3 /* tqqq-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = AA7B587266915BE35EF3BDDF /* tqqq-weekly.json */; };
+		8BF59AB08706035EC43FBCFB /* ActionableFundsBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA79537E5DE06EC77B10C04 /* ActionableFundsBanner.swift */; };
+		8C6EDB9E202D741C12A9C69D /* btc-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 62673091D474C5E9C408B22C /* btc-weekly.json */; };
+		8D8079E7073E294BC0F8BE35 /* AuditTrailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72E8011701E83725108665A2 /* AuditTrailView.swift */; };
 		8DF900326F27FB50847A2FA5 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6AFD1F57B408213E9E0D3B /* DashboardView.swift */; };
+		8F35375656B97CFA5DDF49D1 /* slv-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 8BE8950DBDF58E24133D5122 /* slv-weekly.json */; };
 		9393767F6EF181A9BB23C53A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A691160995BF44A1DFE5634 /* SettingsView.swift */; };
 		94344EF2DAAFD9E0644FAF17 /* Converters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15B673A9482FD463F5027CA9 /* Converters.swift */; };
 		952FF89A615E2D3D7D2B804A /* EditFundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5178FBFF2608094D106457C0 /* EditFundView.swift */; };
 		9D06DBF112A37DE74E6DE5A9 /* FundDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C16280FEC2F986BC0F5C70C5 /* FundDetailView.swift */; };
 		9D4F95A5410881EFEE36142F /* FundTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 123ED17F2A466332A31D87A3 /* FundTypes.swift */; };
+		9E11DB41559D7F147E9C1B15 /* PlatformsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC7805190DCC3C9CC32685C4 /* PlatformsView.swift */; };
 		A091E84FEB7B129C8C758FD1 /* FundTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 123ED17F2A466332A31D87A3 /* FundTypes.swift */; };
+		A795E282C3CCB5CE7DB24527 /* brgnx-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 7DD4A3D62A314EF39C7556F6 /* brgnx-weekly.json */; };
+		AD96A443A9DB27699AAC7BDD /* gld-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 2FA36F78945896AA5A44225F /* gld-weekly.json */; };
+		B2458A2217463775A1EE26B3 /* EditEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB98C8C76DB995DB12DB51C /* EditEntryView.swift */; };
 		B78CF5602C037D36B8704885 /* EngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DEB29D5F7AD42857B739CEE /* EngineTests.swift */; };
 		BA705DF3CCF3E382D2289B65 /* AppearanceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0653A0CB7C81F563F38D00C1 /* AppearanceManager.swift */; };
+		BCBDF87F48F3742996392369 /* spxl-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = A1CDA29D3BC058B300AC82EA /* spxl-weekly.json */; };
 		CBF230C3FE1A6EB5F2D9E4CF /* FundTypeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84E4D35AF8187D701960FA42 /* FundTypeConfig.swift */; };
 		CC01A0E06B50D0B8B2FD6A86 /* AddEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFF252A47ECBD98740348309 /* AddEntryView.swift */; };
+		CC31BD57B8B4EC7862535B39 /* btc-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 62673091D474C5E9C408B22C /* btc-weekly.json */; };
+		CDD968D5B4196DF0CEB2D798 /* spxl-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = A1CDA29D3BC058B300AC82EA /* spxl-weekly.json */; };
 		CFF07BF43EECAB7A8E1A4ECB /* EscapeMintApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89B67B9D0233CE75C2517D8B /* EscapeMintApp.swift */; };
+		DA1119CCE8C47551F26DCCB1 /* vti-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 72B24FDF289E498E5460BB1F /* vti-weekly.json */; };
+		DBF3B221C34D9633C2A18EDF /* BacktestEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E725D16A17E4F0835D06D981 /* BacktestEngine.swift */; };
+		E4E0DD9225F3EB3FF014E108 /* tqqq-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = AA7B587266915BE35EF3BDDF /* tqqq-weekly.json */; };
+		F2146FA5D69DD0694E1E29FF /* brgnx-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 7DD4A3D62A314EF39C7556F6 /* brgnx-weekly.json */; };
 		F339FA95C574744D9FAFC2AD /* FundStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8234569B6F7DD6620418A099 /* FundStore.swift */; };
+		F9AD19FCC89D6ED33D924C7D /* AuditTrailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72E8011701E83725108665A2 /* AuditTrailView.swift */; };
 		FE2F594896C76DE493FAD5C4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4141AFA78E93A2BB544FFD49 /* Assets.xcassets */; };
 		FFE3C12B0B0AABC7A36F4F7B /* FundDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C16280FEC2F986BC0F5C70C5 /* FundDetailView.swift */; };
 /* End PBXBuildFile section */
@@ -70,23 +98,37 @@
 		123ED17F2A466332A31D87A3 /* FundTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundTypes.swift; sourceTree = "<group>"; };
 		15B673A9482FD463F5027CA9 /* Converters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Converters.swift; sourceTree = "<group>"; };
 		2057B87E511BC30733DF4121 /* EscapeMintTests_macOS.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EscapeMintTests_macOS.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		2FA36F78945896AA5A44225F /* gld-weekly.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "gld-weekly.json"; sourceTree = "<group>"; };
 		4141AFA78E93A2BB544FFD49 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4A2D5E0BEEB8E52E0461ADC0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		4CB98C8C76DB995DB12DB51C /* EditEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditEntryView.swift; sourceTree = "<group>"; };
 		5178FBFF2608094D106457C0 /* EditFundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditFundView.swift; sourceTree = "<group>"; };
+		5730A378FC32A73CBE470B4D /* PortfolioCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioCharts.swift; sourceTree = "<group>"; };
 		5E6AFD1F57B408213E9E0D3B /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		62673091D474C5E9C408B22C /* btc-weekly.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "btc-weekly.json"; sourceTree = "<group>"; };
 		716845DB9D559691A02AEFAE /* CreateFundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateFundView.swift; sourceTree = "<group>"; };
+		72B24FDF289E498E5460BB1F /* vti-weekly.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "vti-weekly.json"; sourceTree = "<group>"; };
+		72E8011701E83725108665A2 /* AuditTrailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuditTrailView.swift; sourceTree = "<group>"; };
 		7A691160995BF44A1DFE5634 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		7DD4A3D62A314EF39C7556F6 /* brgnx-weekly.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "brgnx-weekly.json"; sourceTree = "<group>"; };
 		8234569B6F7DD6620418A099 /* FundStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundStore.swift; sourceTree = "<group>"; };
 		84E4D35AF8187D701960FA42 /* FundTypeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundTypeConfig.swift; sourceTree = "<group>"; };
 		89B67B9D0233CE75C2517D8B /* EscapeMintApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EscapeMintApp.swift; sourceTree = "<group>"; };
+		8A9C1C2AB4CC69B168913475 /* BacktestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacktestView.swift; sourceTree = "<group>"; };
+		8BE8950DBDF58E24133D5122 /* slv-weekly.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "slv-weekly.json"; sourceTree = "<group>"; };
 		99D7A4CBB9248028C4C8B2F9 /* EscapeMint.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EscapeMint.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9D9016C221D8B41402E543CF /* PlatformDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformDetailView.swift; sourceTree = "<group>"; };
 		9DEB29D5F7AD42857B739CEE /* EngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineTests.swift; sourceTree = "<group>"; };
+		A1CDA29D3BC058B300AC82EA /* spxl-weekly.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "spxl-weekly.json"; sourceTree = "<group>"; };
+		AA7B587266915BE35EF3BDDF /* tqqq-weekly.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "tqqq-weekly.json"; sourceTree = "<group>"; };
 		ADF82E9F62C6337CA018D70F /* FundEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundEngine.swift; sourceTree = "<group>"; };
+		BC7805190DCC3C9CC32685C4 /* PlatformsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformsView.swift; sourceTree = "<group>"; };
 		BFF252A47ECBD98740348309 /* AddEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddEntryView.swift; sourceTree = "<group>"; };
 		C16280FEC2F986BC0F5C70C5 /* FundDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundDetailView.swift; sourceTree = "<group>"; };
 		C4F9B91C6175B8A229A158A5 /* EscapeMint.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = EscapeMint.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C77048CAA018B5D730D1048A /* EscapeMintTests_iOS.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = EscapeMintTests_iOS.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E725D16A17E4F0835D06D981 /* BacktestEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacktestEngine.swift; sourceTree = "<group>"; };
+		FAA79537E5DE06EC77B10C04 /* ActionableFundsBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionableFundsBanner.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -105,6 +147,7 @@
 				AF3D37BB7266FDA1DA5C53D7 /* App */,
 				FE4FFB5BF6C2B016C4E47427 /* Engine */,
 				098DA6E7F0D7961AC646AFF7 /* Models */,
+				A31BF592600AD8A67F526C0C /* Resources */,
 				7DEF6F00992DF917714B9B53 /* Storage */,
 				BC5CE42357CDFFD71C7B8E54 /* Theme */,
 				2B23381D6597C953F612F909 /* Views */,
@@ -112,15 +155,42 @@
 			path = EscapeMint;
 			sourceTree = "<group>";
 		};
+		2A2F0CB76037ABEC550C87CA /* Backtest */ = {
+			isa = PBXGroup;
+			children = (
+				8A9C1C2AB4CC69B168913475 /* BacktestView.swift */,
+			);
+			path = Backtest;
+			sourceTree = "<group>";
+		};
 		2B23381D6597C953F612F909 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				78D743CDEB10A34014C5F1A2 /* AuditTrail */,
+				2A2F0CB76037ABEC550C87CA /* Backtest */,
 				F83747F2DA3E9E59E33F983C /* Dashboard */,
 				D8FAFF6B6790D7A9F462993D /* FundDetail */,
 				A93BEC85456ACD4DAC4BC656 /* Platform */,
+				78210AACA08A819AB7199F50 /* Platforms */,
 				981EEB206CC98B8DC81F8B05 /* Settings */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		78210AACA08A819AB7199F50 /* Platforms */ = {
+			isa = PBXGroup;
+			children = (
+				BC7805190DCC3C9CC32685C4 /* PlatformsView.swift */,
+			);
+			path = Platforms;
+			sourceTree = "<group>";
+		};
+		78D743CDEB10A34014C5F1A2 /* AuditTrail */ = {
+			isa = PBXGroup;
+			children = (
+				72E8011701E83725108665A2 /* AuditTrailView.swift */,
+			);
+			path = AuditTrail;
 			sourceTree = "<group>";
 		};
 		7DEF6F00992DF917714B9B53 /* Storage */ = {
@@ -137,6 +207,20 @@
 				7A691160995BF44A1DFE5634 /* SettingsView.swift */,
 			);
 			path = Settings;
+			sourceTree = "<group>";
+		};
+		A31BF592600AD8A67F526C0C /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				7DD4A3D62A314EF39C7556F6 /* brgnx-weekly.json */,
+				62673091D474C5E9C408B22C /* btc-weekly.json */,
+				2FA36F78945896AA5A44225F /* gld-weekly.json */,
+				8BE8950DBDF58E24133D5122 /* slv-weekly.json */,
+				A1CDA29D3BC058B300AC82EA /* spxl-weekly.json */,
+				AA7B587266915BE35EF3BDDF /* tqqq-weekly.json */,
+				72B24FDF289E498E5460BB1F /* vti-weekly.json */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		A93BEC85456ACD4DAC4BC656 /* Platform */ = {
@@ -191,6 +275,7 @@
 			isa = PBXGroup;
 			children = (
 				BFF252A47ECBD98740348309 /* AddEntryView.swift */,
+				4CB98C8C76DB995DB12DB51C /* EditEntryView.swift */,
 				5178FBFF2608094D106457C0 /* EditFundView.swift */,
 				C16280FEC2F986BC0F5C70C5 /* FundDetailView.swift */,
 			);
@@ -209,8 +294,10 @@
 		F83747F2DA3E9E59E33F983C /* Dashboard */ = {
 			isa = PBXGroup;
 			children = (
+				FAA79537E5DE06EC77B10C04 /* ActionableFundsBanner.swift */,
 				716845DB9D559691A02AEFAE /* CreateFundView.swift */,
 				5E6AFD1F57B408213E9E0D3B /* DashboardView.swift */,
+				5730A378FC32A73CBE470B4D /* PortfolioCharts.swift */,
 			);
 			path = Dashboard;
 			sourceTree = "<group>";
@@ -218,6 +305,7 @@
 		FE4FFB5BF6C2B016C4E47427 /* Engine */ = {
 			isa = PBXGroup;
 			children = (
+				E725D16A17E4F0835D06D981 /* BacktestEngine.swift */,
 				15B673A9482FD463F5027CA9 /* Converters.swift */,
 				ADF82E9F62C6337CA018D70F /* FundEngine.swift */,
 			);
@@ -352,6 +440,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				FE2F594896C76DE493FAD5C4 /* Assets.xcassets in Resources */,
+				A795E282C3CCB5CE7DB24527 /* brgnx-weekly.json in Resources */,
+				CC31BD57B8B4EC7862535B39 /* btc-weekly.json in Resources */,
+				AD96A443A9DB27699AAC7BDD /* gld-weekly.json in Resources */,
+				8F35375656B97CFA5DDF49D1 /* slv-weekly.json in Resources */,
+				CDD968D5B4196DF0CEB2D798 /* spxl-weekly.json in Resources */,
+				8B2DE7CE44327991FE480DB3 /* tqqq-weekly.json in Resources */,
+				496BA8A4C43BF265DAF6205F /* vti-weekly.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -360,6 +455,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				0A946C739855BA689CE4EC01 /* Assets.xcassets in Resources */,
+				F2146FA5D69DD0694E1E29FF /* brgnx-weekly.json in Resources */,
+				8C6EDB9E202D741C12A9C69D /* btc-weekly.json in Resources */,
+				82B10A98F56FB62DE964F54F /* gld-weekly.json in Resources */,
+				55587AFF22810DD9D1BB3D76 /* slv-weekly.json in Resources */,
+				BCBDF87F48F3742996392369 /* spxl-weekly.json in Resources */,
+				E4E0DD9225F3EB3FF014E108 /* tqqq-weekly.json in Resources */,
+				DA1119CCE8C47551F26DCCB1 /* vti-weekly.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -370,11 +472,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2CCCC96D9726E43C2600B59B /* ActionableFundsBanner.swift in Sources */,
 				3CC59A024D8346DE8F6B4F08 /* AddEntryView.swift in Sources */,
 				58D0B9DE1C246402ADD32CF6 /* AppearanceManager.swift in Sources */,
+				F9AD19FCC89D6ED33D924C7D /* AuditTrailView.swift in Sources */,
+				84A52F16EF27156A386853DE /* BacktestEngine.swift in Sources */,
+				1AA71BFCED97656280FF3C07 /* BacktestView.swift in Sources */,
 				94344EF2DAAFD9E0644FAF17 /* Converters.swift in Sources */,
 				1B21A19E3A1DBE5232B4E2FF /* CreateFundView.swift in Sources */,
 				5E2FF513C6EB32565600A3A4 /* DashboardView.swift in Sources */,
+				3FF9F76DC70C4D2D2AAA77E2 /* EditEntryView.swift in Sources */,
 				952FF89A615E2D3D7D2B804A /* EditFundView.swift in Sources */,
 				42536F85618CDA7693CC33F2 /* EscapeMintApp.swift in Sources */,
 				FFE3C12B0B0AABC7A36F4F7B /* FundDetailView.swift in Sources */,
@@ -384,6 +491,8 @@
 				9D4F95A5410881EFEE36142F /* FundTypes.swift in Sources */,
 				0AC07BA8470D75514734E39D /* PlatformDetailView.swift in Sources */,
 				7D9CEDB96C240E4C9B866F50 /* PlatformModifiers.swift in Sources */,
+				3361AFF542BA7F42EDE09394 /* PlatformsView.swift in Sources */,
+				215E053FDD165C9E469C48A6 /* PortfolioCharts.swift in Sources */,
 				9393767F6EF181A9BB23C53A /* SettingsView.swift in Sources */,
 				237C11327A55B367CD5EC233 /* Theme.swift in Sources */,
 			);
@@ -393,11 +502,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8BF59AB08706035EC43FBCFB /* ActionableFundsBanner.swift in Sources */,
 				CC01A0E06B50D0B8B2FD6A86 /* AddEntryView.swift in Sources */,
 				BA705DF3CCF3E382D2289B65 /* AppearanceManager.swift in Sources */,
+				8D8079E7073E294BC0F8BE35 /* AuditTrailView.swift in Sources */,
+				DBF3B221C34D9633C2A18EDF /* BacktestEngine.swift in Sources */,
+				0FC73A03BA9BAE5BA0A47AE8 /* BacktestView.swift in Sources */,
 				59C7ACF796B9A37DB6B2F832 /* Converters.swift in Sources */,
 				1CA8B07A2B186B8B449AE2D3 /* CreateFundView.swift in Sources */,
 				8DF900326F27FB50847A2FA5 /* DashboardView.swift in Sources */,
+				B2458A2217463775A1EE26B3 /* EditEntryView.swift in Sources */,
 				4410F30862490B374CCE6632 /* EditFundView.swift in Sources */,
 				CFF07BF43EECAB7A8E1A4ECB /* EscapeMintApp.swift in Sources */,
 				9D06DBF112A37DE74E6DE5A9 /* FundDetailView.swift in Sources */,
@@ -407,6 +521,8 @@
 				A091E84FEB7B129C8C758FD1 /* FundTypes.swift in Sources */,
 				2C7C7FEBEC9E2493FF061567 /* PlatformDetailView.swift in Sources */,
 				11C864866C071577BE475340 /* PlatformModifiers.swift in Sources */,
+				9E11DB41559D7F147E9C1B15 /* PlatformsView.swift in Sources */,
+				5C9B25248B881F120DC7AC22 /* PortfolioCharts.swift in Sources */,
 				7C8493E3B622C77F494D3D53 /* SettingsView.swift in Sources */,
 				800271A5BCD7F0CD15434FED /* Theme.swift in Sources */,
 			);

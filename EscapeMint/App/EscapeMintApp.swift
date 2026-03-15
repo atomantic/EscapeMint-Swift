@@ -46,6 +46,9 @@ struct MacContentView: View {
 
     enum NavItem: Hashable {
         case dashboard
+        case backtest
+        case auditTrail
+        case platforms
         case settings
         case fund(String)
         case platform(String)
@@ -53,6 +56,9 @@ struct MacContentView: View {
         var id: String {
             switch self {
             case .dashboard: return "dashboard"
+            case .backtest: return "backtest"
+            case .auditTrail: return "auditTrail"
+            case .platforms: return "platforms"
             case .settings: return "settings"
             case .fund(let id): return "fund-\(id)"
             case .platform(let name): return "platform-\(name)"
@@ -117,8 +123,33 @@ struct MacContentView: View {
 
             // Navigation
             Section("Navigation") {
-                Label("Dashboard", systemImage: "chart.bar.fill")
-                    .tag(NavItem.dashboard)
+                HStack {
+                    Label("Dashboard", systemImage: "chart.bar.fill")
+                    let actionableCount = summaries.values.compactMap { s -> Bool? in
+                        let config = s.fund.config
+                        guard config.status != .closed,
+                              !isCashFund(config.fund_type),
+                              config.fund_type != .derivatives,
+                              let interval = config.interval_days, interval > 0,
+                              let last = s.fund.entries.last else { return nil }
+                        return daysBetween(last.date, todayString()) >= interval ? true : nil
+                    }.count
+                    if actionableCount > 0 {
+                        Spacer()
+                        Text("\(actionableCount)")
+                            .font(.caption2).fontWeight(.bold).foregroundColor(.white)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Color.red).cornerRadius(8)
+                    }
+                }
+                .tag(NavItem.dashboard)
+
+                Label("Backtest", systemImage: "waveform.path.ecg")
+                    .tag(NavItem.backtest)
+                Label("Audit Trail", systemImage: "list.clipboard.fill")
+                    .tag(NavItem.auditTrail)
+                Label("Platforms", systemImage: "building.2.fill")
+                    .tag(NavItem.platforms)
             }
 
             // Active funds grouped by platform
@@ -212,6 +243,12 @@ struct MacContentView: View {
             switch selectedNav {
             case .dashboard, .none:
                 DashboardView()
+            case .backtest:
+                BacktestView()
+            case .auditTrail:
+                AuditTrailView()
+            case .platforms:
+                PlatformsView()
             case .settings:
                 SettingsView()
             case .fund(let id):
