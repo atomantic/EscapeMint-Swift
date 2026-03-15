@@ -3,11 +3,14 @@ import Charts
 
 struct PlatformDetailView: View {
     let platform: String
-    @State private var funds: [FundData] = []
-    @State private var summaries: [FundSummary] = []
+    private var store: FundDataStore { .shared }
 
-    var activeSummaries: [FundSummary] { summaries.filter { $0.fund.config.status != .closed } }
-    var closedSummaries: [FundSummary] { summaries.filter { $0.fund.config.status == .closed } }
+    var platformSummaries: [FundSummary] {
+        store.summaries.filter { $0.fund.platform == platform }
+            .sorted { $0.currentValue > $1.currentValue }
+    }
+    var activeSummaries: [FundSummary] { platformSummaries.filter { $0.fund.config.status != .closed } }
+    var closedSummaries: [FundSummary] { platformSummaries.filter { $0.fund.config.status == .closed } }
 
     var body: some View {
         ScrollView {
@@ -15,7 +18,7 @@ struct PlatformDetailView: View {
                 #if os(macOS)
                 header
                 #endif
-                if !summaries.isEmpty {
+                if !platformSummaries.isEmpty {
                     metricsPanel
                     breakdownPanel
                     #if os(macOS)
@@ -29,10 +32,6 @@ struct PlatformDetailView: View {
         }
         .background(Color.bg.ignoresSafeArea())
         .navigationTitle(platform.capitalized)
-        .task { await loadFunds() }
-        .onReceive(NotificationCenter.default.publisher(for: .fundsDidChange)) { _ in
-            Task { await loadFunds() }
-        }
     }
 
     // MARK: - Header (macOS)
@@ -59,11 +58,11 @@ struct PlatformDetailView: View {
 
     @ViewBuilder
     private var metricsPanel: some View {
-        let totalFundSize = summaries.reduce(0.0) { $0 + ($1.fund.config.fund_size_usd ?? 0) }
+        let totalFundSize = platformSummaries.reduce(0.0) { $0 + ($1.fund.config.fund_size_usd ?? 0) }
         let totalValue = activeSummaries.reduce(0.0) { $0 + $1.currentValue }
         let totalInvested = activeSummaries.reduce(0.0) { $0 + $1.state.startInputUsd }
         let totalUnrealized = activeSummaries.reduce(0.0) { $0 + $1.unrealizedGains }
-        let totalRealized = summaries.reduce(0.0) { $0 + $1.state.realizedGainsUsd }
+        let totalRealized = platformSummaries.reduce(0.0) { $0 + $1.state.realizedGainsUsd }
         let liquidPL = totalUnrealized + totalRealized
         let liquidPct = totalInvested > 0 ? liquidPL / totalInvested : 0
 
@@ -92,7 +91,7 @@ struct PlatformDetailView: View {
     private var breakdownPanel: some View {
         // Single-pass reduce over summaries
         var totalCash = 0.0, totalDividends = 0.0, totalExpenses = 0.0, totalInterest = 0.0
-        let _ = summaries.forEach { s in
+        let _ = platformSummaries.forEach { s in
             if s.fund.config.status != .closed { totalCash += s.state.cashAvailableUsd }
             totalDividends += entriesToDividends(s.fund.entries).reduce(0.0) { $0 + $1.amountUsd }
             totalExpenses += entriesToExpenses(s.fund.entries).reduce(0.0) { $0 + $1.amountUsd }
@@ -258,10 +257,4 @@ struct PlatformDetailView: View {
         #endif
     }
 
-    private func loadFunds() async {
-        let allFunds = await FundStore.shared.readAllFunds()
-        funds = allFunds.filter { $0.platform == platform }
-        summaries = funds.map { FundSummary($0) }
-            .sorted { $0.currentValue > $1.currentValue }
-    }
 }

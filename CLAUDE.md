@@ -70,6 +70,12 @@ Backup JSON format: `{ "version": 1, "exported": "...", "funds": [...] }` — si
 - Platform-specific code guarded with `#if os(macOS)` / `#if os(iOS)`
 - `FundSummary` pre-computes state + metrics to avoid redundant computation across views
 
+## Git Workflow
+
+After completing a significant feature or enhancement:
+1. Run `/simplify` to review changed code for reuse, quality, and efficiency — fix any issues found
+2. Commit and push to the default branch
+
 ## References
 
 - Web app (reference impl): `../EscapeMint/`

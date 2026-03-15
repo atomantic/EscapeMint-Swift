@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct PlatformsView: View {
-    @State private var funds: [FundData] = []
+    private var store: FundDataStore { .shared }
     @State private var showDeleteAlert = false
     @State private var platformToDelete: String? = nil
     @State private var showCreateFund = false
@@ -20,7 +20,7 @@ struct PlatformsView: View {
     }
 
     var platformInfos: [PlatformInfo] {
-        let grouped = Dictionary(grouping: funds, by: { $0.platform })
+        let grouped = Dictionary(grouping: store.funds, by: { $0.platform })
         return grouped.map { platform, platformFunds in
             PlatformInfo(
                 name: platform,
@@ -56,10 +56,6 @@ struct PlatformsView: View {
             }
         }
         #endif
-        .task { loadFunds() }
-        .onReceive(NotificationCenter.default.publisher(for: .fundsDidChange)) { _ in
-            loadFunds()
-        }
         .alert("Cannot Delete Platform", isPresented: $showDeleteAlert) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -73,7 +69,7 @@ struct PlatformsView: View {
             Text(renameErrorMessage)
         }
         .sheet(isPresented: $showCreateFund) {
-            CreateFundView { loadFunds() }
+            CreateFundView { Task { await store.reload() } }
         }
     }
 
@@ -240,11 +236,6 @@ struct PlatformsView: View {
 
     // MARK: - Actions
 
-    private func loadFunds() {
-        Task {
-            funds = await FundStore.shared.readAllFunds()
-        }
-    }
 
     private func attemptDelete(_ info: PlatformInfo) {
         if info.fundCount > 0 {
@@ -264,7 +255,7 @@ struct PlatformsView: View {
         }
 
         Task {
-            let platformFunds = funds.filter { $0.platform == oldName }
+            let platformFunds = store.funds.filter { $0.platform == oldName }
             for fund in platformFunds {
                 let newId = "\(cleanName)-\(fund.ticker)"
                 try? await FundStore.shared.writeFund(FundData(platform: cleanName, ticker: fund.ticker, config: fund.config, entries: fund.entries))
@@ -273,8 +264,7 @@ struct PlatformsView: View {
                 }
             }
             editingPlatform = nil
-            loadFunds()
-            notifyFundsChanged()
+            await store.reload()
         }
     }
 }

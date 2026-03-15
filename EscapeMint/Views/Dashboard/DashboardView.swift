@@ -2,16 +2,13 @@ import SwiftUI
 import Charts
 
 struct DashboardView: View {
-    @State private var funds: [FundData] = []
-    @State private var summaries: [FundSummary] = []
-    @State private var portfolio = PortfolioMetrics()
+    private var store: FundDataStore { .shared }
     @State private var showCreateFund = false
     @State private var showImport = false
     @State private var showCharts = false
     @State private var timeSeries: [PortfolioTimeSeriesPoint] = []
     @State private var platformFilter: String? = nil
     @State private var viewMode: ViewMode = .grid
-    @State private var actionableFunds: [ActionableFund] = []
     @State private var dismissedAlertIds: Set<String> = []
 
     enum ViewMode: String, CaseIterable {
@@ -20,20 +17,18 @@ struct DashboardView: View {
     }
 
     var activeSummaries: [FundSummary] {
-        let active = summaries.filter { $0.fund.config.status != .closed }
+        let active = store.summaries.filter { $0.fund.config.status != .closed }
         guard let filter = platformFilter else { return active }
         return active.filter { $0.fund.platform == filter }
     }
 
     var closedSummaries: [FundSummary] {
-        let closed = summaries.filter { $0.fund.config.status == .closed }
+        let closed = store.summaries.filter { $0.fund.config.status == .closed }
         guard let filter = platformFilter else { return closed }
         return closed.filter { $0.fund.platform == filter }
     }
 
-    var platforms: [String] {
-        Array(Set(funds.map(\.platform))).sorted()
-    }
+    var platforms: [String] { store.platforms }
 
     var body: some View {
         Group {
@@ -49,12 +44,12 @@ struct DashboardView: View {
                 }
             }
             .sheet(isPresented: $showCreateFund) {
-                CreateFundView { loadFunds() }
+                CreateFundView { Task { await store.reload() } }
             }
         #endif
         }
         .onChange(of: showCharts) { _, on in
-            if on && timeSeries.isEmpty { timeSeries = computePortfolioTimeSeries(funds) }
+            if on && timeSeries.isEmpty { timeSeries = computePortfolioTimeSeries(store.funds) }
         }
     }
 
@@ -65,11 +60,11 @@ struct DashboardView: View {
         ScrollView {
             VStack(spacing: 16) {
                 dashboardHeader
-                if !actionableFunds.isEmpty {
-                    ActionableFundsBanner(actionableFunds: actionableFunds, dismissedIds: $dismissedAlertIds)
+                if !store.actionableFunds.isEmpty {
+                    ActionableFundsBanner(actionableFunds: store.actionableFunds, dismissedIds: $dismissedAlertIds)
                 }
                 metricsGrid
-                if showCharts && !funds.isEmpty {
+                if showCharts && !store.funds.isEmpty {
                     dashboardCharts
                 }
                 toolbarRow
@@ -78,10 +73,7 @@ struct DashboardView: View {
             .padding()
         }
         .background(Color.bg.ignoresSafeArea())
-        .task { loadFunds() }
-        .onReceive(NotificationCenter.default.publisher(for: .fundsDidChange)) { _ in
-            loadFunds()
-        }
+        .onChange(of: store.revision) { _, _ in timeSeries = [] }
     }
 
     // MARK: - iOS Dashboard
@@ -92,12 +84,12 @@ struct DashboardView: View {
             VStack(spacing: 12) {
                 // iOS header controls
                 iosHeaderControls
-                if !actionableFunds.isEmpty {
-                    ActionableFundsBanner(actionableFunds: actionableFunds, dismissedIds: $dismissedAlertIds)
+                if !store.actionableFunds.isEmpty {
+                    ActionableFundsBanner(actionableFunds: store.actionableFunds, dismissedIds: $dismissedAlertIds)
                         .padding(.horizontal)
                 }
                 iosMetricsGrid
-                if showCharts && !funds.isEmpty {
+                if showCharts && !store.funds.isEmpty {
                     iosDashboardCharts
                 }
                 fundList
@@ -110,11 +102,8 @@ struct DashboardView: View {
         .toolbarBackground(Color.bgCard, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         #endif
-        .task { loadFunds() }
-        .refreshable { loadFunds() }
-        .onReceive(NotificationCenter.default.publisher(for: .fundsDidChange)) { _ in
-            loadFunds()
-        }
+        .refreshable { await store.reload() }
+        .onChange(of: store.revision) { _, _ in timeSeries = [] }
     }
 
     // MARK: - iOS Header Controls
@@ -123,7 +112,7 @@ struct DashboardView: View {
     private var iosHeaderControls: some View {
         VStack(spacing: 8) {
             HStack {
-                Text("\(portfolio.activeFunds) active \u{2022} \(portfolio.closedFunds) closed")
+                Text("\(store.portfolio.activeFunds) active \u{2022} \(store.portfolio.closedFunds) closed")
                     .font(.caption).foregroundColor(.textSecondary)
                 Spacer()
                 Button { showCharts.toggle() } label: {
@@ -148,9 +137,9 @@ struct DashboardView: View {
 
     @ViewBuilder
     private var iosMetricsGrid: some View {
-        let p = portfolio
+        let p = store.portfolio
         LazyVGrid(columns: [.init(.flexible(), spacing: 8), .init(.flexible(), spacing: 8)], spacing: 8) {
-            MetricCard(label: "Fund Size", value: formatCurrency(p.totalFundSize), sub: "\(funds.count) funds")
+            MetricCard(label: "Fund Size", value: formatCurrency(p.totalFundSize), sub: "\(store.funds.count) funds")
             MetricCard(label: "Value", value: formatCurrency(p.totalValue), sub: "\(p.activeFunds) active")
             MetricCard(label: "Realized", value: formatCurrency(p.totalRealizedGains), color: p.totalRealizedGains > 0 ? .mint : .red)
             MetricCard(label: "R.APY", value: formatPercent(p.realizedAPY), color: p.realizedAPY > 0 ? .mint : .red)
@@ -192,7 +181,7 @@ struct DashboardView: View {
                 Text("Dashboard")
                     .font(.largeTitle).fontWeight(.bold)
                     .foregroundColor(.textPrimary)
-                Text("\(portfolio.activeFunds) active \u{2022} \(portfolio.closedFunds) closed")
+                Text("\(store.portfolio.activeFunds) active \u{2022} \(store.portfolio.closedFunds) closed")
                     .font(.subheadline).foregroundColor(.textSecondary)
             }
 
@@ -231,7 +220,7 @@ struct DashboardView: View {
             .buttonStyle(.borderedProminent)
             .tint(.mint)
             .sheet(isPresented: $showCreateFund) {
-                CreateFundView { loadFunds() }
+                CreateFundView { Task { await store.reload() } }
             }
         }
     }
@@ -240,9 +229,9 @@ struct DashboardView: View {
 
     @ViewBuilder
     private var metricsGrid: some View {
-        let p = portfolio
+        let p = store.portfolio
         LazyVGrid(columns: Array(repeating: .init(.flexible(), spacing: 10), count: 5), spacing: 10) {
-            MetricCard(label: "Total Fund Size", value: formatCurrency(p.totalFundSize), sub: "\(funds.count) funds")
+            MetricCard(label: "Total Fund Size", value: formatCurrency(p.totalFundSize), sub: "\(store.funds.count) funds")
             MetricCard(label: "Current Value", value: formatCurrency(p.totalValue), sub: "\(p.activeFunds) active")
             MetricCard(label: "Realized Gain", value: formatCurrency(p.totalRealizedGains), color: p.totalRealizedGains > 0 ? .mint : .red)
             MetricCard(label: "Realized APY", value: formatPercent(p.realizedAPY), color: p.realizedAPY > 0 ? .mint : .red)
@@ -258,10 +247,10 @@ struct DashboardView: View {
 
     @ViewBuilder
     private var metricsScroll: some View {
-        let p = portfolio
+        let p = store.portfolio
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                MetricCard(label: "Fund Size", value: formatCurrency(p.totalFundSize), sub: "\(funds.count) funds")
+                MetricCard(label: "Fund Size", value: formatCurrency(p.totalFundSize), sub: "\(store.funds.count) funds")
                 MetricCard(label: "Value", value: formatCurrency(p.totalValue), sub: "\(p.activeFunds) active")
                 MetricCard(label: "Realized", value: formatCurrency(p.totalRealizedGains), color: p.totalRealizedGains > 0 ? .mint : .red)
                 MetricCard(label: "R.APY", value: formatPercent(p.realizedAPY), color: p.realizedAPY > 0 ? .mint : .red)
@@ -465,7 +454,7 @@ struct DashboardView: View {
 
     @ViewBuilder
     private var emptyState: some View {
-        if funds.isEmpty {
+        if store.funds.isEmpty {
             VStack(spacing: 12) {
                 Image(systemName: "leaf.fill")
                     .font(.largeTitle).foregroundColor(.mint)
@@ -493,32 +482,6 @@ struct DashboardView: View {
     }
 
     // MARK: - Actions
-
-    private func loadFunds() {
-        Task {
-            funds = await FundStore.shared.readAllFunds()
-            // Compute portfolio first (single pass over all funds)
-            portfolio = computePortfolioMetrics(funds)
-            // Build summaries from pre-computed portfolio data instead of recomputing
-            summaries = computeSummariesFromPortfolio(funds: funds, portfolio: portfolio)
-                .sorted { $0.currentValue > $1.currentValue }
-            actionableFunds = computeActionableFunds(funds)
-            updateDockBadge(actionableFunds.count)
-            // Invalidate time series so next chart open recomputes
-            timeSeries = []
-            if showCharts {
-                timeSeries = computePortfolioTimeSeries(funds)
-            }
-        }
-    }
-
-    private func updateDockBadge(_ count: Int) {
-        #if os(macOS)
-        DispatchQueue.main.async {
-            NSApp.dockTile.badgeLabel = count > 0 ? "\(count)" : nil
-        }
-        #endif
-    }
 
     private func pickAndImport() {
         #if os(macOS)
@@ -552,8 +515,7 @@ struct DashboardView: View {
             defer { if gotAccess { url.stopAccessingSecurityScopedResource() } }
             let count = try? await FundStore.shared.importFromDirectory(url)
             if (count ?? 0) > 0 {
-                loadFunds()
-                notifyFundsChanged()
+                await store.reload()
             }
         }
     }
@@ -575,12 +537,8 @@ struct DashboardView: View {
 extension Notification.Name {
     static let selectFund = Notification.Name("selectFund")
     static let selectDashboard = Notification.Name("selectDashboard")
-    static let fundsDidChange = Notification.Name("fundsDidChange")
-    static let selectPlatform = Notification.Name("selectPlatform")
-}
 
-func notifyFundsChanged() {
-    NotificationCenter.default.post(name: .fundsDidChange, object: nil)
+    static let selectPlatform = Notification.Name("selectPlatform")
 }
 
 // MARK: - Subviews

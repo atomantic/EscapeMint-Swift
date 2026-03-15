@@ -188,28 +188,28 @@ struct EditFundView: View {
         let platformChanged = platform != fund.platform
         let tickerChanged = ticker != fund.ticker
 
+        let store = FundDataStore.shared
         Task {
             if platformChanged || tickerChanged {
-                // Identity changed — need to write as new fund and delete old
+                // Identity changed — write as new fund and delete old, then full reload
                 var newFund = fund
                 newFund.platform = platform
                 newFund.ticker = ticker
                 newFund.config = config
                 try? await FundStore.shared.writeFund(newFund)
                 try? await FundStore.shared.deleteFund(id: fund.id)
+                await store.reload()
             } else {
-                try? await FundStore.shared.updateConfig(fundId: fund.id, config: config)
+                await store.updateConfig(fundId: fund.id, config: config)
             }
             onSaved()
-            notifyFundsChanged()
             dismiss()
         }
     }
 
     private func deleteFund() {
         Task {
-            try? await FundStore.shared.deleteFund(id: fund.id)
-            notifyFundsChanged()
+            await FundDataStore.shared.deleteFund(id: fund.id)
             dismiss()
             onDeleted?() ?? onSaved()
         }

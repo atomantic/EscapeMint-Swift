@@ -10,11 +10,16 @@ final class FundDataStore {
     private(set) var funds: [FundData] = []
     private(set) var isLoaded = false
 
+    /// Incremented on every recompute — views can observe this to invalidate caches
+    private(set) var revision: Int = 0
+
     // Pre-computed derived state (updated on every refresh)
     private(set) var portfolio = PortfolioMetrics()
     private(set) var summaries: [FundSummary] = []
     private(set) var summaryMap: [String: FundSummary] = [:]
     private(set) var actionableFunds: [ActionableFund] = []
+    private(set) var auditEntries: [AuditEntry] = []
+    private(set) var platforms: [String] = []
 
     private init() {}
 
@@ -43,10 +48,6 @@ final class FundDataStore {
 
     func summary(byId id: String) -> FundSummary? {
         summaryMap[id]
-    }
-
-    func funds(forPlatform platform: String) -> [FundData] {
-        funds.filter { $0.platform == platform }
     }
 
     // MARK: - Mutations (update memory + disk)
@@ -105,6 +106,30 @@ final class FundDataStore {
         for s in summaries { map[s.fund.id] = s }
         summaryMap = map
         actionableFunds = computeActionableFunds(funds)
+        platforms = Array(Set(funds.map(\.platform))).sorted()
+
+        // Pre-compute audit entries so AuditTrailView doesn't rebuild on every render
+        var entries: [AuditEntry] = []
+        for fund in funds {
+            for entry in fund.entries {
+                entries.append(AuditEntry(
+                    id: "\(fund.id)-\(entry.id)",
+                    date: entry.date,
+                    ticker: fund.ticker,
+                    platform: fund.platform,
+                    fundId: fund.id,
+                    value: entry.value,
+                    action: entry.action,
+                    amount: entry.amount,
+                    dividend: entry.dividend,
+                    expense: entry.expense,
+                    notes: entry.notes
+                ))
+            }
+        }
+        auditEntries = entries.sorted { $0.date > $1.date }
+
+        revision += 1
         updateDockBadge(actionableFunds.count)
     }
 

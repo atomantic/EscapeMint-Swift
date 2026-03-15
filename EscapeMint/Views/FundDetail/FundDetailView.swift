@@ -3,7 +3,7 @@ import Charts
 
 struct FundDetailView: View {
     let fundId: String
-    @State private var fund: FundData?
+    private var store: FundDataStore { .shared }
     @State private var showAddEntry = false
     @State private var showEditFund = false
     @State private var showEditEntry = false
@@ -11,8 +11,10 @@ struct FundDetailView: View {
     @State private var selectedEntryIndex: Int?
     @State private var visibleColumns: Set<String> = []
     @State private var showColumnConfig = false
-    @State private var summary: FundSummary?
     @State private var showStats = true
+
+    private var fund: FundData? { store.fund(byId: fundId) }
+    private var summary: FundSummary? { store.summary(byId: fundId) }
 
     var body: some View {
         Group {
@@ -24,7 +26,6 @@ struct FundDetailView: View {
                     .background(Color.bg.ignoresSafeArea())
             }
         }
-        .task { await loadFund() }
         .navigationTitle(fund.map { "\($0.ticker.uppercased()) (\($0.platform))" } ?? "Fund")
         .toolbar {
             if fund != nil {
@@ -40,14 +41,14 @@ struct FundDetailView: View {
         .sheet(isPresented: $showAddEntry) {
             if let fund {
                 AddEntryView(fundId: fund.id, fundType: fund.config.fund_type ?? .stock) {
-                    Task { await loadFund() }
+                    Task { await store.reload() }
                 }
             }
         }
         .sheet(isPresented: $showEditFund) {
             if let fund {
                 EditFundView(fund: fund, onSaved: {
-                    Task { await loadFund() }
+                    Task { await store.reload() }
                 }, onDeleted: {
                     NotificationCenter.default.post(name: .selectDashboard, object: nil)
                 })
@@ -56,7 +57,7 @@ struct FundDetailView: View {
         .sheet(isPresented: $showEditEntry) {
             if let fund, let entry = selectedEntry, let entryIndex = selectedEntryIndex {
                 EditEntryView(entry: entry, entryIndex: entryIndex, fundId: fund.id, fundType: fund.config.fund_type ?? .stock) {
-                    Task { await loadFund() }
+                    Task { await store.reload() }
                 }
             }
         }
@@ -558,11 +559,6 @@ struct FundDetailView: View {
         }
     }
 
-    private func loadFund() async {
-        let loaded = await FundStore.shared.readFundById(fundId)
-        fund = loaded
-        summary = loaded.map { FundSummary($0) }
-    }
 }
 
 // MARK: - Stat Box

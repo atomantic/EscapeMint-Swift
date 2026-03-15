@@ -25,7 +25,7 @@ struct ContentView: View {
     @AppStorage("escapemint-intro-completed") private var introCompleted = false
     @AppStorage("escapemint-show-intro-on-launch") private var showIntroOnLaunch = false
     @State private var showIntroGuide = false
-    private var store = FundDataStore.shared
+    private var store: FundDataStore { .shared }
 
     var body: some View {
         Group {
@@ -102,7 +102,7 @@ struct ContentView: View {
 
 #if os(macOS)
 struct MacContentView: View {
-    private var store = FundDataStore.shared
+    private var store: FundDataStore { .shared }
     @State private var selectedNav: NavItem? = .dashboard
 
     enum NavItem: Hashable {

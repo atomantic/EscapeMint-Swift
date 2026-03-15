@@ -86,9 +86,8 @@ struct AddEntryView: View {
         if !notes.isEmpty { entry.notes = notes }
 
         Task {
-            try? await FundStore.shared.appendEntry(fundId: fundId, entry: entry)
+            await FundDataStore.shared.appendEntry(fundId: fundId, entry: entry)
             onSaved()
-            notifyFundsChanged()
             dismiss()
         }
     }

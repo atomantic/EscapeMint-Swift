@@ -256,9 +256,8 @@ struct CreateFundView: View {
         )
 
         Task {
-            try? await FundStore.shared.writeFund(fund)
+            await FundDataStore.shared.addFund(fund)
             onCreated()
-            notifyFundsChanged()
             dismiss()
         }
     }

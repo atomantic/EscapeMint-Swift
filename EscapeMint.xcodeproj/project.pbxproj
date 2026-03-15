@@ -34,6 +34,7 @@
 		4410F30862490B374CCE6632 /* EditFundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5178FBFF2608094D106457C0 /* EditFundView.swift */; };
 		48B9FEC85A997B31A366F9E4 /* coinbasetest-btc.tsv in Resources */ = {isa = PBXBuildFile; fileRef = EE13E05BF89434FDA4849CA4 /* coinbasetest-btc.tsv */; };
 		496BA8A4C43BF265DAF6205F /* vti-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 72B24FDF289E498E5460BB1F /* vti-weekly.json */; };
+		4CC387AE5BD815C7DCE6AC66 /* FundDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B5C0157B3A2F0FEB594AA56 /* FundDataStore.swift */; };
 		53B861E3892CB31EF24911BF /* coinbasetest-cash.tsv in Resources */ = {isa = PBXBuildFile; fileRef = E0E8FFADDDBD64D9D18EDA3F /* coinbasetest-cash.tsv */; };
 		55587AFF22810DD9D1BB3D76 /* slv-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 8BE8950DBDF58E24133D5122 /* slv-weekly.json */; };
 		58D0B9DE1C246402ADD32CF6 /* AppearanceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0653A0CB7C81F563F38D00C1 /* AppearanceManager.swift */; };
@@ -54,6 +55,7 @@
 		800271A5BCD7F0CD15434FED /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0536F00CCC4E2347521E1B56 /* Theme.swift */; };
 		82B10A98F56FB62DE964F54F /* gld-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 2FA36F78945896AA5A44225F /* gld-weekly.json */; };
 		84A52F16EF27156A386853DE /* BacktestEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E725D16A17E4F0835D06D981 /* BacktestEngine.swift */; };
+		881770F19680895E015AC2CE /* FundDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B5C0157B3A2F0FEB594AA56 /* FundDataStore.swift */; };
 		8B2DE7CE44327991FE480DB3 /* tqqq-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = AA7B587266915BE35EF3BDDF /* tqqq-weekly.json */; };
 		8BDFE951A555911094A4F7FF /* robinhoodtest-spxl.json in Resources */ = {isa = PBXBuildFile; fileRef = 2324DA91E49C3F0CD95CE1DE /* robinhoodtest-spxl.json */; };
 		8BF59AB08706035EC43FBCFB /* ActionableFundsBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA79537E5DE06EC77B10C04 /* ActionableFundsBanner.swift */; };
@@ -124,6 +126,7 @@
 		0E936380A18BD7F2191F202E /* PlatformModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformModifiers.swift; sourceTree = "<group>"; };
 		123ED17F2A466332A31D87A3 /* FundTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundTypes.swift; sourceTree = "<group>"; };
 		15B673A9482FD463F5027CA9 /* Converters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Converters.swift; sourceTree = "<group>"; };
+		1B5C0157B3A2F0FEB594AA56 /* FundDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundDataStore.swift; sourceTree = "<group>"; };
 		2057B87E511BC30733DF4121 /* EscapeMintTests_macOS.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EscapeMintTests_macOS.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		21D4714188FFBF94FFC7D146 /* robinhoodtest-spxl.tsv */ = {isa = PBXFileReference; path = "robinhoodtest-spxl.tsv"; sourceTree = "<group>"; };
 		2259AF8CF6454043EE230821 /* robinhoodtest-tqqq.tsv */ = {isa = PBXFileReference; path = "robinhoodtest-tqqq.tsv"; sourceTree = "<group>"; };
@@ -246,6 +249,7 @@
 		7DEF6F00992DF917714B9B53 /* Storage */ = {
 			isa = PBXGroup;
 			children = (
+				1B5C0157B3A2F0FEB594AA56 /* FundDataStore.swift */,
 				8234569B6F7DD6620418A099 /* FundStore.swift */,
 			);
 			path = Storage;
@@ -572,6 +576,7 @@
 				3FF9F76DC70C4D2D2AAA77E2 /* EditEntryView.swift in Sources */,
 				952FF89A615E2D3D7D2B804A /* EditFundView.swift in Sources */,
 				42536F85618CDA7693CC33F2 /* EscapeMintApp.swift in Sources */,
+				4CC387AE5BD815C7DCE6AC66 /* FundDataStore.swift in Sources */,
 				FFE3C12B0B0AABC7A36F4F7B /* FundDetailView.swift in Sources */,
 				766BF0790E63551102726710 /* FundEngine.swift in Sources */,
 				F339FA95C574744D9FAFC2AD /* FundStore.swift in Sources */,
@@ -605,6 +610,7 @@
 				B2458A2217463775A1EE26B3 /* EditEntryView.swift in Sources */,
 				4410F30862490B374CCE6632 /* EditFundView.swift in Sources */,
 				CFF07BF43EECAB7A8E1A4ECB /* EscapeMintApp.swift in Sources */,
+				881770F19680895E015AC2CE /* FundDataStore.swift in Sources */,
 				9D06DBF112A37DE74E6DE5A9 /* FundDetailView.swift in Sources */,
 				0CA6CF646D2EF74DD5AC7700 /* FundEngine.swift in Sources */,
 				43ABDDC343390B9A629C8276 /* FundStore.swift in Sources */,

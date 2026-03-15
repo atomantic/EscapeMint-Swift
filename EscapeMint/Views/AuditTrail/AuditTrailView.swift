@@ -15,13 +15,15 @@ struct AuditEntry: Identifiable {
 }
 
 struct AuditTrailView: View {
-    @State private var allEntries: [AuditEntry] = []
+    private var store: FundDataStore { .shared }
     @State private var platformFilter: String? = nil
     @State private var actionFilter: FundAction? = nil
     @State private var tickerSearch: String = ""
-    @State private var platforms: [String] = []
     @State private var dateFrom: Date? = nil
     @State private var dateTo: Date? = nil
+
+    private var allEntries: [AuditEntry] { store.auditEntries }
+    private var platforms: [String] { store.platforms }
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -126,9 +128,6 @@ struct AuditTrailView: View {
         #if os(iOS)
         .navigationTitle("Audit Trail")
         #endif
-        .task {
-            await loadEntries()
-        }
     }
 
     // MARK: - Stats Cards Content
@@ -444,37 +443,4 @@ struct AuditTrailView: View {
         dateTo = nil
     }
 
-    // MARK: - Data Loading
-
-    private func loadEntries() async {
-        let funds = await FundStore.shared.readAllFunds()
-        var entries: [AuditEntry] = []
-        var platformSet: Set<String> = []
-
-        for fund in funds {
-            platformSet.insert(fund.platform)
-            for entry in fund.entries {
-                entries.append(AuditEntry(
-                    id: "\(fund.id)-\(entry.id)",
-                    date: entry.date,
-                    ticker: fund.ticker,
-                    platform: fund.platform,
-                    fundId: fund.id,
-                    value: entry.value,
-                    action: entry.action,
-                    amount: entry.amount,
-                    dividend: entry.dividend,
-                    expense: entry.expense,
-                    notes: entry.notes
-                ))
-            }
-        }
-
-        entries.sort { $0.date > $1.date }
-
-        await MainActor.run {
-            allEntries = entries
-            platforms = platformSet.sorted()
-        }
-    }
 }

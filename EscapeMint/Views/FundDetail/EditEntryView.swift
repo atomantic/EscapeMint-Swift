@@ -2,6 +2,7 @@ import SwiftUI
 
 struct EditEntryView: View {
     @Environment(\.dismiss) private var dismiss
+    private var store: FundDataStore { .shared }
     let entry: FundEntry
     let entryIndex: Int
     let fundId: String
@@ -114,24 +115,22 @@ struct EditEntryView: View {
         updated.notes = notes.isEmpty ? nil : notes
 
         Task {
-            guard var fund = await FundStore.shared.readFundById(fundId) else { return }
+            guard var fund = store.fund(byId: fundId) else { return }
             guard entryIndex >= 0 && entryIndex < fund.entries.count else { return }
             fund.entries[entryIndex] = updated
-            try? await FundStore.shared.replaceEntries(fundId: fundId, entries: fund.entries)
+            await store.replaceEntries(fundId: fundId, entries: fund.entries)
             onSaved()
-            notifyFundsChanged()
             dismiss()
         }
     }
 
     private func deleteEntry() {
         Task {
-            guard var fund = await FundStore.shared.readFundById(fundId) else { return }
+            guard var fund = store.fund(byId: fundId) else { return }
             guard entryIndex >= 0 && entryIndex < fund.entries.count else { return }
             fund.entries.remove(at: entryIndex)
-            try? await FundStore.shared.replaceEntries(fundId: fundId, entries: fund.entries)
+            await store.replaceEntries(fundId: fundId, entries: fund.entries)
             onSaved()
-            notifyFundsChanged()
             dismiss()
         }
     }

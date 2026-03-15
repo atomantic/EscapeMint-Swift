@@ -157,7 +157,7 @@ struct SettingsView: View {
                 showToast("Import failed: \(error.localizedDescription)")
             }
             await refreshStats()
-            notifyFundsChanged()
+            await FundDataStore.shared.reload()
         }
     }
 
@@ -233,7 +233,7 @@ struct SettingsView: View {
                 showToast("Import failed: \(error.localizedDescription)")
             }
             await refreshStats()
-            notifyFundsChanged()
+            await FundDataStore.shared.reload()
         }
     }
 
@@ -241,8 +241,8 @@ struct SettingsView: View {
         Task {
             do {
                 let count = try await FundStore.shared.loadTestData()
+                await FundDataStore.shared.reload()
                 await refreshStats()
-                notifyFundsChanged()
                 showToast("Created \(count) test funds with simulated DCA history")
             } catch {
                 showToast("Failed to load test data: \(error.localizedDescription)")
@@ -254,8 +254,8 @@ struct SettingsView: View {
         Task {
             do {
                 let count = try await FundStore.shared.deleteTestFunds()
+                await FundDataStore.shared.reload()
                 await refreshStats()
-                notifyFundsChanged()
                 showToast("Deleted \(count) test fund(s)")
             } catch {
                 showToast("Failed to remove test data: \(error.localizedDescription)")
@@ -276,15 +276,15 @@ struct SettingsView: View {
                     try FileManager.default.moveItem(at: backupURL, to: dest)
                     try? await FundStore.shared.deleteAllFunds()
                     await refreshStats()
-                    notifyFundsChanged()
+                    await FundDataStore.shared.reload()
                     showToast("Backed up \(stats.fundCount) fund(s), then cleared")
                 } catch {
                     showToast("Backup failed: \(error.localizedDescription)")
                 }
             } else {
                 try? await FundStore.shared.deleteAllFunds()
+                await FundDataStore.shared.reload()
                 await refreshStats()
-                notifyFundsChanged()
                 showToast("All data cleared")
             }
         }
