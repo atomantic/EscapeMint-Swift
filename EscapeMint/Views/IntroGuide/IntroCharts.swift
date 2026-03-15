@@ -1,7 +1,7 @@
 import SwiftUI
 import Charts
 
-// MARK: - Chart Data Types
+// MARK: - Shared Data & Helpers
 
 private struct GrowthPoint: Identifiable {
     let id: Int
@@ -21,6 +21,8 @@ private struct PriceTargetPoint: Identifiable {
     let x: Double
     let price: Double
     let target: Double
+    var buyZoneBottom: Double { min(price, target) }
+    var sellZoneTop: Double { max(price, target) }
 }
 
 private struct BuySellBadge: Identifiable {
@@ -35,6 +37,96 @@ private struct LeveragePoint: Identifiable {
     let date: String
     let brgnx: Double
     let spxl: Double
+}
+
+private let investedPurple = Color(red: 139/255, green: 92/255, blue: 246/255)
+
+/// Cached historical data — loaded once from disk, shared across all intro charts
+private let cachedHistoricalData: [String: HistoricalData] = loadHistoricalData()
+
+/// Shared price/target sample data used by TraditionalDCAChart and BuySellZonesChart
+private let sharedPriceTargetData: (data: [PriceTargetPoint], yMin: Double, yMax: Double) = {
+    var pts: [PriceTargetPoint] = []
+    let points = 60
+    for i in 0...points {
+        let progress = Double(i) / Double(points)
+        let target = 100.0 * pow(1.20, progress * 2.0)
+        let wave1 = sin(progress * .pi * 4) * 25
+        let wave2 = sin(progress * .pi * 7) * 15
+        let price = target + wave1 + wave2
+        pts.append(PriceTargetPoint(id: i, x: Double(i), price: price, target: target))
+    }
+    let allValues = pts.flatMap { [$0.price, $0.target] }
+    return (pts, (allValues.min() ?? 0) * 0.85, (allValues.max() ?? 200) * 1.1)
+}()
+
+/// Finds local minima (BUY) and maxima (SELL) relative to target line
+private func findBuySellBadges(in data: [PriceTargetPoint]) -> [BuySellBadge] {
+    var found: [BuySellBadge] = []
+    var badgeId = 0
+    for i in 3..<(data.count - 3) {
+        let price = data[i].price, target = data[i].target
+        let prev = data[i - 1].price, next = data[i + 1].price
+        if price < target && price < prev && price < next && (target - price) > 5 {
+            found.append(BuySellBadge(id: badgeId, x: Double(i), price: price, isBuy: true))
+            badgeId += 1
+        }
+        if price > target && price > prev && price > next && (price - target) > 5 {
+            found.append(BuySellBadge(id: badgeId, x: Double(i), price: price, isBuy: false))
+            badgeId += 1
+        }
+    }
+    return found.count > 6 ? found.enumerated().filter { $0.offset % 2 == 0 }.map(\.element) : found
+}
+
+/// Renders BUY/SELL badge labels positioned on the chart
+@ViewBuilder
+private func badgeOverlay(badges: [BuySellBadge], data: [PriceTargetPoint], visibleCount: Int, proxy: ChartProxy, geo: GeometryProxy) -> some View {
+    if let plotFrame = proxy.plotFrame {
+        let plotArea = geo[plotFrame]
+        ForEach(badges.filter { $0.x < Double(visibleCount) }) { badge in
+            let pt = data[Int(badge.x)]
+            if let xPos = proxy.position(forX: pt.x),
+               let yPos = proxy.position(forY: pt.price) {
+                Text(badge.isBuy ? "BUY" : "SELL")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(badge.isBuy ? Color.mint : Color.red)
+                    .cornerRadius(3)
+                    .position(x: plotArea.origin.x + xPos,
+                              y: plotArea.origin.y + yPos + (badge.isBuy ? 16 : -16))
+            }
+        }
+    }
+}
+
+// MARK: - Intro dollar Y-axis (smaller values, no comma formatting)
+
+@AxisContentBuilder
+private func introDollarAxis() -> some AxisContent {
+    AxisMarks(position: .leading) { value in
+        AxisValueLabel {
+            if let v = value.as(Double.self) {
+                Text("$\(Int(v))").font(.caption2).foregroundColor(.textMuted)
+            }
+        }
+    }
+}
+
+@AxisContentBuilder
+private func introKAxis() -> some AxisContent {
+    AxisMarks(position: .leading) { value in
+        AxisValueLabel {
+            if let v = value.as(Double.self) {
+                if v >= 1000 {
+                    Text("$\(Int(v / 1000))K").font(.caption2).foregroundColor(.textMuted)
+                } else {
+                    Text("\(Int(v))").font(.caption2).foregroundColor(.textMuted)
+                }
+            }
+        }
+    }
 }
 
 // MARK: - Market Growth Chart (Step 2)
@@ -62,20 +154,13 @@ struct MarketGrowthChart: View {
             let visible = Array(data.prefix(visibleCount))
 
             Chart(visible) { point in
-                AreaMark(
-                    x: .value("Year", point.year),
-                    y: .value("Value", point.value)
-                )
-                .foregroundStyle(Color.mint.opacity(0.15))
-                .interpolationMethod(.catmullRom)
-
-                LineMark(
-                    x: .value("Year", point.year),
-                    y: .value("Value", point.value)
-                )
-                .foregroundStyle(Color.mint)
-                .lineStyle(StrokeStyle(lineWidth: 3))
-                .interpolationMethod(.catmullRom)
+                AreaMark(x: .value("Year", point.year), y: .value("Value", point.value))
+                    .foregroundStyle(Color.mint.opacity(0.15))
+                    .interpolationMethod(.catmullRom)
+                LineMark(x: .value("Year", point.year), y: .value("Value", point.value))
+                    .foregroundStyle(Color.mint)
+                    .lineStyle(StrokeStyle(lineWidth: 3))
+                    .interpolationMethod(.catmullRom)
             }
             .chartYScale(domain: 0...(data.last?.value ?? 700) * 1.1)
             .chartXScale(domain: 2005...2025)
@@ -88,15 +173,7 @@ struct MarketGrowthChart: View {
                     }
                 }
             }
-            .chartYAxis {
-                AxisMarks(position: .leading) { value in
-                    AxisValueLabel {
-                        if let v = value.as(Double.self) {
-                            Text("$\(Int(v))").font(.caption2).foregroundColor(.textMuted)
-                        }
-                    }
-                }
-            }
+            .chartYAxis { introDollarAxis() }
             .frame(height: 220)
 
             if visibleCount >= data.count {
@@ -106,14 +183,8 @@ struct MarketGrowthChart: View {
                     .transition(.opacity)
             }
         }
-        .padding(12)
-        .background(Color.bgCard)
-        .cornerRadius(12)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 2.0)) {
-                animationProgress = 1.0
-            }
-        }
+        .padding(12).background(Color.bgCard).cornerRadius(12)
+        .onAppear { withAnimation(.easeInOut(duration: 2.0)) { animationProgress = 1.0 } }
     }
 }
 
@@ -155,37 +226,20 @@ struct VolatilityComparisonChart: View {
 
             Chart {
                 ForEach(visible) { point in
-                    LineMark(
-                        x: .value("X", point.x),
-                        y: .value("Expected", point.straight),
-                        series: .value("Series", "Expected")
-                    )
-                    .foregroundStyle(Color.textMuted)
-                    .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 5]))
-                    .interpolationMethod(.catmullRom)
-
-                    LineMark(
-                        x: .value("X", point.x),
-                        y: .value("Reality", point.volatile),
-                        series: .value("Series", "Reality")
-                    )
-                    .foregroundStyle(Color.mint)
-                    .lineStyle(StrokeStyle(lineWidth: 2.5))
-                    .interpolationMethod(.catmullRom)
+                    LineMark(x: .value("X", point.x), y: .value("Expected", point.straight), series: .value("Series", "Expected"))
+                        .foregroundStyle(Color.textMuted)
+                        .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 5]))
+                        .interpolationMethod(.catmullRom)
+                    LineMark(x: .value("X", point.x), y: .value("Reality", point.volatile), series: .value("Series", "Reality"))
+                        .foregroundStyle(Color.mint)
+                        .lineStyle(StrokeStyle(lineWidth: 2.5))
+                        .interpolationMethod(.catmullRom)
                 }
             }
             .chartXAxis(.hidden)
             .chartXScale(domain: 0...100)
             .chartYScale(domain: yMin...yMax)
-            .chartYAxis {
-                AxisMarks(position: .leading) { value in
-                    AxisValueLabel {
-                        if let v = value.as(Double.self) {
-                            Text("$\(Int(v))").font(.caption2).foregroundColor(.textMuted)
-                        }
-                    }
-                }
-            }
+            .chartYAxis { introDollarAxis() }
             .chartLegend(.hidden)
             .frame(height: 220)
 
@@ -195,14 +249,8 @@ struct VolatilityComparisonChart: View {
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(12)
-        .background(Color.bgCard)
-        .cornerRadius(12)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 2.5)) {
-                animationProgress = 1.0
-            }
-        }
+        .padding(12).background(Color.bgCard).cornerRadius(12)
+        .onAppear { withAnimation(.easeInOut(duration: 2.5)) { animationProgress = 1.0 } }
     }
 }
 
@@ -217,23 +265,12 @@ struct TraditionalDCAChart: View {
     private let buyPoints: [BuySellBadge]
 
     init() {
-        var pts: [PriceTargetPoint] = []
-        let points = 60
-        for i in 0...points {
-            let progress = Double(i) / Double(points)
-            let target = 100.0 * pow(1.20, progress * 2.0)
-            let wave1 = sin(progress * .pi * 4) * 25
-            let wave2 = sin(progress * .pi * 7) * 15
-            let price = target + wave1 + wave2
-            pts.append(PriceTargetPoint(id: i, x: Double(i), price: price, target: target))
-        }
-        self.data = pts
-        let allValues = pts.flatMap { [$0.price, $0.target] }
-        self.yMin = (allValues.min() ?? 0) * 0.85
-        self.yMax = (allValues.max() ?? 200) * 1.1
-
+        let shared = sharedPriceTargetData
+        self.data = shared.data
+        self.yMin = shared.yMin
+        self.yMax = shared.yMax
         self.buyPoints = [5, 15, 25, 35, 45, 55].enumerated().map { idx, pos in
-            BuySellBadge(id: idx, x: Double(pos), price: pts[pos].price, isBuy: true)
+            BuySellBadge(id: idx, x: Double(pos), price: shared.data[pos].price, isBuy: true)
         }
     }
 
@@ -248,50 +285,31 @@ struct TraditionalDCAChart: View {
 
             Chart {
                 ForEach(visible) { point in
-                    if point.price > point.target {
-                        AreaMark(
-                            x: .value("X", point.x),
-                            yStart: .value("Target", point.target),
-                            yEnd: .value("Price", point.price)
-                        )
+                    AreaMark(x: .value("X", point.x), yStart: .value("Target", point.target), yEnd: .value("SellTop", point.sellZoneTop))
                         .foregroundStyle(Color.orange.opacity(0.3))
                         .interpolationMethod(.catmullRom)
-                    }
                 }
-
                 ForEach(visible) { point in
-                    LineMark(
-                        x: .value("X", point.x),
-                        y: .value("Target", point.target),
-                        series: .value("Series", "Target")
-                    )
-                    .foregroundStyle(Color.orange)
-                    .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 5]))
-                    .interpolationMethod(.catmullRom)
-
-                    LineMark(
-                        x: .value("X", point.x),
-                        y: .value("Price", point.price),
-                        series: .value("Series", "Price")
-                    )
-                    .foregroundStyle(Color.textPrimary)
-                    .lineStyle(StrokeStyle(lineWidth: 2.5))
-                    .interpolationMethod(.catmullRom)
+                    LineMark(x: .value("X", point.x), y: .value("Target", point.target), series: .value("Series", "Target"))
+                        .foregroundStyle(Color.orange)
+                        .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 5]))
+                        .interpolationMethod(.catmullRom)
+                    LineMark(x: .value("X", point.x), y: .value("Price", point.price), series: .value("Series", "Price"))
+                        .foregroundStyle(Color.textPrimary)
+                        .lineStyle(StrokeStyle(lineWidth: 2.5))
+                        .interpolationMethod(.catmullRom)
                 }
             }
             .chartXAxis(.hidden)
             .chartXScale(domain: 0...60)
             .chartYScale(domain: yMin...yMax)
-            .chartYAxis {
-                AxisMarks(position: .leading) { value in
-                    AxisValueLabel {
-                        if let v = value.as(Double.self) {
-                            Text("$\(Int(v))").font(.caption2).foregroundColor(.textMuted)
-                        }
-                    }
+            .chartYAxis { introDollarAxis() }
+            .chartLegend(.hidden)
+            .chartOverlay { proxy in
+                GeometryReader { geo in
+                    badgeOverlay(badges: buyPoints, data: data, visibleCount: visibleCount, proxy: proxy, geo: geo)
                 }
             }
-            .chartLegend(.hidden)
             .frame(height: 220)
 
             HStack(spacing: 16) {
@@ -303,14 +321,8 @@ struct TraditionalDCAChart: View {
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(12)
-        .background(Color.bgCard)
-        .cornerRadius(12)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 2.5)) {
-                animationProgress = 1.0
-            }
-        }
+        .padding(12).background(Color.bgCard).cornerRadius(12)
+        .onAppear { withAnimation(.easeInOut(duration: 2.5)) { animationProgress = 1.0 } }
     }
 }
 
@@ -322,22 +334,14 @@ struct BuySellZonesChart: View {
     private let data: [PriceTargetPoint]
     private let yMin: Double
     private let yMax: Double
+    private let badges: [BuySellBadge]
 
     init() {
-        var pts: [PriceTargetPoint] = []
-        let points = 60
-        for i in 0...points {
-            let progress = Double(i) / Double(points)
-            let target = 100.0 * pow(1.20, progress * 2.0)
-            let wave1 = sin(progress * .pi * 4) * 25
-            let wave2 = sin(progress * .pi * 7) * 15
-            let price = target + wave1 + wave2
-            pts.append(PriceTargetPoint(id: i, x: Double(i), price: price, target: target))
-        }
-        self.data = pts
-        let allValues = pts.flatMap { [$0.price, $0.target] }
-        self.yMin = (allValues.min() ?? 0) * 0.85
-        self.yMax = (allValues.max() ?? 200) * 1.1
+        let shared = sharedPriceTargetData
+        self.data = shared.data
+        self.yMin = shared.yMin
+        self.yMax = shared.yMax
+        self.badges = findBuySellBadges(in: shared.data)
     }
 
     var body: some View {
@@ -351,84 +355,52 @@ struct BuySellZonesChart: View {
 
             Chart {
                 ForEach(visible) { point in
-                    if point.price < point.target {
-                        AreaMark(
-                            x: .value("X", point.x),
-                            yStart: .value("Target", point.target),
-                            yEnd: .value("Price", point.price)
-                        )
+                    AreaMark(x: .value("X", point.x), yStart: .value("Target", point.target), yEnd: .value("BuyBottom", point.buyZoneBottom))
                         .foregroundStyle(Color.mint.opacity(0.3))
                         .interpolationMethod(.catmullRom)
-                    }
                 }
-
                 ForEach(visible) { point in
-                    if point.price > point.target {
-                        AreaMark(
-                            x: .value("X", point.x),
-                            yStart: .value("Target", point.target),
-                            yEnd: .value("Price", point.price)
-                        )
+                    AreaMark(x: .value("X", point.x), yStart: .value("Target2", point.target), yEnd: .value("SellTop", point.sellZoneTop))
                         .foregroundStyle(Color.red.opacity(0.3))
                         .interpolationMethod(.catmullRom)
-                    }
                 }
-
                 ForEach(visible) { point in
-                    LineMark(
-                        x: .value("X", point.x),
-                        y: .value("Target", point.target),
-                        series: .value("Series", "Target")
-                    )
-                    .foregroundStyle(Color.orange)
-                    .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 5]))
-                    .interpolationMethod(.catmullRom)
-
-                    LineMark(
-                        x: .value("X", point.x),
-                        y: .value("Price", point.price),
-                        series: .value("Series", "Price")
-                    )
-                    .foregroundStyle(Color.textPrimary)
-                    .lineStyle(StrokeStyle(lineWidth: 2.5))
-                    .interpolationMethod(.catmullRom)
+                    LineMark(x: .value("X", point.x), y: .value("Target", point.target), series: .value("Series", "Target"))
+                        .foregroundStyle(Color.orange)
+                        .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 5]))
+                        .interpolationMethod(.catmullRom)
+                    LineMark(x: .value("X", point.x), y: .value("Price", point.price), series: .value("Series", "Price"))
+                        .foregroundStyle(Color.textPrimary)
+                        .lineStyle(StrokeStyle(lineWidth: 2.5))
+                        .interpolationMethod(.catmullRom)
                 }
             }
             .chartXAxis(.hidden)
             .chartXScale(domain: 0...60)
             .chartYScale(domain: yMin...yMax)
-            .chartYAxis {
-                AxisMarks(position: .leading) { value in
-                    AxisValueLabel {
-                        if let v = value.as(Double.self) {
-                            Text("$\(Int(v))").font(.caption2).foregroundColor(.textMuted)
-                        }
-                    }
+            .chartYAxis { introDollarAxis() }
+            .chartLegend(.hidden)
+            .chartOverlay { proxy in
+                GeometryReader { geo in
+                    badgeOverlay(badges: badges, data: data, visibleCount: visibleCount, proxy: proxy, geo: geo)
                 }
             }
-            .chartLegend(.hidden)
             .frame(height: 220)
 
             HStack(spacing: 16) {
                 HStack(spacing: 4) {
                     RoundedRectangle(cornerRadius: 2).fill(Color.mint.opacity(0.5)).frame(width: 12, height: 12)
-                    Text("Buy zone").font(.caption2).foregroundColor(.textMuted)
+                    Text("Buy zone (below target)").font(.caption2).foregroundColor(.textMuted)
                 }
                 HStack(spacing: 4) {
                     RoundedRectangle(cornerRadius: 2).fill(Color.red.opacity(0.5)).frame(width: 12, height: 12)
-                    Text("Sell zone").font(.caption2).foregroundColor(.textMuted)
+                    Text("Sell zone (above target)").font(.caption2).foregroundColor(.textMuted)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(12)
-        .background(Color.bgCard)
-        .cornerRadius(12)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 2.5)) {
-                animationProgress = 1.0
-            }
-        }
+        .padding(12).background(Color.bgCard).cornerRadius(12)
+        .onAppear { withAnimation(.easeInOut(duration: 2.5)) { animationProgress = 1.0 } }
     }
 }
 
@@ -437,59 +409,16 @@ struct BuySellZonesChart: View {
 struct LeverageComparisonChart: View {
     @State private var animationProgress: Double = 0
     @State private var viewMode: LeverageViewMode = .price
+    @State private var cachedPriceData: [LeveragePoint] = []
+    @State private var cachedDcaData: [LeveragePoint] = []
 
     enum LeverageViewMode: String, CaseIterable {
         case price = "Price"
         case dca = "$100/wk DCA"
     }
 
-    private let historicalData: [String: HistoricalData]
-
-    init() {
-        self.historicalData = loadHistoricalData()
-    }
-
-    private var priceData: [LeveragePoint] {
-        guard let brgnx = historicalData["BRGNX"],
-              let spxl = historicalData["SPXL"] else { return [] }
-        let spxlByDate = Dictionary(uniqueKeysWithValues: spxl.prices.map { ($0.date, $0.value) })
-        let brgnxStart = brgnx.prices.first?.value ?? 1
-        let spxlStart = spxl.prices.first?.value ?? 1
-
-        return brgnx.prices.enumerated().compactMap { i, bp in
-            guard let sv = spxlByDate[bp.date] else { return nil }
-            return LeveragePoint(
-                id: i,
-                date: bp.date,
-                brgnx: (bp.value / brgnxStart) * 100,
-                spxl: (sv / spxlStart) * 100
-            )
-        }
-    }
-
-    private var dcaData: [LeveragePoint] {
-        guard let brgnx = historicalData["BRGNX"],
-              let spxl = historicalData["SPXL"] else { return [] }
-        let spxlByDate = Dictionary(uniqueKeysWithValues: spxl.prices.map { ($0.date, $0.value) })
-        var brgnxShares = 0.0, spxlShares = 0.0
-        let weekly = 100.0
-
-        return brgnx.prices.enumerated().compactMap { i, bp in
-            guard let sv = spxlByDate[bp.date] else { return nil }
-            brgnxShares += weekly / bp.value
-            spxlShares += weekly / sv
-            return LeveragePoint(
-                id: i,
-                date: bp.date,
-                brgnx: brgnxShares * bp.value,
-                spxl: spxlShares * sv
-            )
-        }
-    }
-
     private var chartData: [LeveragePoint] {
-        let source = viewMode == .price ? priceData : dcaData
-        return samplePoints(source, maxPoints: 80)
+        sampleArray(viewMode == .price ? cachedPriceData : cachedDcaData, maxPoints: 80)
     }
 
     private func yRange(for data: [LeveragePoint]) -> ClosedRange<Double> {
@@ -502,68 +431,32 @@ struct LeverageComparisonChart: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Picker("View", selection: $viewMode) {
-                ForEach(LeverageViewMode.allCases, id: \.self) { mode in
-                    Text(mode.rawValue).tag(mode)
-                }
+                ForEach(LeverageViewMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }
-            .pickerStyle(.segmented)
-            .frame(width: 200)
+            .pickerStyle(.segmented).frame(width: 200)
             .frame(maxWidth: .infinity, alignment: .center)
 
             Text(viewMode == .price ? "Price: Normalized to 100 at start" : "DCA: $100/week invested")
                 .font(.caption).foregroundColor(.textMuted)
                 .frame(maxWidth: .infinity, alignment: .center)
 
-            let fullData = viewMode == .price ? priceData : dcaData
+            let fullData = viewMode == .price ? cachedPriceData : cachedDcaData
             let fullRange = yRange(for: fullData)
-            let visibleCount = max(1, Int(animationProgress * Double(chartData.count)))
-            let visible = Array(chartData.prefix(visibleCount))
+            let sampled = chartData
+            let visibleCount = max(1, Int(animationProgress * Double(sampled.count)))
+            let visible = Array(sampled.prefix(visibleCount))
 
             Chart {
                 ForEach(visible) { point in
-                    LineMark(
-                        x: .value("Date", point.date),
-                        y: .value("BRGNX", point.brgnx),
-                        series: .value("Series", "BRGNX")
-                    )
-                    .foregroundStyle(Color.blue)
-                    .lineStyle(StrokeStyle(lineWidth: 2))
-                    .interpolationMethod(.catmullRom)
-
-                    LineMark(
-                        x: .value("Date", point.date),
-                        y: .value("SPXL", point.spxl),
-                        series: .value("Series", "SPXL")
-                    )
-                    .foregroundStyle(Color.mint)
-                    .lineStyle(StrokeStyle(lineWidth: 2))
-                    .interpolationMethod(.catmullRom)
+                    LineMark(x: .value("Date", point.date), y: .value("BRGNX", point.brgnx), series: .value("Series", "BRGNX"))
+                        .foregroundStyle(Color.blue).lineStyle(StrokeStyle(lineWidth: 2)).interpolationMethod(.catmullRom)
+                    LineMark(x: .value("Date", point.date), y: .value("SPXL", point.spxl), series: .value("Series", "SPXL"))
+                        .foregroundStyle(Color.mint).lineStyle(StrokeStyle(lineWidth: 2)).interpolationMethod(.catmullRom)
                 }
             }
-            .chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                    AxisValueLabel {
-                        if let str = value.as(String.self) {
-                            Text(String(str.suffix(7)))
-                                .font(.caption2).foregroundColor(.textMuted)
-                        }
-                    }
-                }
-            }
+            .chartXAxis { emDateAxis() }
             .chartYScale(domain: fullRange)
-            .chartYAxis {
-                AxisMarks(position: .leading) { value in
-                    AxisValueLabel {
-                        if let v = value.as(Double.self) {
-                            if v >= 1000 {
-                                Text("$\(Int(v / 1000))K").font(.caption2).foregroundColor(.textMuted)
-                            } else {
-                                Text("\(Int(v))").font(.caption2).foregroundColor(.textMuted)
-                            }
-                        }
-                    }
-                }
-            }
+            .chartYAxis { introKAxis() }
             .chartLegend(.hidden)
             .frame(height: 220)
 
@@ -573,74 +466,84 @@ struct LeverageComparisonChart: View {
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(12)
-        .background(Color.bgCard)
-        .cornerRadius(12)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 2.0)) {
-                animationProgress = 1.0
-            }
-        }
+        .padding(12).background(Color.bgCard).cornerRadius(12)
+        .task { computeLeverageData() }
+        .onAppear { withAnimation(.easeInOut(duration: 2.0)) { animationProgress = 1.0 } }
         .onChange(of: viewMode) { _, _ in
             animationProgress = 0
-            withAnimation(.easeInOut(duration: 2.0)) {
-                animationProgress = 1.0
-            }
+            withAnimation(.easeInOut(duration: 2.0)) { animationProgress = 1.0 }
         }
+    }
+
+    private func computeLeverageData() {
+        let hist = cachedHistoricalData
+        guard let brgnx = hist["BRGNX"], let spxl = hist["SPXL"] else { return }
+        let spxlByDate = Dictionary(uniqueKeysWithValues: spxl.prices.map { ($0.date, $0.value) })
+        let brgnxStart = brgnx.prices.first?.value ?? 1
+        let spxlStart = spxl.prices.first?.value ?? 1
+
+        var pricePoints: [LeveragePoint] = []
+        var dcaPoints: [LeveragePoint] = []
+        var brgnxShares = 0.0, spxlShares = 0.0
+        let weekly = 100.0
+
+        for (i, bp) in brgnx.prices.enumerated() {
+            guard let sv = spxlByDate[bp.date] else { continue }
+            pricePoints.append(LeveragePoint(id: i, date: bp.date,
+                brgnx: (bp.value / brgnxStart) * 100, spxl: (sv / spxlStart) * 100))
+            brgnxShares += weekly / bp.value
+            spxlShares += weekly / sv
+            dcaPoints.append(LeveragePoint(id: i, date: bp.date,
+                brgnx: brgnxShares * bp.value, spxl: spxlShares * sv))
+        }
+        cachedPriceData = pricePoints
+        cachedDcaData = dcaPoints
     }
 }
 
 // MARK: - Mode Comparison Chart (Step 7)
-// Matches web app: stacked areas (invested purple + cash green) + value line (orange) + target line (cyan dashed)
 
 struct ModeComparisonChart: View {
-    private let historicalData: [String: HistoricalData]
     @State private var harvestResult: BacktestResult?
     @State private var accumulateResult: BacktestResult?
-
-    init() {
-        self.historicalData = loadHistoricalData()
-    }
 
     var body: some View {
         VStack(spacing: 12) {
             if let harvest = harvestResult, let accumulate = accumulateResult {
                 HStack(spacing: 12) {
-                    modeChart(result: harvest, title: "Harvest Mode (TQQQ)", color: .mint)
-                    modeChart(result: accumulate, title: "Accumulate Mode (TQQQ)", color: .blue)
+                    modeChart(result: harvest, targetAPY: 0.52, title: "Harvest Mode (TQQQ)", color: .mint)
+                    modeChart(result: accumulate, targetAPY: 0.20, title: "Accumulate Mode (TQQQ)", color: .blue)
                 }
 
                 HStack(spacing: 12) {
                     legendItem(color: .orange, label: "Value", style: .line)
-                    legendItem(color: Color(red: 139/255, green: 92/255, blue: 246/255), label: "Invested", style: .square)
+                    legendItem(color: investedPurple, label: "Invested", style: .square)
                     legendItem(color: .mint, label: "Cash", style: .square)
                     legendItem(color: .cyan, label: "Target", style: .dashed)
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
             } else {
                 ProgressView("Loading backtest data...")
-                    .frame(height: 180)
-                    .frame(maxWidth: .infinity)
+                    .frame(height: 180).frame(maxWidth: .infinity)
             }
         }
-        .padding(12)
-        .background(Color.bgCard)
-        .cornerRadius(12)
+        .padding(12).background(Color.bgCard).cornerRadius(12)
         .task {
             var harvestCfg = BacktestConfig()
             harvestCfg.spxlPct = 0; harvestCfg.vtiPct = 0; harvestCfg.brgnxPct = 0
             harvestCfg.tqqqPct = 1.0; harvestCfg.btcPct = 0; harvestCfg.gldPct = 0; harvestCfg.slvPct = 0
-            harvestCfg.targetAPY = 0.52; harvestCfg.accumulate = false
-            harvestCfg.inputMax = 350
+            harvestCfg.targetAPY = 0.52; harvestCfg.accumulate = false; harvestCfg.inputMax = 350
 
             var accCfg = BacktestConfig()
             accCfg.spxlPct = 0; accCfg.vtiPct = 0; accCfg.brgnxPct = 0
             accCfg.tqqqPct = 1.0; accCfg.btcPct = 0; accCfg.gldPct = 0; accCfg.slvPct = 0
             accCfg.targetAPY = 0.20; accCfg.accumulate = true
 
-            let hist = historicalData
-            harvestResult = await Task.detached { runBacktest(config: harvestCfg, historicalData: hist) }.value
-            accumulateResult = await Task.detached { runBacktest(config: accCfg, historicalData: hist) }.value
+            let hist = cachedHistoricalData
+            async let h = Task.detached { runBacktest(config: harvestCfg, historicalData: hist) }.value
+            async let a = Task.detached { runBacktest(config: accCfg, historicalData: hist) }.value
+            harvestResult = await h
+            accumulateResult = await a
         }
     }
 
@@ -656,9 +559,7 @@ struct ModeComparisonChart: View {
                 RoundedRectangle(cornerRadius: 2).fill(color.opacity(0.6)).frame(width: 8, height: 8)
             case .dashed:
                 HStack(spacing: 1) {
-                    ForEach(0..<3, id: \.self) { _ in
-                        Rectangle().fill(color).frame(width: 3, height: 2)
-                    }
+                    ForEach(0..<3, id: \.self) { _ in Rectangle().fill(color).frame(width: 3, height: 2) }
                 }
             }
             Text(label).font(.system(size: 9)).foregroundColor(.textMuted)
@@ -666,21 +567,14 @@ struct ModeComparisonChart: View {
     }
 
     @ViewBuilder
-    private func modeChart(result: BacktestResult, title: String, color: Color) -> some View {
-        let sampled = sampleBacktestEntries(result.entries, maxPoints: 60)
-        let purple = Color(red: 139/255, green: 92/255, blue: 246/255)
+    private func modeChart(result: BacktestResult, targetAPY: Double, title: String, color: Color) -> some View {
+        let sampled = sampleArray(result.entries, maxPoints: 60)
 
-        // Compute fixed Y range from full data
         let yMax: Double = {
             var m = 0.0
-            for e in result.entries {
-                m = max(m, e.totalValue, e.costBasis + e.cash)
-            }
+            for e in result.entries { m = max(m, e.totalValue, e.costBasis + e.cash) }
             return m * 1.1
         }()
-
-        // Compute expected target for each entry
-        let targetAPY = title.contains("Harvest") ? 0.52 : 0.20
 
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
@@ -691,54 +585,22 @@ struct ModeComparisonChart: View {
                 let entry = sampled[i]
                 let expectedTarget = entry.costBasis * (1.0 + targetAPY * Double(i) * 7.0 / 365.0)
 
-                // Invested area (purple) - from bottom
-                AreaMark(
-                    x: .value("Date", entry.date),
-                    y: .value("Invested", entry.costBasis)
-                )
-                .foregroundStyle(purple.opacity(0.4))
-                .interpolationMethod(.catmullRom)
-
-                // Cash area (green) - stacked on top of invested
-                AreaMark(
-                    x: .value("Date", entry.date),
-                    yStart: .value("InvBase", entry.costBasis),
-                    yEnd: .value("InvPlusCash", entry.costBasis + entry.cash)
-                )
-                .foregroundStyle(Color.mint.opacity(0.4))
-                .interpolationMethod(.catmullRom)
-
-                // Target line (cyan dashed)
-                LineMark(
-                    x: .value("Date", entry.date),
-                    y: .value("Target", expectedTarget),
-                    series: .value("Series", "Target")
-                )
-                .foregroundStyle(Color.cyan)
-                .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
-                .interpolationMethod(.catmullRom)
-
-                // Value line (orange)
-                LineMark(
-                    x: .value("Date", entry.date),
-                    y: .value("Value", entry.equity),
-                    series: .value("Series", "Value")
-                )
-                .foregroundStyle(Color.orange)
-                .lineStyle(StrokeStyle(lineWidth: 2))
-                .interpolationMethod(.catmullRom)
+                AreaMark(x: .value("Date", entry.date), y: .value("Invested", entry.costBasis))
+                    .foregroundStyle(investedPurple.opacity(0.4))
+                    .interpolationMethod(.catmullRom)
+                AreaMark(x: .value("Date", entry.date), yStart: .value("InvBase", entry.costBasis), yEnd: .value("InvPlusCash", entry.costBasis + entry.cash))
+                    .foregroundStyle(Color.mint.opacity(0.4))
+                    .interpolationMethod(.catmullRom)
+                LineMark(x: .value("Date", entry.date), y: .value("Target", expectedTarget), series: .value("Series", "Target"))
+                    .foregroundStyle(Color.cyan)
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+                    .interpolationMethod(.catmullRom)
+                LineMark(x: .value("Date", entry.date), y: .value("Value", entry.equity), series: .value("Series", "Value"))
+                    .foregroundStyle(Color.orange)
+                    .lineStyle(StrokeStyle(lineWidth: 2))
+                    .interpolationMethod(.catmullRom)
             }
-            .chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                    AxisValueLabel {
-                        if let str = value.as(String.self) {
-                            // Show "Jan '22" style
-                            Text(String(str.suffix(5)))
-                                .font(.system(size: 7)).foregroundColor(.textMuted)
-                        }
-                    }
-                }
-            }
+            .chartXAxis { emDateAxis() }
             .chartYScale(domain: 0...yMax)
             .chartYAxis {
                 AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
@@ -753,21 +615,4 @@ struct ModeComparisonChart: View {
             .frame(height: 180)
         }
     }
-}
-
-// MARK: - Helpers
-
-private func samplePoints(_ points: [LeveragePoint], maxPoints: Int) -> [LeveragePoint] {
-    guard points.count > maxPoints else { return points }
-    let step = max(1, points.count / maxPoints)
-    return points.enumerated()
-        .filter { $0.offset % step == 0 || $0.offset == points.count - 1 }
-        .map(\.element)
-}
-
-private func sampleBacktestEntries(_ entries: [BacktestResult.BacktestEntry], maxPoints: Int) -> [BacktestResult.BacktestEntry] {
-    let step = max(1, entries.count / maxPoints)
-    return entries.enumerated()
-        .filter { $0.offset % step == 0 || $0.offset == entries.count - 1 }
-        .map(\.element)
 }

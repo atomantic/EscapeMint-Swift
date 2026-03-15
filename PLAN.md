@@ -165,6 +165,11 @@ Match the web app's backtest page and use it as intro:
 - [x] Historical price data bundled (7 JSON files from web app)
 - [x] Backtest engine: blended price normalization, DCA simulation, recommendation engine
 - [x] Results: metric cards (final value, invested, gain, APY, max drawdown) + portfolio value chart
+- [x] Full 13-step intro guide modal (ported from web app) with animated SwiftUI Charts
+- [x] 6 chart types: market growth, volatility, traditional DCA, buy/sell zones, leverage comparison, mode comparison
+- [x] BUY/SELL badge labels on price/target charts
+- [x] Settings toggle: "Show intro on launch" + "Show Intro Guide" button
+- [x] Auto-show intro on first launch or when toggle enabled
 
 ---
 

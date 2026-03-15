@@ -14,3 +14,6 @@ Pods/
 
 # OS
 .DS_Store
+
+# Screenshots
+*.png
