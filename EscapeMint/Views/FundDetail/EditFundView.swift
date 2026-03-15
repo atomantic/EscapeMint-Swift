@@ -4,6 +4,7 @@ struct EditFundView: View {
     @Environment(\.dismiss) private var dismiss
     let fund: FundData
     let onSaved: () -> Void
+    var onDeleted: (() -> Void)?
 
     @State private var platform: String
     @State private var ticker: String
@@ -27,9 +28,10 @@ struct EditFundView: View {
     @State private var expenseFromFund: Bool
     @State private var showDeleteConfirm = false
 
-    init(fund: FundData, onSaved: @escaping () -> Void) {
+    init(fund: FundData, onSaved: @escaping () -> Void, onDeleted: (() -> Void)? = nil) {
         self.fund = fund
         self.onSaved = onSaved
+        self.onDeleted = onDeleted
         _platform = State(initialValue: fund.platform)
         _ticker = State(initialValue: fund.ticker)
         _fundSize = State(initialValue: String(fund.config.fund_size_usd ?? 0))
@@ -207,9 +209,9 @@ struct EditFundView: View {
     private func deleteFund() {
         Task {
             try? await FundStore.shared.deleteFund(id: fund.id)
-            onSaved()
             notifyFundsChanged()
             dismiss()
+            onDeleted?() ?? onSaved()
         }
     }
 }

@@ -143,6 +143,9 @@ struct MacContentView: View {
                 selectedNav = .fund(id)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .selectDashboard)) { _ in
+            selectedNav = .dashboard
+        }
         .onReceive(NotificationCenter.default.publisher(for: .selectPlatform)) { note in
             if let name = note.object as? String {
                 selectedNav = .platform(name)

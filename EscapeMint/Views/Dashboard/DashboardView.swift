@@ -8,6 +8,7 @@ struct DashboardView: View {
     @State private var showCreateFund = false
     @State private var showImport = false
     @State private var showCharts = false
+    @State private var timeSeries: [PortfolioTimeSeriesPoint] = []
     @State private var platformFilter: String? = nil
     @State private var viewMode: ViewMode = .grid
     @State private var actionableFunds: [ActionableFund] = []
@@ -35,6 +36,7 @@ struct DashboardView: View {
     }
 
     var body: some View {
+        Group {
         #if os(macOS)
         macDashboard
         #else
@@ -50,6 +52,10 @@ struct DashboardView: View {
                 CreateFundView { loadFunds() }
             }
         #endif
+        }
+        .onChange(of: showCharts) { _, on in
+            if on && timeSeries.isEmpty { timeSeries = computePortfolioTimeSeries(funds) }
+        }
     }
 
     // MARK: - macOS Dashboard
@@ -162,13 +168,17 @@ struct DashboardView: View {
     @ViewBuilder
     private var iosDashboardCharts: some View {
         VStack(spacing: 12) {
-            // Allocation pie charts (vertical stack on mobile)
+            // Allocation pie charts
             FundAllocationChart(summaries: activeSummaries)
             PortfolioAllocationChart(summaries: activeSummaries)
             PlatformAllocationChart(summaries: activeSummaries)
             // Time series
-            DashboardAPYChart(funds: funds)
-            DashboardGainChart(funds: funds)
+            DashboardAPYChart(points: timeSeries)
+            DashboardGainChart(points: timeSeries)
+            DashboardValueChart(points: timeSeries)
+            DashboardFundSizeChart(points: timeSeries)
+            DashboardLiquidValueChart(points: timeSeries)
+            DashboardMarginChart(points: timeSeries)
         }
         .padding(.horizontal)
     }
@@ -276,10 +286,14 @@ struct DashboardView: View {
             PlatformAllocationChart(summaries: activeSummaries)
         }
 
-        // Time series charts row
-        HStack(alignment: .top, spacing: 12) {
-            DashboardAPYChart(funds: funds)
-            DashboardGainChart(funds: funds)
+        // Time series charts — 2-column grid
+        LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
+            DashboardAPYChart(points: timeSeries)
+            DashboardGainChart(points: timeSeries)
+            DashboardValueChart(points: timeSeries)
+            DashboardFundSizeChart(points: timeSeries)
+            DashboardLiquidValueChart(points: timeSeries)
+            DashboardMarginChart(points: timeSeries)
         }
     }
 
@@ -490,6 +504,11 @@ struct DashboardView: View {
                 .sorted { $0.currentValue > $1.currentValue }
             actionableFunds = computeActionableFunds(funds)
             updateDockBadge(actionableFunds.count)
+            // Invalidate time series so next chart open recomputes
+            timeSeries = []
+            if showCharts {
+                timeSeries = computePortfolioTimeSeries(funds)
+            }
         }
     }
 
@@ -555,6 +574,7 @@ struct DashboardView: View {
 // MARK: - Notifications
 extension Notification.Name {
     static let selectFund = Notification.Name("selectFund")
+    static let selectDashboard = Notification.Name("selectDashboard")
     static let fundsDidChange = Notification.Name("fundsDidChange")
     static let selectPlatform = Notification.Name("selectPlatform")
 }

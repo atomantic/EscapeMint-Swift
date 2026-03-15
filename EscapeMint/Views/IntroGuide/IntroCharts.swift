@@ -109,65 +109,66 @@ private func priceTargetLines(_ visible: [PriceTargetPoint]) -> some ChartConten
     }
 }
 
-/// Draws buy (green) and sell (configurable color) zone fills using Canvas for pixel-perfect rendering
-private func zoneBackground(data: [PriceTargetPoint], visibleCount: Int, sellColor: Color, showBuyZone: Bool = true, xDomain: ClosedRange<Double>, yDomain: ClosedRange<Double>) -> some View {
+/// Draws buy (green) and sell (configurable color) zone fills using Canvas, aligned to the chart plot area
+private func zoneBackground(proxy: ChartProxy, data: [PriceTargetPoint], visibleCount: Int, sellColor: Color, showBuyZone: Bool = true, xDomain: ClosedRange<Double>, yDomain: ClosedRange<Double>) -> some View {
     GeometryReader { geo in
-        Canvas { context, size in
-            let visible = Array(data.prefix(visibleCount))
-            guard visible.count >= 2 else { return }
+        if let plotFrame = proxy.plotFrame {
+            let plotArea = geo[plotFrame]
+            Canvas { context, size in
+                let visible = Array(data.prefix(visibleCount))
+                guard visible.count >= 2 else { return }
 
-            func sx(_ x: Double) -> CGFloat {
-                let span = xDomain.upperBound - xDomain.lowerBound
-                return CGFloat((x - xDomain.lowerBound) / span) * size.width
-            }
-            func sy(_ y: Double) -> CGFloat {
-                let span = yDomain.upperBound - yDomain.lowerBound
-                return size.height - CGFloat((y - yDomain.lowerBound) / span) * size.height
-            }
-
-            var buyPath = Path()
-            var sellPath = Path()
-
-            for i in 0..<visible.count - 1 {
-                let p0 = visible[i], p1 = visible[i + 1]
-                let d0 = p0.price - p0.target, d1 = p1.price - p1.target
-
-                if d0 * d1 >= 0 {
-                    // Same zone — add trapezoid
-                    var trap = Path()
-                    trap.move(to: CGPoint(x: sx(p0.x), y: sy(p0.target)))
-                    trap.addLine(to: CGPoint(x: sx(p0.x), y: sy(p0.price)))
-                    trap.addLine(to: CGPoint(x: sx(p1.x), y: sy(p1.price)))
-                    trap.addLine(to: CGPoint(x: sx(p1.x), y: sy(p1.target)))
-                    trap.closeSubpath()
-                    if d0 >= 0 { sellPath.addPath(trap) }
-                    else { buyPath.addPath(trap) }
-                } else {
-                    // Crossover — split into two triangles
-                    let t = d0 / (d0 - d1)
-                    let cx = p0.x + t * (p1.x - p0.x)
-                    let cy = p0.target + t * (p1.target - p0.target)
-
-                    var tri0 = Path()
-                    tri0.move(to: CGPoint(x: sx(p0.x), y: sy(p0.target)))
-                    tri0.addLine(to: CGPoint(x: sx(p0.x), y: sy(p0.price)))
-                    tri0.addLine(to: CGPoint(x: sx(cx), y: sy(cy)))
-                    tri0.closeSubpath()
-                    if d0 >= 0 { sellPath.addPath(tri0) } else { buyPath.addPath(tri0) }
-
-                    var tri1 = Path()
-                    tri1.move(to: CGPoint(x: sx(cx), y: sy(cy)))
-                    tri1.addLine(to: CGPoint(x: sx(p1.x), y: sy(p1.price)))
-                    tri1.addLine(to: CGPoint(x: sx(p1.x), y: sy(p1.target)))
-                    tri1.closeSubpath()
-                    if d1 >= 0 { sellPath.addPath(tri1) } else { buyPath.addPath(tri1) }
+                func sx(_ x: Double) -> CGFloat {
+                    let span = xDomain.upperBound - xDomain.lowerBound
+                    return CGFloat((x - xDomain.lowerBound) / span) * plotArea.width + plotArea.origin.x
                 }
-            }
+                func sy(_ y: Double) -> CGFloat {
+                    let span = yDomain.upperBound - yDomain.lowerBound
+                    return plotArea.origin.y + plotArea.height - CGFloat((y - yDomain.lowerBound) / span) * plotArea.height
+                }
 
-            if showBuyZone {
-                context.fill(buyPath, with: .color(.mint.opacity(0.4)))
+                var buyPath = Path()
+                var sellPath = Path()
+
+                for i in 0..<visible.count - 1 {
+                    let p0 = visible[i], p1 = visible[i + 1]
+                    let d0 = p0.price - p0.target, d1 = p1.price - p1.target
+
+                    if d0 * d1 >= 0 {
+                        var trap = Path()
+                        trap.move(to: CGPoint(x: sx(p0.x), y: sy(p0.target)))
+                        trap.addLine(to: CGPoint(x: sx(p0.x), y: sy(p0.price)))
+                        trap.addLine(to: CGPoint(x: sx(p1.x), y: sy(p1.price)))
+                        trap.addLine(to: CGPoint(x: sx(p1.x), y: sy(p1.target)))
+                        trap.closeSubpath()
+                        if d0 >= 0 { sellPath.addPath(trap) }
+                        else { buyPath.addPath(trap) }
+                    } else {
+                        let t = d0 / (d0 - d1)
+                        let cx = p0.x + t * (p1.x - p0.x)
+                        let cy = p0.target + t * (p1.target - p0.target)
+
+                        var tri0 = Path()
+                        tri0.move(to: CGPoint(x: sx(p0.x), y: sy(p0.target)))
+                        tri0.addLine(to: CGPoint(x: sx(p0.x), y: sy(p0.price)))
+                        tri0.addLine(to: CGPoint(x: sx(cx), y: sy(cy)))
+                        tri0.closeSubpath()
+                        if d0 >= 0 { sellPath.addPath(tri0) } else { buyPath.addPath(tri0) }
+
+                        var tri1 = Path()
+                        tri1.move(to: CGPoint(x: sx(cx), y: sy(cy)))
+                        tri1.addLine(to: CGPoint(x: sx(p1.x), y: sy(p1.price)))
+                        tri1.addLine(to: CGPoint(x: sx(p1.x), y: sy(p1.target)))
+                        tri1.closeSubpath()
+                        if d1 >= 0 { sellPath.addPath(tri1) } else { buyPath.addPath(tri1) }
+                    }
+                }
+
+                if showBuyZone {
+                    context.fill(buyPath, with: .color(.mint.opacity(0.4)))
+                }
+                context.fill(sellPath, with: .color(sellColor.opacity(0.4)))
             }
-            context.fill(sellPath, with: .color(sellColor.opacity(0.4)))
         }
     }
 }
@@ -338,6 +339,9 @@ struct VolatilityComparisonChart: View {
 
             Chart {
                 ForEach(visible) { point in
+                    AreaMark(x: .value("X", point.x), y: .value("RealityFill", point.volatile))
+                        .foregroundStyle(Color.mint.opacity(0.1))
+                        .interpolationMethod(.catmullRom)
                     LineMark(x: .value("X", point.x), y: .value("Expected", point.straight), series: .value("Series", "Expected"))
                         .foregroundStyle(Color.textMuted)
                         .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 5]))
@@ -405,8 +409,8 @@ struct TraditionalDCAChart: View {
             .chartYScale(domain: yMin...yMax)
             .chartYAxis { introDollarAxis() }
             .chartLegend(.hidden)
-            .chartBackground { _ in
-                zoneBackground(data: data, visibleCount: visibleCount, sellColor: .orange,
+            .chartBackground { proxy in
+                zoneBackground(proxy: proxy, data: data, visibleCount: visibleCount, sellColor: .orange,
                                showBuyZone: false, xDomain: 0...60, yDomain: yMin...yMax)
             }
             .chartOverlay { proxy in
@@ -463,8 +467,8 @@ struct BuySellZonesChart: View {
             .chartYScale(domain: yMin...yMax)
             .chartYAxis { introDollarAxis() }
             .chartLegend(.hidden)
-            .chartBackground { _ in
-                zoneBackground(data: data, visibleCount: visibleCount, sellColor: .red,
+            .chartBackground { proxy in
+                zoneBackground(proxy: proxy, data: data, visibleCount: visibleCount, sellColor: .red,
                                xDomain: 0...60, yDomain: yMin...yMax)
             }
             .chartOverlay { proxy in

@@ -28,7 +28,13 @@ struct FundDetailView: View {
         .navigationTitle(fund.map { "\($0.ticker.uppercased()) (\($0.platform))" } ?? "Fund")
         .toolbar {
             if fund != nil {
-                Button("Edit") { showEditFund = true }
+                #if os(iOS)
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showEditFund = true } label: {
+                        Image(systemName: "gearshape")
+                    }
+                }
+                #endif
             }
         }
         .sheet(isPresented: $showAddEntry) {
@@ -40,9 +46,11 @@ struct FundDetailView: View {
         }
         .sheet(isPresented: $showEditFund) {
             if let fund {
-                EditFundView(fund: fund) {
+                EditFundView(fund: fund, onSaved: {
                     Task { await loadFund() }
-                }
+                }, onDeleted: {
+                    NotificationCenter.default.post(name: .selectDashboard, object: nil)
+                })
             }
         }
         .sheet(isPresented: $showEditEntry) {
@@ -71,6 +79,12 @@ struct FundDetailView: View {
                     Text("/").font(.caption).foregroundColor(.textMuted)
                     Text(fund.ticker.uppercased()).font(.caption).foregroundColor(.textPrimary).fontWeight(.medium)
                     Spacer()
+                    Button { showEditFund = true } label: {
+                        Label("Edit Fund", systemImage: "gearshape")
+                            .font(.callout).fontWeight(.medium)
+                            .foregroundColor(.textSecondary)
+                    }
+                    .buttonStyle(.plain)
                     Button { showAddEntry = true } label: {
                         Label("Take Action", systemImage: "plus.circle.fill")
                             .font(.callout).fontWeight(.medium)
@@ -652,26 +666,24 @@ struct ValueChartView: View {
     var body: some View {
         let sampled = sampleArray(entries)
 
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Value Over Time")
-                .font(.subheadline).fontWeight(.medium).foregroundColor(.textPrimary)
-
+        EMChartCard(title: "Value Over Time") {
+            if let last = sampled.last {
+                LegendDot(color: .mint, label: formatCurrency(last.value))
+            }
+        } chart: {
             Chart(sampled, id: \.date) { entry in
                 let d = isoDateFormatter.date(from: entry.date) ?? Date()
-                LineMark(x: .value("Date", d), y: .value("Value", entry.value))
-                    .foregroundStyle(Color.mint)
-                    .interpolationMethod(.catmullRom)
                 AreaMark(x: .value("Date", d), y: .value("Value", entry.value))
                     .foregroundStyle(Color.mint.opacity(0.15))
+                    .interpolationMethod(.catmullRom)
+                LineMark(x: .value("Date", d), y: .value("Value", entry.value))
+                    .foregroundStyle(Color.mint)
                     .interpolationMethod(.catmullRom)
             }
             .chartXAxis { emDateAxisTemporal() }
             .chartYAxis { emCurrencyAxis() }
             .frame(height: 160)
         }
-        .padding(12)
-        .background(Color.bgCard)
-        .cornerRadius(12)
     }
 }
 
@@ -683,28 +695,33 @@ struct PLChartView: View {
         let points = computePLPoints(entries: entries, config: config)
         let hasNegative = points.contains { $0.realized < 0 || $0.liquid < 0 }
 
-        VStack(alignment: .leading, spacing: 8) {
-            Text("P&L Over Time")
-                .font(.subheadline).fontWeight(.medium).foregroundColor(.textPrimary)
-
+        EMChartCard(title: "P&L Over Time") {
+            if let last = points.last {
+                LegendDot(color: .mint, label: "R: \(formatCurrency(last.realized))")
+                LegendDot(color: .blue, label: "L: \(formatCurrency(last.liquid))")
+            }
+        } chart: {
             Chart {
                 ForEach(points) { pt in
-                    LineMark(x: .value("Date", pt.date), y: .value("Realized", pt.realized))
+                    let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                    AreaMark(x: .value("Date", d), y: .value("Liquid", pt.liquid))
+                        .foregroundStyle(Color.blue.opacity(0.1))
+                        .interpolationMethod(.catmullRom)
+                    LineMark(x: .value("Date", d), y: .value("Realized", pt.realized))
                         .foregroundStyle(by: .value("Type", "Realized"))
-                    LineMark(x: .value("Date", pt.date), y: .value("Liquid", pt.liquid))
+                        .interpolationMethod(.catmullRom)
+                    LineMark(x: .value("Date", d), y: .value("Liquid", pt.liquid))
                         .foregroundStyle(by: .value("Type", "Liquid"))
+                        .interpolationMethod(.catmullRom)
                 }
                 if hasNegative { emZeroLine() }
             }
             .chartForegroundStyleScale(["Realized": Color.mint, "Liquid": Color.blue])
-            .chartXAxis { emDateAxis() }
+            .chartXAxis { emDateAxisTemporal() }
             .chartYAxis { emCurrencyAxis() }
-            .chartLegend(position: .top, spacing: 4)
+            .chartLegend(.hidden)
             .frame(height: 160)
         }
-        .padding(12)
-        .background(Color.bgCard)
-        .cornerRadius(12)
     }
 }
 
@@ -716,28 +733,33 @@ struct APYChartView: View {
         let points = computeAPYPoints(entries: entries, config: config)
         let hasNegative = points.contains { $0.realizedAPY < 0 || $0.liquidAPY < 0 }
 
-        VStack(alignment: .leading, spacing: 8) {
-            Text("APY Over Time")
-                .font(.subheadline).fontWeight(.medium).foregroundColor(.textPrimary)
-
+        EMChartCard(title: "APY Over Time") {
+            if let last = points.last {
+                LegendDot(color: .mint, label: "R: \(formatPercent(last.realizedAPY))")
+                LegendDot(color: .blue, label: "L: \(formatPercent(last.liquidAPY))")
+            }
+        } chart: {
             Chart {
                 ForEach(points) { pt in
-                    LineMark(x: .value("Date", pt.date), y: .value("R.APY", pt.realizedAPY))
+                    let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                    AreaMark(x: .value("Date", d), y: .value("L.APY", pt.liquidAPY))
+                        .foregroundStyle(Color.blue.opacity(0.1))
+                        .interpolationMethod(.catmullRom)
+                    LineMark(x: .value("Date", d), y: .value("R.APY", pt.realizedAPY))
                         .foregroundStyle(by: .value("Type", "Realized"))
-                    LineMark(x: .value("Date", pt.date), y: .value("L.APY", pt.liquidAPY))
+                        .interpolationMethod(.catmullRom)
+                    LineMark(x: .value("Date", d), y: .value("L.APY", pt.liquidAPY))
                         .foregroundStyle(by: .value("Type", "Liquid"))
+                        .interpolationMethod(.catmullRom)
                 }
                 if hasNegative { emZeroLine() }
             }
             .chartForegroundStyleScale(["Realized": Color.mint, "Liquid": Color.blue])
-            .chartXAxis { emDateAxis() }
+            .chartXAxis { emDateAxisTemporal() }
             .chartYAxis { emPercentAxis() }
-            .chartLegend(position: .top, spacing: 4)
+            .chartLegend(.hidden)
             .frame(height: 160)
         }
-        .padding(12)
-        .background(Color.bgCard)
-        .cornerRadius(12)
     }
 }
 
@@ -747,45 +769,36 @@ struct CapturedProfitChartView: View {
     var body: some View {
         let points = computeProfitPoints(entries: entries)
 
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Captured Profit")
-                .font(.subheadline).fontWeight(.medium).foregroundColor(.textPrimary)
-
+        EMChartCard(title: "Captured Profit") {
+            if let last = points.last {
+                LegendDot(color: .green, label: "Div: \(formatCurrency(last.cumDividend))")
+                LegendDot(color: .yellow, label: "Int: \(formatCurrency(last.cumInterest))")
+            }
+        } chart: {
             Chart(points) { pt in
-                AreaMark(x: .value("Date", pt.date), y: .value("Total", pt.total))
-                    .foregroundStyle(Color.mint.opacity(0.3))
-                LineMark(x: .value("Date", pt.date), y: .value("Dividends", pt.cumDividend))
+                let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                AreaMark(x: .value("Date", d), y: .value("Total", pt.total))
+                    .foregroundStyle(Color.mint.opacity(0.15))
+                    .interpolationMethod(.catmullRom)
+                LineMark(x: .value("Date", d), y: .value("Dividends", pt.cumDividend))
                     .foregroundStyle(by: .value("Type", "Dividends"))
-                LineMark(x: .value("Date", pt.date), y: .value("Interest", pt.cumInterest))
+                    .interpolationMethod(.catmullRom)
+                LineMark(x: .value("Date", d), y: .value("Interest", pt.cumInterest))
                     .foregroundStyle(by: .value("Type", "Interest"))
+                    .interpolationMethod(.catmullRom)
             }
             .chartForegroundStyleScale(["Dividends": Color.green, "Interest": Color.yellow])
-            .chartXAxis { emDateAxis() }
+            .chartXAxis { emDateAxisTemporal() }
             .chartYAxis { emCurrencyAxis() }
-            .chartLegend(position: .top, spacing: 4)
+            .chartLegend(.hidden)
             .frame(height: 160)
         }
-        .padding(12)
-        .background(Color.bgCard)
-        .cornerRadius(12)
     }
 }
 
 // MARK: - Chart Axis Builders
 // Date formatters (isoDateFormatter, shortDateFormatter) and format helpers
 // (formatDateLabel, formatTooltipDate) are in Converters.swift
-
-@AxisContentBuilder
-func emDateAxis() -> some AxisContent {
-    AxisMarks(values: .automatic(desiredCount: 4)) { value in
-        AxisValueLabel {
-            if let str = value.as(String.self) {
-                Text(formatDateLabel(str))
-                    .font(.caption2).foregroundColor(.textMuted)
-            }
-        }
-    }
-}
 
 @AxisContentBuilder
 func emDateAxisTemporal() -> some AxisContent {
