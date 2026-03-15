@@ -251,7 +251,7 @@ struct IntroGuideView: View {
                     introCompleted = true
                     isPresented = false
                 } label: {
-                    Text("Skip to Backtest")
+                    Text("Close")
                         .font(.callout).foregroundColor(.textMuted)
                 }
                 .buttonStyle(.plain)
