@@ -227,6 +227,11 @@ actor FundStore {
                 continue
             }
 
+            // Skip test/demo funds
+            if platform.hasPrefix("test") || platform.hasPrefix("demo") {
+                continue
+            }
+
             do {
                 // Build config JSON with platform/ticker metadata
                 var configWithMeta = configDict

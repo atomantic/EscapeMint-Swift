@@ -152,17 +152,17 @@ struct IntroGuideView: View {
         case .warning(let str):
             HStack(alignment: .top, spacing: 8) {
                 Text("!")
-                    .font(.callout).fontWeight(.bold).foregroundColor(.yellow)
+                    .font(.callout).fontWeight(.bold).foregroundColor(.orange)
                     .frame(width: 20, height: 20)
-                    .background(Color.yellow.opacity(0.2))
+                    .background(Color.orange.opacity(0.2))
                     .cornerRadius(4)
                 Text(str)
-                    .font(.callout).foregroundColor(.yellow.opacity(0.9))
+                    .font(.callout).foregroundColor(.orange)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(12)
-            .background(Color.yellow.opacity(0.1))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.yellow.opacity(0.3), lineWidth: 1))
+            .background(Color.orange.opacity(0.1))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.orange.opacity(0.3), lineWidth: 1))
             .cornerRadius(8)
 
         case .link(let text, let label):
@@ -177,7 +177,7 @@ struct IntroGuideView: View {
         switch c {
         case .green: return .mint
         case .blue: return .blue
-        case .amber: return .yellow
+        case .amber: return .orange
         }
     }
 
@@ -209,19 +209,19 @@ struct IntroGuideView: View {
     private var disclaimerBanner: some View {
         HStack(alignment: .top, spacing: 10) {
             Text("!")
-                .font(.title3).fontWeight(.bold).foregroundColor(.yellow)
+                .font(.title3).fontWeight(.bold).foregroundColor(.orange)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Not Investment Advice")
-                    .font(.callout).fontWeight(.semibold).foregroundColor(.yellow)
+                    .font(.callout).fontWeight(.semibold).foregroundColor(.orange)
                 Text("This is an open-source tool created by an individual investor to track their personal fund strategy. The sample funds (TQQQ, SPXL, BTC) are examples and not financial advice.")
-                    .font(.caption).foregroundColor(.yellow.opacity(0.8))
+                    .font(.caption).foregroundColor(.textSecondary)
                 Text("Do your own research. Choice of platforms, assets, timeline, and risk tolerance is entirely up to you.")
-                    .font(.caption).fontWeight(.medium).foregroundColor(.yellow)
+                    .font(.caption).fontWeight(.medium).foregroundColor(.orange)
             }
         }
         .padding(12)
-        .background(Color.yellow.opacity(0.1))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.yellow.opacity(0.3), lineWidth: 1))
+        .background(Color.orange.opacity(0.1))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.orange.opacity(0.3), lineWidth: 1))
         .cornerRadius(8)
     }
 
