@@ -16,6 +16,7 @@ struct DerivativesChartPoint: Identifiable {
     // Capital & Leverage
     let marginBalance: Double
     let marginLocked: Double
+    let leverage: Double
     // P&L
     let capturedProfit: Double
     let liquidPL: Double
@@ -106,6 +107,10 @@ func computeDerivativesChartData(entries: [FundEntry], config: FundConfig) -> [D
         let costBasis = totalBuyCost
         let marginLocked = entry.margin_locked ?? (position > 0 ? position * avgCostPerContract * imr : 0)
 
+        // Dynamic leverage = Current Notional / Margin Locked (matches Coinbase's display)
+        let currentNotional = position * cm * (lastTradePrice > 0 ? lastTradePrice : avgCostPerContract)
+        let leverage = marginLocked > 0 ? currentNotional / marginLocked : 0
+
         // Unrealized P&L: use TSV if available, else estimate from last trade price
         let unrealized = entry.unrealized_pnl ?? ((lastTradePrice - avgCostPerContract) * position)
         let positionValue = costBasis + unrealized
@@ -139,6 +144,7 @@ func computeDerivativesChartData(entries: [FundEntry], config: FundConfig) -> [D
             position: position,
             marginBalance: effectiveMarginBalance,
             marginLocked: marginLocked,
+            leverage: leverage,
             capturedProfit: capturedProfit,
             liquidPL: liquidPL,
             realizedAPY: realizedAPY,
@@ -428,15 +434,20 @@ struct DerivativesPriceChart: View {
 
     var body: some View {
         let withPosition = points.filter { $0.position > 0 && $0.avgEntry > 0 }
+        // Clamp liq price: negative means over-collateralized (safe), extreme values aren't useful
+        let maxReasonableLiq = (withPosition.map(\.avgEntry).max() ?? 1) * 3
+        let clampedPoints = withPosition.map { pt -> (id: String, date: String, avgEntry: Double, liqPrice: Double) in
+            let clamped = pt.liqPrice < 0 ? 0 : min(pt.liqPrice, maxReasonableLiq)
+            return (id: pt.id, date: pt.date, avgEntry: pt.avgEntry, liqPrice: clamped)
+        }
         EMChartCard(title: "Price & Liquidation") {
             LegendDot(color: .orange, label: "Avg Entry")
             LegendDot(color: .mint, label: "Liq Price")
             if !fundId.isEmpty { ChartBoundsButton(fundId: fundId, boundsKey: "derivativesPrice", isPercent: false, bounds: bounds) }
         } chart: {
-            if withPosition.count >= 2 {
-                let hasNeg = withPosition.contains { $0.liqPrice < 0 }
+            if clampedPoints.count >= 2 {
                 Chart {
-                    ForEach(withPosition) { pt in
+                    ForEach(clampedPoints, id: \.id) { pt in
                         let d = isoDateFormatter.date(from: pt.date) ?? Date()
                         LineMark(x: .value("Date", d), y: .value("Avg Entry", pt.avgEntry))
                             .foregroundStyle(by: .value("Series", "Avg Entry"))
@@ -446,12 +457,11 @@ struct DerivativesPriceChart: View {
                             .interpolationMethod(.monotone)
                             .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 2]))
                     }
-                    if hasNeg { emZeroLine() }
                 }
                 .chartForegroundStyleScale(["Avg Entry": Color.orange, "Liq Price": Color.mint])
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emCurrencyAxis() }
-                .chartYScale(domain: chartYDomain(bounds, points: withPosition.flatMap { [$0.avgEntry, $0.liqPrice] }))
+                .chartYScale(domain: chartYDomain(bounds, points: clampedPoints.flatMap { [$0.avgEntry, $0.liqPrice] }))
                 .chartLegend(.hidden)
                 .frame(height: 160)
             } else {
@@ -469,29 +479,60 @@ struct DerivativesMarginChart: View {
     let points: [DerivativesChartPoint]
 
     var body: some View {
+        let maxLev = max(5.0, (points.map(\.leverage).max() ?? 5) * 1.2)
         EMChartCard(title: "Capital & Leverage") {
             LegendDot(color: .blue, label: "Cash")
             LegendDot(color: .orange, label: "Margin Locked")
+            LegendDot(color: .green, label: "Leverage")
         } chart: {
             if !points.isEmpty {
-                Chart {
-                    ForEach(points) { pt in
-                        let d = isoDateFormatter.date(from: pt.date) ?? Date()
-                        AreaMark(x: .value("Date", d), y: .value("Cash", pt.marginBalance))
-                            .foregroundStyle(Color.blue.opacity(0.15))
-                            .interpolationMethod(.monotone)
-                        LineMark(x: .value("Date", d), y: .value("Cash", pt.marginBalance))
-                            .foregroundStyle(by: .value("Series", "Cash"))
-                            .interpolationMethod(.monotone)
-                        LineMark(x: .value("Date", d), y: .value("Margin Locked", pt.marginLocked))
-                            .foregroundStyle(by: .value("Series", "Margin Locked"))
-                            .interpolationMethod(.monotone)
+                ZStack {
+                    // Primary chart: Cash & Margin Locked (left Y-axis)
+                    Chart {
+                        ForEach(points) { pt in
+                            let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                            AreaMark(x: .value("Date", d), y: .value("Cash", pt.marginBalance))
+                                .foregroundStyle(Color.blue.opacity(0.15))
+                                .interpolationMethod(.monotone)
+                            LineMark(x: .value("Date", d), y: .value("Cash", pt.marginBalance))
+                                .foregroundStyle(by: .value("Series", "Cash"))
+                                .interpolationMethod(.monotone)
+                            LineMark(x: .value("Date", d), y: .value("Margin Locked", pt.marginLocked))
+                                .foregroundStyle(by: .value("Series", "Margin Locked"))
+                                .interpolationMethod(.monotone)
+                        }
                     }
+                    .chartForegroundStyleScale(["Cash": Color.blue, "Margin Locked": Color.orange])
+                    .chartXAxis { emDateAxisTemporal() }
+                    .chartYAxis { emCurrencyAxis() }
+                    .chartLegend(.hidden)
+
+                    // Overlay chart: Leverage (right Y-axis)
+                    Chart {
+                        ForEach(points) { pt in
+                            let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                            LineMark(x: .value("Date", d), y: .value("Leverage", pt.leverage))
+                                .foregroundStyle(Color.green)
+                                .interpolationMethod(.monotone)
+                                .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 2]))
+                        }
+                    }
+                    .chartXAxis(.hidden)
+                    .chartYAxis {
+                        AxisMarks(position: .trailing) { value in
+                            AxisGridLine().foregroundStyle(.clear)
+                            AxisValueLabel {
+                                if let v = value.as(Double.self) {
+                                    Text("\(v, specifier: "%.1f")x")
+                                        .font(.caption2)
+                                        .foregroundColor(.green)
+                                }
+                            }
+                        }
+                    }
+                    .chartYScale(domain: 0...maxLev)
+                    .chartLegend(.hidden)
                 }
-                .chartForegroundStyleScale(["Cash": Color.blue, "Margin Locked": Color.orange])
-                .chartXAxis { emDateAxisTemporal() }
-                .chartYAxis { emCurrencyAxis() }
-                .chartLegend(.hidden)
                 .frame(height: 160)
             } else {
                 ProgressView().frame(height: 160)
