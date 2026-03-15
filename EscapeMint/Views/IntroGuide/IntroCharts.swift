@@ -659,11 +659,11 @@ struct ModeComparisonChart: View {
                 let entry = sampled[i]
                 let date = isoDateFormatter.date(from: entry.date) ?? Date()
 
-                // Cash + Invested combined fill (green) — draws first, behind
-                AreaMark(x: .value("Date", date), y: .value("Total", entry.invested + entry.cash))
+                // Cash area stacked on top of invested (green)
+                AreaMark(x: .value("Date", date), yStart: .value("InvBase", entry.invested), yEnd: .value("InvPlusCash", entry.invested + entry.cash))
                     .foregroundStyle(Color.mint.opacity(0.5))
                     .interpolationMethod(.stepCenter)
-                // Invested area (purple) — draws on top, covers bottom portion
+                // Invested area (purple) — from 0 to costBasis
                 AreaMark(x: .value("Date", date), y: .value("Invested", entry.invested))
                     .foregroundStyle(investedPurple.opacity(0.6))
                     .interpolationMethod(.stepCenter)
