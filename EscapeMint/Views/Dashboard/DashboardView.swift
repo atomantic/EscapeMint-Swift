@@ -620,8 +620,10 @@ struct FundCardView: View {
                 }
                 Spacer()
                 if let rec {
+                    let isHold = rec.action == .HOLD
                     Text("\(rec.action.rawValue) \(formatCurrency(rec.amount))")
-                        .font(.caption2).fontWeight(.semibold).foregroundColor(.white)
+                        .font(.caption2).fontWeight(.semibold)
+                        .foregroundColor(isHold ? .textMuted : .white)
                         .padding(.horizontal, 8).padding(.vertical, 4)
                         .background(rec.action == .BUY ? Color.mintDark : rec.action == .SELL ? Color.red : Color.bgInput)
                         .cornerRadius(6)

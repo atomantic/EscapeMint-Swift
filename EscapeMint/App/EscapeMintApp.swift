@@ -217,9 +217,10 @@ struct MacContentView: View {
                                 .font(.callout)
                             Spacer()
                             if let rec = summaries[fund.id]?.recommendation {
+                                let isHold = rec.action == .HOLD
                                 Text(rec.action.rawValue)
                                     .font(.caption2).fontWeight(.semibold)
-                                    .foregroundColor(.white)
+                                    .foregroundColor(isHold ? .textMuted : .white)
                                     .padding(.horizontal, 4).padding(.vertical, 1)
                                     .background(rec.action == .BUY ? Color.mintDark : rec.action == .SELL ? Color.red : Color.bgInput)
                                     .cornerRadius(3)
