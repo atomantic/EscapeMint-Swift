@@ -216,7 +216,7 @@ struct DashboardAPYChart: View {
                         let d = pt.parsedDate
                         AreaMark(x: .value("Date", d), y: .value("L.APY", pt.liquidAPY))
                             .foregroundStyle(Color.blue.opacity(0.1))
-                            .interpolationMethod(.monotone)
+                            .interpolationMethod(.linear)
                         LineMark(x: .value("Date", d), y: .value("R.APY", pt.realizedAPY))
                             .foregroundStyle(by: .value("Type", "Realized"))
                             .interpolationMethod(.monotone)
@@ -258,7 +258,7 @@ struct DashboardGainChart: View {
                         let d = pt.parsedDate
                         AreaMark(x: .value("Date", d), y: .value("Liquid", pt.liquid))
                             .foregroundStyle(Color.blue.opacity(0.1))
-                            .interpolationMethod(.monotone)
+                            .interpolationMethod(.linear)
                         LineMark(x: .value("Date", d), y: .value("Realized", pt.realized))
                             .foregroundStyle(by: .value("Type", "Realized"))
                             .interpolationMethod(.monotone)
@@ -300,7 +300,7 @@ struct DashboardValueChart: View {
                     let d = pt.parsedDate
                     AreaMark(x: .value("Date", d), y: .value("Invested", pt.totalInvested))
                         .foregroundStyle(Color.purple.opacity(0.15))
-                        .interpolationMethod(.monotone)
+                        .interpolationMethod(.linear)
                     LineMark(x: .value("Date", d), y: .value("Value", pt.totalValue))
                         .foregroundStyle(Color.orange)
                         .lineStyle(StrokeStyle(lineWidth: 2))
@@ -344,7 +344,7 @@ struct DashboardFundSizeChart: View {
                                 stacking: .standard
                             )
                             .foregroundStyle(by: .value("Fund", ticker))
-                            .interpolationMethod(.monotone)
+                            .interpolationMethod(.linear)
                         }
                     }
                 }
@@ -382,14 +382,14 @@ struct DashboardLiquidValueChart: View {
                         stacking: .standard
                     )
                     .foregroundStyle(by: .value("Type", "Cash"))
-                    .interpolationMethod(.monotone)
+                    .interpolationMethod(.linear)
                     AreaMark(
                         x: .value("Date", d),
                         y: .value("Value", pt.assetValue),
                         stacking: .standard
                     )
                     .foregroundStyle(by: .value("Type", "Assets"))
-                    .interpolationMethod(.monotone)
+                    .interpolationMethod(.linear)
                 }
                 .chartForegroundStyleScale(["Cash": Color.mint.opacity(0.6), "Assets": Color.purple.opacity(0.6)])
                 .chartXAxis { emDateAxisTemporal() }
@@ -425,10 +425,10 @@ struct DashboardMarginChart: View {
                         let d = pt.parsedDate
                         AreaMark(x: .value("Date", d), y: .value("Access", pt.marginAccess))
                             .foregroundStyle(Color.green.opacity(0.1))
-                            .interpolationMethod(.monotone)
+                            .interpolationMethod(.linear)
                         AreaMark(x: .value("Date", d), y: .value("Borrowed", pt.marginBorrowed))
                             .foregroundStyle(Color.red.opacity(0.1))
-                            .interpolationMethod(.monotone)
+                            .interpolationMethod(.linear)
                         LineMark(x: .value("Date", d), y: .value("Access", pt.marginAccess))
                             .foregroundStyle(Color.green)
                             .lineStyle(StrokeStyle(lineWidth: 2))

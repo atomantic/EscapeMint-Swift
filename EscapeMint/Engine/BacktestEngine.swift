@@ -39,6 +39,7 @@ struct BacktestConfig {
     var targetAPY: Double = 0.25
     var minProfitUSD: Double = 1000
     var accumulate: Bool = true
+    var reinvest: Bool = true
 
     // DCA Tiers
     var inputMin: Double = 100
@@ -379,27 +380,23 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
             engineTradesDirty = false
         }
 
-        // Use computeExpectedTarget for proper per-trade compound target
+        // Use computeFundState for proper state calculation
         // (matches web app which calls computeFundState with full trade history)
-        let expectedTarget = computeExpectedTarget(config: fundConfig, trades: engineTrades, asOfDate: pp.date)
-        let startInput = computeStartInput(trades: engineTrades, asOfDate: pp.date, config: fundConfig)
-
-        let gainUsd = startInput > 0 ? equity - startInput : 0
-        let rawGainPct = startInput > 0 ? (equity / startInput) - 1.0 : 0
-        let gainPct = rawGainPct.isFinite ? rawGainPct : 0
-        let targetDiff = equity - expectedTarget
-
-        let state = FundState(
-            cashAvailableUsd: cash,
-            expectedTargetUsd: expectedTarget,
-            actualValueUsd: equity,
-            startInputUsd: startInput,
-            gainUsd: gainUsd,
-            gainPct: gainPct,
-            targetDiffUsd: targetDiff,
-            cashInterestUsd: sumCashInterest,
-            realizedGainsUsd: 0
+        var state = computeFundState(
+            config: fundConfig,
+            trades: engineTrades,
+            cashflows: [],
+            dividends: [],
+            expenses: [],
+            actualValue: equity,
+            asOfDate: pp.date
         )
+
+        // When reinvest is enabled, sell proceeds/interest/dividends are available
+        // for new buys. Override the engine's computed cash with manually tracked cash.
+        if config.reinvest {
+            state.cashAvailableUsd = cash
+        }
 
         let rec = computeRecommendation(config: fundConfig, state: state)
         var action: FundAction?

@@ -655,29 +655,31 @@ struct ModeComparisonChart: View {
                 .font(.caption).fontWeight(.bold).foregroundColor(color)
                 .frame(maxWidth: .infinity, alignment: .center)
 
-            Chart(sampled.indices, id: \.self) { i in
-                let entry = sampled[i]
-                let date = isoDateFormatter.date(from: entry.date) ?? Date()
+            Chart {
+                ForEach(sampled.indices, id: \.self) { i in
+                    let entry = sampled[i]
+                    let date = isoDateFormatter.date(from: entry.date) ?? Date()
 
-                // Cash area stacked on top of invested (green)
-                AreaMark(x: .value("Date", date), yStart: .value("InvBase", entry.invested), yEnd: .value("InvPlusCash", entry.invested + entry.cash))
-                    .foregroundStyle(Color.mint.opacity(0.5))
-                    .interpolationMethod(.stepCenter)
-                // Invested area (purple) — from 0 to costBasis
-                AreaMark(x: .value("Date", date), y: .value("Invested", entry.invested))
-                    .foregroundStyle(investedPurple.opacity(0.6))
-                    .interpolationMethod(.stepCenter)
-                // Target line (dashed cyan)
-                LineMark(x: .value("Date", date), y: .value("Target", entry.expectedTarget), series: .value("Series", "Target"))
-                    .foregroundStyle(Color.cyan)
-                    .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
-                    .interpolationMethod(.monotone)
-                // Value/equity line (orange)
-                LineMark(x: .value("Date", date), y: .value("Value", entry.equity), series: .value("Series", "Value"))
-                    .foregroundStyle(Color.orange)
-                    .lineStyle(StrokeStyle(lineWidth: 2))
-                    .interpolationMethod(.monotone)
+                    // Stacked areas: invested (bottom) + cash (top)
+                    AreaMark(x: .value("Date", date), y: .value("Amount", entry.invested), stacking: .standard)
+                        .foregroundStyle(by: .value("Fill", "Invested"))
+                        .interpolationMethod(.linear)
+                    AreaMark(x: .value("Date", date), y: .value("Amount", entry.cash), stacking: .standard)
+                        .foregroundStyle(by: .value("Fill", "Cash"))
+                        .interpolationMethod(.linear)
+                    // Target line (dashed cyan)
+                    LineMark(x: .value("Date", date), y: .value("Target", entry.expectedTarget), series: .value("Series", "Target"))
+                        .foregroundStyle(Color.cyan)
+                        .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+                        .interpolationMethod(.monotone)
+                    // Value/equity line (orange)
+                    LineMark(x: .value("Date", date), y: .value("Value", entry.equity), series: .value("Series", "Value"))
+                        .foregroundStyle(Color.orange)
+                        .lineStyle(StrokeStyle(lineWidth: 2))
+                        .interpolationMethod(.monotone)
+                }
             }
+            .chartForegroundStyleScale(["Invested": investedPurple, "Cash": Color.green.opacity(0.6)])
             .chartXAxis { emDateAxisTemporal() }
             .chartYScale(domain: 0...yMax)
             .chartYAxis {

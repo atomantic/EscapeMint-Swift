@@ -443,11 +443,30 @@ struct BacktestView: View {
             }
 
             Text(config.accumulate
-                 ? "Sell min DCA amount when over target + min profit. All proceeds stay in fund cash pool."
-                 : "Close entire position to cash when over target + min profit. All proceeds stay in fund cash pool.")
+                 ? "Sell min DCA amount when over target + min profit."
+                 : "Close entire position to cash when over target + min profit.")
                 .font(.system(size: 9))
                 .foregroundColor(.textMuted)
                 .fixedSize(horizontal: false, vertical: true)
+
+            // Re-invest toggle
+            HStack(spacing: 4) {
+                Button {
+                    config.reinvest.toggle()
+                    runBacktestAsync()
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: config.reinvest ? "checkmark.square.fill" : "square")
+                            .font(.system(size: 10))
+                            .foregroundColor(config.reinvest ? .blue : .textMuted)
+                        Text("Re-invest proceeds")
+                            .font(.system(size: 9))
+                            .foregroundColor(.textSecondary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("btn-reinvest")
+            }
 
             // Presets
             Text("Presets").font(.system(size: 9)).foregroundColor(.textMuted)
@@ -457,7 +476,9 @@ struct BacktestView: View {
                 ForEach(BacktestPreset.allCases) { preset in
                     Button {
                         selectedPreset = preset
-                        config = preset.config(accumulate: config.accumulate)
+                        var presetConfig = preset.config(accumulate: config.accumulate)
+                        presetConfig.reinvest = config.reinvest
+                        config = presetConfig
                         runBacktestAsync()
                     } label: {
                         Text(preset.rawValue)
@@ -634,21 +655,24 @@ struct BacktestView: View {
                 }
             }
 
-            Chart(entries) { entry in
-                AreaMark(x: .value("Date", entry.dateValue), y: .value("Invested", entry.invested))
-                    .foregroundStyle(Color.purple.opacity(0.3))
-                    .interpolationMethod(.monotone)
-                AreaMark(x: .value("Date", entry.dateValue), y: .value("Cash", entry.cash))
-                    .foregroundStyle(Color.green.opacity(0.2))
-                    .interpolationMethod(.monotone)
-                LineMark(x: .value("Date", entry.dateValue), y: .value("Value", entry.equity))
-                    .foregroundStyle(Color.orange)
-                    .interpolationMethod(.monotone)
-                LineMark(x: .value("Date", entry.dateValue), y: .value("Target", entry.expectedTarget))
-                    .foregroundStyle(Color.cyan)
-                    .interpolationMethod(.monotone)
-                    .lineStyle(StrokeStyle(dash: [4, 3]))
+            Chart {
+                ForEach(entries) { entry in
+                    AreaMark(x: .value("Date", entry.dateValue), y: .value("Amount", entry.invested), stacking: .standard)
+                        .foregroundStyle(by: .value("Fill", "Invested"))
+                        .interpolationMethod(.linear)
+                    AreaMark(x: .value("Date", entry.dateValue), y: .value("Amount", entry.cash), stacking: .standard)
+                        .foregroundStyle(by: .value("Fill", "Cash"))
+                        .interpolationMethod(.linear)
+                    LineMark(x: .value("Date", entry.dateValue), y: .value("Value", entry.equity), series: .value("Series", "Value"))
+                        .foregroundStyle(Color.orange)
+                        .interpolationMethod(.monotone)
+                    LineMark(x: .value("Date", entry.dateValue), y: .value("Target", entry.expectedTarget), series: .value("Series", "Target"))
+                        .foregroundStyle(Color.cyan)
+                        .interpolationMethod(.monotone)
+                        .lineStyle(StrokeStyle(dash: [4, 3]))
+                }
             }
+            .chartForegroundStyleScale(["Invested": Color.purple, "Cash": Color.green.opacity(0.6)])
             .chartXAxis { emDateAxisTemporal() }
             .chartYAxis { emCurrencyAxis() }
             .chartLegend(.hidden)
@@ -682,8 +706,8 @@ struct BacktestView: View {
 
             Chart(entries) { entry in
                 AreaMark(x: .value("Date", entry.dateValue), y: .value("Extracted", entry.totalExtracted))
-                    .foregroundStyle(Color.blue.opacity(0.3))
-                    .interpolationMethod(.monotone)
+                    .foregroundStyle(Color.blue.opacity(0.15))
+                    .interpolationMethod(.linear)
                 LineMark(x: .value("Date", entry.dateValue), y: .value("Extracted", entry.totalExtracted))
                     .foregroundStyle(Color.blue)
                     .interpolationMethod(.monotone)
