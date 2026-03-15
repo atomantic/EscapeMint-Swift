@@ -25,51 +25,59 @@ struct ContentView: View {
     @AppStorage("escapemint-intro-completed") private var introCompleted = false
     @AppStorage("escapemint-show-intro-on-launch") private var showIntroOnLaunch = false
     @State private var showIntroGuide = false
+    private var store = FundDataStore.shared
 
     var body: some View {
         Group {
-            #if os(macOS)
-            MacContentView()
+            if !store.isLoaded {
+                loadingView
+            } else {
+                #if os(macOS)
+                MacContentView()
+                    .tint(.mint)
+                #else
+                TabView {
+                    NavigationStack {
+                        DashboardView()
+                    }
+                    .tabItem {
+                        Label("Dashboard", systemImage: "chart.bar.fill")
+                    }
+                    NavigationStack {
+                        BacktestView()
+                    }
+                    .tabItem {
+                        Label("Backtest", systemImage: "waveform.path.ecg")
+                    }
+                    NavigationStack {
+                        AuditTrailView()
+                    }
+                    .tabItem {
+                        Label("Audit Trail", systemImage: "list.clipboard.fill")
+                    }
+                    NavigationStack {
+                        PlatformsView()
+                    }
+                    .tabItem {
+                        Label("Platforms", systemImage: "building.2.fill")
+                    }
+                    NavigationStack {
+                        SettingsView()
+                    }
+                    .tabItem {
+                        Label("Settings", systemImage: "gear")
+                    }
+                }
                 .tint(.mint)
-            #else
-            TabView {
-                NavigationStack {
-                    DashboardView()
-                }
-                .tabItem {
-                    Label("Dashboard", systemImage: "chart.bar.fill")
-                }
-                NavigationStack {
-                    BacktestView()
-                }
-                .tabItem {
-                    Label("Backtest", systemImage: "waveform.path.ecg")
-                }
-                NavigationStack {
-                    AuditTrailView()
-                }
-                .tabItem {
-                    Label("Audit Trail", systemImage: "list.clipboard.fill")
-                }
-                NavigationStack {
-                    PlatformsView()
-                }
-                .tabItem {
-                    Label("Platforms", systemImage: "building.2.fill")
-                }
-                NavigationStack {
-                    SettingsView()
-                }
-                .tabItem {
-                    Label("Settings", systemImage: "gear")
-                }
+                #endif
             }
-            .tint(.mint)
-            #endif
         }
         .preferredColorScheme(appearance.mode.colorScheme)
         .sheet(isPresented: $showIntroGuide) {
             IntroGuideView(isPresented: $showIntroGuide)
+        }
+        .task {
+            await store.loadIfNeeded()
         }
         .onAppear {
             if !introCompleted || showIntroOnLaunch {
@@ -77,13 +85,24 @@ struct ContentView: View {
             }
         }
     }
+
+    @ViewBuilder
+    private var loadingView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "leaf.fill")
+                .font(.system(size: 48))
+                .foregroundColor(.mint)
+            ProgressView()
+                .controlSize(.large)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.bg.ignoresSafeArea())
+    }
 }
 
 #if os(macOS)
 struct MacContentView: View {
-    @State private var funds: [FundData] = []
-    @State private var summaries: [String: FundSummary] = [:]
-    @State private var actionableCount: Int = 0
+    private var store = FundDataStore.shared
     @State private var selectedNav: NavItem? = .dashboard
 
     enum NavItem: Hashable {
@@ -109,12 +128,12 @@ struct MacContentView: View {
     }
 
     var activeFunds: [FundData] {
-        funds.filter { $0.config.status != .closed }
+        store.funds.filter { $0.config.status != .closed }
             .sorted { getLatestValue($0.entries) > getLatestValue($1.entries) }
     }
 
     var closedFunds: [FundData] {
-        funds.filter { $0.config.status == .closed }
+        store.funds.filter { $0.config.status == .closed }
     }
 
     var groupedActive: [(String, [FundData])] { groupByPlatform(activeFunds) }
@@ -130,13 +149,6 @@ struct MacContentView: View {
             sidebar
         } detail: {
             detail
-        }
-        .task {
-            await FundStore.shared.migrateToICloudIfNeeded()
-            await loadFunds()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .fundsDidChange)) { _ in
-            Task { await loadFunds() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .selectFund)) { note in
             if let id = note.object as? String {
@@ -173,9 +185,9 @@ struct MacContentView: View {
             Section("Navigation") {
                 HStack {
                     Label("Dashboard", systemImage: "chart.bar.fill")
-                    if actionableCount > 0 {
+                    if store.actionableFunds.count > 0 {
                         Spacer()
-                        Text("\(actionableCount)")
+                        Text("\(store.actionableFunds.count)")
                             .font(.caption2).fontWeight(.bold).foregroundColor(.white)
                             .padding(.horizontal, 6).padding(.vertical, 2)
                             .background(Color.red).cornerRadius(8)
@@ -219,7 +231,7 @@ struct MacContentView: View {
                             Text(fund.ticker.uppercased())
                                 .font(.callout)
                             Spacer()
-                            if let rec = summaries[fund.id]?.recommendation {
+                            if let rec = store.summaryMap[fund.id]?.recommendation {
                                 let isHold = rec.action == .HOLD
                                 Text(rec.action.rawValue)
                                     .font(.caption2).fontWeight(.semibold)
@@ -312,16 +324,6 @@ struct MacContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.bg)
-    }
-
-    private func loadFunds() async {
-        funds = await FundStore.shared.readAllFunds()
-        var sums: [String: FundSummary] = [:]
-        for fund in funds {
-            sums[fund.id] = FundSummary(fund)
-        }
-        summaries = sums
-        actionableCount = computeActionableFunds(funds).count
     }
 }
 #endif

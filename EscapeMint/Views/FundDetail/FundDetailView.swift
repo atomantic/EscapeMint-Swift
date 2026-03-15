@@ -436,7 +436,7 @@ struct FundDetailView: View {
 
         ForEach(Array(fund.entries.reversed().enumerated()), id: \.offset) { reverseIdx, entry in
             let actualIndex = count - 1 - reverseIdx
-            entryRow(entry, entryIndex: actualIndex, columns: cols, config: fund.config)
+            entryRow(entry, entryIndex: actualIndex, columns: cols, config: fund.config, isEven: reverseIdx.isMultiple(of: 2))
         }
     }
 
@@ -499,7 +499,7 @@ struct FundDetailView: View {
     }
 
     @ViewBuilder
-    private func entryRow(_ entry: FundEntry, entryIndex: Int, columns: [(id: String, label: String)], config: FundConfig) -> some View {
+    private func entryRow(_ entry: FundEntry, entryIndex: Int, columns: [(id: String, label: String)], config: FundConfig, isEven: Bool) -> some View {
         HStack(spacing: 0) {
             ForEach(columns, id: \.id) { col in
                 entryCell(entry, columnId: col.id)
@@ -518,7 +518,9 @@ struct FundDetailView: View {
         }
         .font(.caption)
         .foregroundColor(.textPrimary)
-        .padding(.vertical, 2)
+        .padding(.vertical, 3).padding(.horizontal, 4)
+        .background(isEven ? Color.clear : Color.textPrimary.opacity(0.04))
+        .cornerRadius(4)
     }
 
     @ViewBuilder
@@ -538,6 +540,9 @@ struct FundDetailView: View {
                 Image(systemName: "pencil.circle.fill")
                     .font(.caption).foregroundColor(.mint.opacity(0.7))
             }
+            .padding(.vertical, 4).padding(.horizontal, 6)
+            .background(reverseIdx.isMultiple(of: 2) ? Color.clear : Color.textPrimary.opacity(0.04))
+            .cornerRadius(6)
             .contentShape(Rectangle())
             .onTapGesture {
                 selectedEntry = entry
