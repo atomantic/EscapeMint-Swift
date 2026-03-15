@@ -1,15 +1,39 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
+    @State private var appearance = AppearanceManager.shared
     @State private var fundCount = 0
     @State private var dataSize = "..."
+    @State private var storageLocation = "..."
+    @State private var showImport = false
+    @State private var statusMessage = ""
+    @State private var showStatus = false
 
     var body: some View {
         NavigationStack {
             List {
-                Section("Data") {
+                Section("Appearance") {
+                    Picker("Theme", selection: $appearance.mode) {
+                        ForEach(AppearanceMode.allCases, id: \.self) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                Section("Storage") {
+                    LabeledContent("Location", value: storageLocation)
                     LabeledContent("Funds", value: "\(fundCount)")
                     LabeledContent("Data Size", value: dataSize)
+                }
+
+                Section("Import / Export") {
+                    Button("Import from Backup (.json)") { pickAndImportJSON() }
+                    Button("Import from Folder (TSV+JSON)") { pickAndImport() }
+                    #if os(macOS)
+                    Button("Export to Folder") { pickAndExport() }
+                    #endif
                 }
 
                 Section("Actions") {
@@ -24,6 +48,27 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .task { await refreshStats() }
+            .overlay(alignment: .bottom) {
+                if showStatus {
+                    Text(statusMessage)
+                        .font(.callout).fontWeight(.medium)
+                        .foregroundColor(.textPrimary)
+                        .padding(.horizontal, 16).padding(.vertical, 10)
+                        .background(Color.mint.cornerRadius(10))
+                        .shadow(radius: 4)
+                        .padding(.bottom, 20)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: showStatus)
+        }
+    }
+
+    private func showToast(_ message: String) {
+        statusMessage = message
+        showStatus = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            showStatus = false
         }
     }
 
@@ -31,11 +76,128 @@ struct SettingsView: View {
         let stats = await FundStore.shared.dataStats()
         fundCount = stats.fundCount
         dataSize = stats.formattedSize
+        storageLocation = await FundStore.shared.isICloud ? "iCloud Drive" : "Local"
+    }
+
+    private func pickAndImportJSON() {
+        #if os(macOS)
+        let panel = NSOpenPanel()
+        panel.title = "Select backup JSON file"
+        panel.message = "Choose an EscapeMint backup file (escapemint-backup-*.json)"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.json]
+        guard let window = NSApp.keyWindow else {
+            if panel.runModal() == .OK, let url = panel.url {
+                importBackupJSON(from: url)
+            }
+            return
+        }
+        panel.beginSheetModal(for: window) { response in
+            if response == .OK, let url = panel.url {
+                self.importBackupJSON(from: url)
+            }
+        }
+        #else
+        // iOS: use file importer for JSON
+        showImport = true
+        #endif
+    }
+
+    private func importBackupJSON(from url: URL) {
+        Task {
+            let gotAccess = url.startAccessingSecurityScopedResource()
+            defer { if gotAccess { url.stopAccessingSecurityScopedResource() } }
+            do {
+                let count = try await FundStore.shared.importFromBackupJSON(url)
+                showToast("Restored \(count) fund(s) from backup")
+            } catch {
+                showToast("Import failed: \(error.localizedDescription)")
+            }
+            await refreshStats()
+            notifyFundsChanged()
+        }
+    }
+
+    private func pickAndImport() {
+        #if os(macOS)
+        let panel = NSOpenPanel()
+        panel.title = "Select funds directory"
+        panel.message = "Choose the folder containing your .tsv and .json fund files (e.g. data/funds/)"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        panel.treatsFilePackagesAsDirectories = true
+        guard let window = NSApp.keyWindow else {
+            // Fallback: run as standalone panel
+            if panel.runModal() == .OK, let url = panel.url {
+                importFunds(from: url)
+            }
+            return
+        }
+        panel.beginSheetModal(for: window) { response in
+            if response == .OK, let url = panel.url {
+                self.importFunds(from: url)
+            }
+        }
+        #else
+        showImport = true
+        #endif
+    }
+
+    #if os(macOS)
+    private func pickAndExport() {
+        let panel = NSOpenPanel()
+        panel.title = "Select export destination"
+        panel.message = "Choose a folder to export your fund data to"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        guard let window = NSApp.keyWindow else {
+            if panel.runModal() == .OK, let url = panel.url {
+                exportFunds(to: url)
+            }
+            return
+        }
+        panel.beginSheetModal(for: window) { response in
+            if response == .OK, let url = panel.url {
+                self.exportFunds(to: url)
+            }
+        }
+    }
+
+    private func exportFunds(to url: URL) {
+        Task {
+            do {
+                let count = try await FundStore.shared.exportToDirectory(url)
+                showToast("Exported \(count) fund(s)")
+            } catch {
+                showToast("Export failed: \(error.localizedDescription)")
+            }
+        }
+    }
+    #endif
+
+    private func importFunds(from url: URL) {
+        Task {
+            let gotAccess = url.startAccessingSecurityScopedResource()
+            defer { if gotAccess { url.stopAccessingSecurityScopedResource() } }
+            do {
+                let count = try await FundStore.shared.importFromDirectory(url)
+                showToast("Imported \(count) fund(s)")
+            } catch {
+                showToast("Import failed: \(error.localizedDescription)")
+            }
+            await refreshStats()
+            notifyFundsChanged()
+        }
     }
 
     private func generateTestData() {
         Task {
-            // Stock fund
             var stockConfig = fundTypeDefaults[.stock]!
             stockConfig.fund_type = .stock
             stockConfig.status = .active
@@ -60,7 +222,6 @@ struct SettingsView: View {
 
             try? await FundStore.shared.writeFund(FundData(platform: "demo", ticker: "tqqq", config: stockConfig, entries: stockEntries))
 
-            // Cash fund
             var cashConfig = fundTypeDefaults[.cash]!
             cashConfig.fund_type = .cash
             cashConfig.status = .active
@@ -77,6 +238,8 @@ struct SettingsView: View {
             try? await FundStore.shared.writeFund(FundData(platform: "demo", ticker: "savings", config: cashConfig, entries: cashEntries))
 
             await refreshStats()
+            notifyFundsChanged()
+            showToast("Generated 2 test funds")
         }
     }
 
@@ -84,6 +247,8 @@ struct SettingsView: View {
         Task {
             try? await FundStore.shared.deleteAllFunds()
             await refreshStats()
+            notifyFundsChanged()
+            showToast("All data cleared")
         }
     }
 }

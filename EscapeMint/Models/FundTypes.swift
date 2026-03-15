@@ -127,39 +127,34 @@ struct FundSummary {
     let fund: FundData
     let state: FundState
     let recommendation: Recommendation?
-    let currentValue: Double
-    let startDate: String
-    let daysActive: Int
-    let twfs: Double
-    let realizedAPY: Double
-    let liquidGain: Double
-    let liquidAPY: Double
+    let metrics: FundMetrics
     let isCash: Bool
     let features: FundTypeFeatures
 
+    // Convenience accessors from metrics
+    var currentValue: Double { metrics.currentValue }
+    var startDate: String { getFundStartDate(fund.entries) }
+    var daysActive: Int { metrics.daysActive }
+    var twfs: Double { metrics.timeWeightedFundSize }
+    var realizedAPY: Double { metrics.realizedAPY }
+    var liquidGain: Double { metrics.unrealizedGains + metrics.realizedGains }
+    var liquidAPY: Double { metrics.liquidAPY }
+    var unrealizedGains: Double { metrics.unrealizedGains }
+    var projectedAnnualReturn: Double { metrics.projectedAnnualReturn }
+    var fundSharesPct: Double { metrics.fundSharesPct }
+
     init(_ fund: FundData, asOfDate: String? = nil) {
         let today = asOfDate ?? todayString()
-        let trades = entriesToTrades(fund.entries)
-        let cashflows = entriesToCashFlows(fund.entries)
-        let dividends = entriesToDividends(fund.entries)
-        let expenses = entriesToExpenses(fund.entries)
-        let value = getLatestValue(fund.entries)
-        let start = getFundStartDate(fund.entries)
-        let days = max(1, daysBetween(start, today))
 
         self.fund = fund
-        self.currentValue = value
-        self.startDate = start
-        self.daysActive = days
         self.isCash = EscapeMint.isCashFund(fund.config.fund_type)
         self.features = getFeatures(fund.config.fund_type)
-        self.state = computeFundState(config: fund.config, trades: trades, cashflows: cashflows, dividends: dividends, expenses: expenses, actualValue: value, asOfDate: today)
-        self.recommendation = computeRecommendation(config: fund.config, state: self.state)
-        self.twfs = computeTimeWeightedFundSize(trades: trades, startDate: start, asOfDate: today)
-        let basis = self.twfs > 0 ? self.twfs : self.state.startInputUsd
-        self.realizedAPY = computeRealizedAPY(self.state.realizedGainsUsd, basis, days)
-        self.liquidGain = self.state.gainUsd + self.state.realizedGainsUsd
-        self.liquidAPY = computeRealizedAPY(self.liquidGain, basis, days)
+
+        // Single computation — returns both metrics and state
+        let result = computeFundMetricsForFund(fund, asOfDate: today)
+        self.metrics = result.metrics
+        self.state = result.state
+        self.recommendation = computeRecommendation(config: fund.config, state: result.state)
     }
 }
 
@@ -220,4 +215,65 @@ struct Recommendation {
     let action: FundAction
     let amount: Double
     let reasoning: String
+}
+
+// Full per-fund metrics (matches web app's FundMetrics)
+struct FundMetrics {
+    let id: String
+    let platform: String
+    let ticker: String
+    let status: FundStatus
+    let fundType: FundType
+    let category: FundCategory?
+    let fundSize: Double
+    let currentValue: Double
+    let startInput: Double
+    let daysActive: Int
+    let timeWeightedFundSize: Double
+    let realizedGains: Double
+    let unrealizedGains: Double
+    let realizedAPY: Double
+    let liquidAPY: Double
+    let projectedAnnualReturn: Double
+    let gainUsd: Double
+    let gainPct: Double
+    var fundShares: Double = 0
+    var fundSharesPct: Double = 0
+}
+
+// Historical performance metrics for closed funds
+struct ClosedFundMetrics {
+    let totalInvestedUsd: Double
+    let totalReturnedUsd: Double
+    let totalDividendsUsd: Double
+    let totalCashInterestUsd: Double
+    let totalExpensesUsd: Double
+    let netGainUsd: Double
+    let returnPct: Double
+    let apy: Double
+    let startDate: String
+    let endDate: String
+    let durationDays: Int
+}
+
+// Portfolio-level aggregate (matches web app's AggregateMetrics)
+struct PortfolioMetrics {
+    var totalFundSize: Double = 0
+    var totalValue: Double = 0
+    var totalStartInput: Double = 0
+    var totalTimeWeightedFundSize: Double = 0
+    var totalDaysActive: Int = 0
+    var totalRealizedGains: Double = 0
+    var totalUnrealizedGains: Double = 0
+    var realizedAPY: Double = 0
+    var liquidAPY: Double = 0
+    var projectedAnnualReturn: Double = 0
+    var totalGainUsd: Double = 0
+    var totalGainPct: Double = 0
+    var activeFunds: Int = 0
+    var closedFunds: Int = 0
+    var portfolioDays: Int = 0
+    var cashBalance: Double = 0
+    var totalInterest: Double = 0
+    var funds: [FundMetrics] = []
 }

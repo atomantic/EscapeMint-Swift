@@ -6,12 +6,51 @@ actor FundStore {
     private let fileManager = FileManager.default
 
     let fundsDirectory: URL
+    let isICloud: Bool
 
     private init() {
-        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let funds = docs.appendingPathComponent("funds")
-        try? FileManager.default.createDirectory(at: funds, withIntermediateDirectories: true)
-        self.fundsDirectory = funds
+        let fm = FileManager.default
+
+        // Prefer iCloud Documents if available
+        if let iCloudURL = fm.url(forUbiquityContainerIdentifier: "iCloud.net.shadowpuppet.EscapeMint") {
+            let funds = iCloudURL.appendingPathComponent("Documents/funds")
+            try? fm.createDirectory(at: funds, withIntermediateDirectories: true)
+            self.fundsDirectory = funds
+            self.isICloud = true
+        } else {
+            // Fallback to local Documents
+            let docs = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let funds = docs.appendingPathComponent("funds")
+            try? fm.createDirectory(at: funds, withIntermediateDirectories: true)
+            self.fundsDirectory = funds
+            self.isICloud = false
+        }
+    }
+
+    /// Migrate local funds to iCloud if iCloud became available
+    func migrateToICloudIfNeeded() {
+        guard isICloud else { return }
+        let fm = fileManager
+        let localDocs = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let localFunds = localDocs.appendingPathComponent("funds")
+        guard fm.fileExists(atPath: localFunds.path) else { return }
+
+        guard let files = try? fm.contentsOfDirectory(at: localFunds, includingPropertiesForKeys: nil) else { return }
+        let tsvFiles = files.filter { $0.pathExtension == "tsv" }
+        guard !tsvFiles.isEmpty else { return }
+
+        for tsvFile in tsvFiles {
+            let name = tsvFile.lastPathComponent
+            let destTSV = fundsDirectory.appendingPathComponent(name)
+            if !fm.fileExists(atPath: destTSV.path) {
+                try? fm.copyItem(at: tsvFile, to: destTSV)
+            }
+            let jsonFile = tsvFile.deletingPathExtension().appendingPathExtension("json")
+            let destJSON = fundsDirectory.appendingPathComponent(jsonFile.lastPathComponent)
+            if fm.fileExists(atPath: jsonFile.path) && !fm.fileExists(atPath: destJSON.path) {
+                try? fm.copyItem(at: jsonFile, to: destJSON)
+            }
+        }
     }
 
     // MARK: - Read
@@ -106,6 +145,149 @@ actor FundStore {
         for file in files {
             try? fileManager.removeItem(at: file)
         }
+    }
+
+    // MARK: - Import
+
+    func importFromDirectory(_ sourceDir: URL) throws -> Int {
+        let fm = fileManager
+        guard let files = try? fm.contentsOfDirectory(at: sourceDir, includingPropertiesForKeys: nil) else {
+            return 0
+        }
+
+        let tsvFiles = files.filter { $0.pathExtension == "tsv" }
+        var imported = 0
+
+        for tsvFile in tsvFiles {
+            let baseName = tsvFile.deletingPathExtension().lastPathComponent
+            let jsonFile = sourceDir.appendingPathComponent("\(baseName).json")
+            guard fm.fileExists(atPath: jsonFile.path) else { continue }
+
+            let destTSV = fundsDirectory.appendingPathComponent("\(baseName).tsv")
+            let destJSON = fundsDirectory.appendingPathComponent("\(baseName).json")
+
+            // Remove existing if present
+            try? fm.removeItem(at: destTSV)
+            try? fm.removeItem(at: destJSON)
+
+            try fm.copyItem(at: tsvFile, to: destTSV)
+            try fm.copyItem(at: jsonFile, to: destJSON)
+            imported += 1
+        }
+
+        return imported
+    }
+
+    // MARK: - Backup JSON Import
+
+    func importFromBackupJSON(_ jsonURL: URL) throws -> Int {
+        // Ensure funds directory exists
+        try? fileManager.createDirectory(at: fundsDirectory, withIntermediateDirectories: true)
+
+        let data = try Data(contentsOf: jsonURL)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let fundsArray = json["funds"] as? [[String: Any]] else {
+            throw NSError(domain: "FundStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid backup format: missing 'funds' array"])
+        }
+
+        var imported = 0
+        for fundDict in fundsArray {
+            guard let id = fundDict["id"] as? String,
+                  let platform = fundDict["platform"] as? String,
+                  let ticker = fundDict["ticker"] as? String,
+                  let configDict = fundDict["config"] as? [String: Any],
+                  let entriesArray = fundDict["entries"] as? [[String: Any]] else {
+                continue
+            }
+
+            do {
+                // Build config JSON with platform/ticker metadata
+                var configWithMeta = configDict
+                configWithMeta["__platform"] = platform
+                configWithMeta["__ticker"] = ticker
+
+                let configData = try JSONSerialization.data(withJSONObject: configWithMeta, options: [.prettyPrinted, .sortedKeys])
+                let configURL = fundsDirectory.appendingPathComponent("\(id).json")
+                try configData.write(to: configURL)
+
+            // Build TSV from entries
+            var lines = [["date", "value", "cash", "action", "amount", "shares", "price", "dividend", "expense", "cash_interest", "fund_size", "margin_available", "margin_borrowed", "margin_expense", "notes", "contracts", "entry_price", "liquidation_price", "unrealized_pnl", "margin_locked", "fee", "margin"].joined(separator: "\t")]
+
+            for entry in entriesArray {
+                let cols: [String] = [
+                    entry["date"] as? String ?? "",
+                    formatNum(entry["value"]),
+                    formatNum(entry["cash"]),
+                    entry["action"] as? String ?? "",
+                    formatNum(entry["amount"]),
+                    formatNum(entry["shares"]),
+                    formatNum(entry["price"]),
+                    formatNum(entry["dividend"]),
+                    formatNum(entry["expense"]),
+                    formatNum(entry["cash_interest"]),
+                    formatNum(entry["fund_size"]),
+                    formatNum(entry["margin_available"]),
+                    formatNum(entry["margin_borrowed"]),
+                    formatNum(entry["margin_expense"]),
+                    (entry["notes"] as? String ?? "").replacingOccurrences(of: "\t", with: "\\t").replacingOccurrences(of: "\n", with: "\\n"),
+                    formatNum(entry["contracts"]),
+                    formatNum(entry["entry_price"]),
+                    formatNum(entry["liquidation_price"]),
+                    formatNum(entry["unrealized_pnl"]),
+                    formatNum(entry["margin_locked"]),
+                    formatNum(entry["fee"]),
+                    formatNum(entry["margin"])
+                ]
+                lines.append(cols.joined(separator: "\t"))
+            }
+
+                let tsv = lines.joined(separator: "\n") + "\n"
+                let tsvURL = fundsDirectory.appendingPathComponent("\(id).tsv")
+                try tsv.write(to: tsvURL, atomically: true, encoding: .utf8)
+                imported += 1
+            } catch {
+                // Skip this fund, continue with others
+                continue
+            }
+        }
+
+        return imported
+    }
+
+    private func formatNum(_ value: Any?) -> String {
+        guard let v = value else { return "" }
+        if let n = v as? Double { return n == 0 ? "" : String(n) }
+        if let n = v as? Int { return n == 0 ? "" : String(n) }
+        if let s = v as? String { return s }
+        return ""
+    }
+
+    func exportToDirectory(_ destDir: URL) throws -> Int {
+        let fm = fileManager
+        guard let files = try? fm.contentsOfDirectory(at: fundsDirectory, includingPropertiesForKeys: nil) else {
+            return 0
+        }
+
+        let tsvFiles = files.filter { $0.pathExtension == "tsv" }
+        var exported = 0
+
+        for tsvFile in tsvFiles {
+            let baseName = tsvFile.deletingPathExtension().lastPathComponent
+            let jsonFile = fundsDirectory.appendingPathComponent("\(baseName).json")
+
+            let destTSV = destDir.appendingPathComponent("\(baseName).tsv")
+            let destJSON = destDir.appendingPathComponent("\(baseName).json")
+
+            try? fm.removeItem(at: destTSV)
+            try fm.copyItem(at: tsvFile, to: destTSV)
+
+            if fm.fileExists(atPath: jsonFile.path) {
+                try? fm.removeItem(at: destJSON)
+                try fm.copyItem(at: jsonFile, to: destJSON)
+            }
+            exported += 1
+        }
+        return exported
     }
 
     struct DataStats {

@@ -41,52 +41,63 @@ Use `http://localhost:5551/` as the visual reference (run `npm run dev` in the w
 ### 1A. Navigation — Sidebar
 
 Match the web app's left sidebar:
-- [ ] `NavigationSplitView` with sidebar + detail
-- [ ] App name/logo at top
-- [ ] Navigation links: Dashboard, Audit Trail, Platforms
-- [ ] Active Funds section with fund list (grouped by platform)
-- [ ] Closed Funds section (collapsed)
-- [ ] Settings link at bottom
-- [ ] Version number
+- [x] `NavigationSplitView` with sidebar + detail
+- [x] App name/logo at top
+- [x] Navigation links: Dashboard (Audit Trail, Platforms — deferred to Phase 2+)
+- [x] Active Funds section with fund list (grouped by platform, with DisclosureGroup)
+- [x] Closed Funds section (collapsed via DisclosureGroup)
+- [x] Settings link at bottom
+- [x] Version number
+- [x] Recommendation badges per fund in sidebar
 
 ### 1B. Dashboard — Full Layout
 
 Match the web app's dashboard grid:
-- [ ] Header: "Dashboard" title, fund count ("12 active • 10 closed"), Charts toggle, platform filter dropdown, +Add Fund button, Import button
-- [ ] 9 aggregate metric cards in a responsive grid (not horizontal scroll): Total Fund Size, Current Value, Realized Gain, Realized APY, Unrealized Gain, Liquid Gain, Liquid APY, Projected Annual, Cash Balance
-- [ ] Grid/Table view toggle
-- [ ] Fund cards grouped by platform with section headers linking to platform detail
-- [ ] Fund cards showing: ticker, platform, portfolio impact %, type badge, category badge, status badge, Size/Value/Realized/Liquid columns, entry count, date range
+- [x] Header: "Dashboard" title, fund count, Charts toggle, platform filter dropdown, +Add Fund button, Import button
+- [x] 9 aggregate metric cards in responsive 5-column grid: Total Fund Size, Current Value, Realized Gain, Realized APY, Unrealized Gain, Liquid Gain, Liquid APY, Projected Annual, Cash Balance
+- [x] Grid/Table view toggle (segmented control)
+- [x] Table view with full columns (Fund, Platform, Type, Size, Value, Realized, R.APY, Liquid, L.APY, Entries)
+- [x] Fund cards grouped by platform with section headers
+- [x] Fund cards showing: ticker, portfolio impact %, type badge, category dot, status badge, Size/Value/Realized/Liquid columns, entry count, date range
+- [x] Category and Platform breakdown charts (togglable)
+- [x] Platform detail pages with P&L summary, breakdown, and funds table
 
 ### 1C. Fund Detail — Charts & Data
 
 Match the web app's fund detail page:
-- [ ] Breadcrumb: Dashboard / Platform / TICKER
-- [ ] Header badges: Audited status, BUY/SELL recommendation, Cash balance link
-- [ ] Config summary line: Type, Mode (Accumulate/Harvest), Size, Target APY, Interval, DCA amounts, Max@, Profit threshold
-- [ ] Collapsible Stats section with:
-  - [ ] Current State card (Invested, Asset Value, Unrealized, Realized, Realized APY, Liquid P&L, Liquid APY)
-  - [ ] P&L Chart (Liquid + Realized lines over time) — Swift Charts
-  - [ ] APY Chart (Liquid + Realized APY lines over time) — Swift Charts
-  - [ ] Value & Allocation Chart (Value, Invested, Target area chart) — Swift Charts
-  - [ ] Captured Profit Chart (Dividends + Extracted area chart) — Swift Charts
-- [ ] Entries table with columns: Date, Equity, Action, Amount, Dividend, Extracted, Unrealized, Realized, Liquid P&L, Realized APY, Liq APY, Fund Size
-- [ ] Edit entry buttons per row
-- [ ] "+ Take Action" button
+- [x] Breadcrumb: Dashboard / Platform / TICKER (macOS only)
+- [x] Config summary line: Type, Category, Mode (Accumulate/Harvest), Size, Target APY, Interval, DCA amounts
+- [x] BUY/SELL recommendation card with reasoning
+- [x] Collapsible Stats section with:
+  - [x] Current State grid (Invested, Asset Value, Unrealized, Realized, Realized APY, Liquid P&L, Liquid APY, Cash)
+  - [x] Value Chart (line + area) — Swift Charts
+  - [x] P&L Chart (Liquid + Realized lines over time) — Swift Charts
+  - [x] APY Chart (Liquid + Realized APY lines over time) — Swift Charts
+  - [x] Captured Profit Chart (Dividends + Interest cumulative) — Swift Charts
+- [x] Full entries table on macOS (Date, Action, Value, Amount, Shares, Dividend, Unrealized, Realized, Fund Size)
+- [x] Compact entries list on iOS (last 30 reversed)
+- [ ] Edit entry buttons per row (deferred — needs edit modal)
+- [x] "+ Take Action" button
+- [ ] Audited status badge (deferred — needs config field in UI)
 
 ### 1D. Engine Completeness
 
 Port remaining engine features:
-- [ ] Share tracking for liquidation detection (`trackShares`, `detectFullLiquidation`)
-- [ ] Closed fund metrics (`computeClosedFundMetrics`)
-- [ ] Cash fund time-weighted size (`computeCashFundTimeWeightedSize`)
-- [ ] Full `computeFundMetrics` and `computeAggregateMetrics` from aggregate.ts
-- [ ] Accumulate vs Harvest mode distinction in recommendations
+- [x] Share tracking for liquidation detection (`trackShares`, `detectFullLiquidation`)
+- [x] Closed fund metrics (`computeClosedFundMetrics`)
+- [x] Cash fund time-weighted size (`computeCashFundTimeWeightedSize`)
+- [x] Full `computeFundMetrics` (`computeFundMetricsForFund`) matching web app
+- [x] Full `computeAggregateMetrics` (`computePortfolioMetrics`) with fund shares, dollar-weighted compound APY
+- [x] Accumulate vs Harvest mode distinction in `computeStartInput` and `computeExpectedTarget`
+- [x] Proper linear APY for per-fund (`computeRealizedAPY`, `computeLiquidAPY`)
+- [x] Compound APY for portfolio aggregate (matching web app)
+- [x] `computeProjectedAnnualReturn` ported
 
 ### 1E. Data Import
 
-- [ ] Import from web app's `data/funds/` directory (file picker → copy TSV/JSON files)
-- [ ] Or: shared iCloud Documents folder between web and native
+- [x] Import from web app's `data/funds/` directory (file picker → copy TSV/JSON files)
+- [x] Import available from both Dashboard (macOS) and Settings
+- [ ] Shared iCloud Documents folder (deferred to Phase 3)
 
 ---
 

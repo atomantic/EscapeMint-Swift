@@ -1,83 +1,149 @@
 import Foundation
 
+// MARK: - Share Tracking & Liquidation Detection
+
+func trackShares(trade: Trade, currentShares: Double) -> Double {
+    guard let shares = trade.shares else { return currentShares }
+    let sharesAbs = abs(shares)
+    return currentShares + (trade.type == .sell ? -sharesAbs : sharesAbs)
+}
+
+func detectFullLiquidation(trade: Trade, sumShares: Double, totalBuys: Double, totalSells: Double) -> Bool {
+    let hasShareTracking = trade.shares != nil && trade.shares != 0
+    let shareBasedLiquidation = hasShareTracking && abs(sumShares) < 0.0001
+    // Only use value-based liquidation when value > 0 (value=0 means "unknown")
+    let valueBasedLiquidation = trade.value != nil && (trade.value ?? 0) > 0 && (trade.value ?? 0) <= trade.amountUsd + 0.01
+    let dollarBasedLiquidation = totalSells >= totalBuys
+    return shareBasedLiquidation || valueBasedLiquidation || dollarBasedLiquidation
+}
+
 // MARK: - Core Computations
 
 func computeStartInput(trades: [Trade], asOfDate: String, config: FundConfig? = nil) -> Double {
-    let filtered = trades.filter { $0.date <= asOfDate }
-    let accumulate = config?.accumulate ?? true
-
+    let isAccumulateMode = config?.accumulate ?? true
     var totalBuys = 0.0
     var totalSells = 0.0
-    var totalBuyAmount = 0.0
+    var sumShares = 0.0
 
-    for trade in filtered {
+    let sorted = trades.filter { daysBetween($0.date, asOfDate) >= 0 }
+        .sorted { $0.date < $1.date }
+
+    for trade in sorted {
+        sumShares = trackShares(trade: trade, currentShares: sumShares)
+
         if trade.type == .buy {
             totalBuys += trade.amountUsd
-            totalBuyAmount += trade.amountUsd
         } else {
             totalSells += trade.amountUsd
+            let hasShareTracking = trade.shares != nil && trade.shares != 0
+            if detectFullLiquidation(trade: trade, sumShares: sumShares, totalBuys: totalBuys, totalSells: totalSells) {
+                totalBuys = 0
+                totalSells = 0
+                sumShares = 0
+            } else if !isAccumulateMode && hasShareTracking && totalBuys > 0 {
+                // Harvest mode: reduce cost basis proportionally
+                let sharesBeforeSell = sumShares + abs(trade.shares ?? 0)
+                let sellFraction = sharesBeforeSell > 0 ? abs(trade.shares ?? 0) / sharesBeforeSell : 1.0
+                let costBasisSold = totalBuys * sellFraction
+                totalBuys -= costBasisSold
+                totalSells = 0
+            } else if isAccumulateMode {
+                totalSells = 0
+            }
         }
     }
 
-    if accumulate {
-        // In accumulate mode, sells don't reduce cost basis
-        return totalBuys
-    }
-
-    // Harvest mode: sells reduce cost basis proportionally
-    if totalSells >= totalBuys {
-        return 0 // Fully liquidated
-    }
-    return totalBuys - totalSells
+    return max(0, totalBuys - totalSells)
 }
 
 func computeExpectedTarget(config: FundConfig, trades: [Trade], asOfDate: String) -> Double {
     let targetApy = config.target_apy ?? 0
-    if targetApy == 0 { return computeStartInput(trades: trades, asOfDate: asOfDate, config: config) }
-
-    let filtered = trades.filter { $0.date <= asOfDate }
+    var startInput = 0.0
     var expectedGain = 0.0
+    var totalBuys = 0.0
+    var totalSells = 0.0
+    var sumShares = 0.0
 
-    for trade in filtered {
-        let days = daysBetween(trade.date, asOfDate)
-        if days <= 0 { continue }
-        let years = Double(days) / 365.0
-        let gain = trade.amountUsd * (pow(1.0 + targetApy, years) - 1.0)
+    let sorted = trades.sorted { $0.date < $1.date }
+
+    for trade in sorted {
+        let tradeDays = daysBetween(trade.date, asOfDate)
+        if tradeDays < 0 { continue }
+
+        sumShares = trackShares(trade: trade, currentShares: sumShares)
+
         if trade.type == .buy {
+            totalBuys += trade.amountUsd
+            startInput += trade.amountUsd
+            let gain = trade.amountUsd * (pow(1.0 + targetApy, Double(tradeDays) / 365.0) - 1.0)
             expectedGain += gain
         } else {
-            expectedGain -= gain
+            totalSells += trade.amountUsd
+            let hasShareTracking = trade.shares != nil && trade.shares != 0
+            if detectFullLiquidation(trade: trade, sumShares: sumShares, totalBuys: totalBuys, totalSells: totalSells) {
+                startInput = 0
+                expectedGain = 0
+                totalBuys = 0
+                totalSells = 0
+                sumShares = 0
+            } else {
+                let isAccumulateMode = config.accumulate ?? true
+                if isAccumulateMode {
+                    totalSells = 0
+                } else if startInput > 0 {
+                    var sellFraction: Double
+                    if hasShareTracking {
+                        let sharesBeforeSell = sumShares + abs(trade.shares ?? 0)
+                        sellFraction = sharesBeforeSell > 0 ? abs(trade.shares ?? 0) / sharesBeforeSell : 1.0
+                    } else {
+                        sellFraction = min(1.0, trade.amountUsd / startInput)
+                    }
+                    expectedGain *= (1 - sellFraction)
+                    startInput = max(0, startInput * (1 - sellFraction))
+                }
+            }
         }
     }
 
-    let startInput = computeStartInput(trades: trades, asOfDate: asOfDate, config: config)
-    return startInput + max(0, expectedGain)
+    return startInput + expectedGain
 }
 
 func computeCashAvailable(config: FundConfig, trades: [Trade], cashflows: [CashFlow], dividends: [Dividend], expenses: [Expense], asOfDate: String) -> Double {
+    let interest = computeCashInterest(config: config, trades: trades, cashflows: cashflows, asOfDate: asOfDate)
+    return computeCashAvailableWithInterest(config: config, trades: trades, cashflows: cashflows, dividends: dividends, expenses: expenses, asOfDate: asOfDate, precomputedInterest: interest)
+}
+
+private func computeCashAvailableWithInterest(config: FundConfig, trades: [Trade], cashflows: [CashFlow], dividends: [Dividend], expenses: [Expense], asOfDate: String, precomputedInterest: Double) -> Double {
     let fundSize = config.fund_size_usd ?? 0
     let startInput = computeStartInput(trades: trades, asOfDate: asOfDate, config: config)
-
     var cash = fundSize - startInput
 
-    for cf in cashflows.filter({ $0.date <= asOfDate }) {
+    for cf in cashflows where daysBetween(cf.date, asOfDate) >= 0 {
         if cf.type == .deposit { cash += cf.amountUsd }
         else { cash -= cf.amountUsd }
     }
 
-    if config.dividend_reinvest == true {
-        for d in dividends.filter({ $0.date <= asOfDate }) {
+    let dividendReinvest = config.dividend_reinvest != false
+    let interestReinvest = config.interest_reinvest != false
+    let expenseFromFund = config.expense_from_fund != false
+
+    if dividendReinvest {
+        for d in dividends where daysBetween(d.date, asOfDate) >= 0 {
             cash += d.amountUsd
         }
     }
 
-    if config.expense_from_fund == true {
-        for e in expenses.filter({ $0.date <= asOfDate }) {
+    if interestReinvest {
+        cash += precomputedInterest
+    }
+
+    if expenseFromFund {
+        for e in expenses where daysBetween(e.date, asOfDate) >= 0 {
             cash -= e.amountUsd
         }
     }
 
-    return cash
+    return max(0, cash)
 }
 
 func computeCashInterest(config: FundConfig, trades: [Trade], cashflows: [CashFlow], asOfDate: String) -> Double {
@@ -85,70 +151,78 @@ func computeCashInterest(config: FundConfig, trades: [Trade], cashflows: [CashFl
     if cashApy == 0 { return 0 }
 
     let fundSize = config.fund_size_usd ?? 0
-    var events: [(date: String, cashChange: Double)] = []
-    events.append((date: getFundStartDate(trades.map { FundEntry(date: $0.date, value: 0) }), cashChange: fundSize))
+    var events: [(date: String, sign: Double, amount: Double)] = []
 
-    for trade in trades.filter({ $0.date <= asOfDate }) {
-        if trade.type == .buy { events.append((trade.date, -trade.amountUsd)) }
-        else { events.append((trade.date, trade.amountUsd)) }
+    for trade in trades {
+        events.append((trade.date, trade.type == .buy ? -1 : 1, trade.amountUsd))
     }
-    for cf in cashflows.filter({ $0.date <= asOfDate }) {
-        if cf.type == .deposit { events.append((cf.date, cf.amountUsd)) }
-        else { events.append((cf.date, -cf.amountUsd)) }
+    for cf in cashflows {
+        events.append((cf.date, cf.type == .deposit ? 1 : -1, cf.amountUsd))
     }
 
     events.sort { $0.date < $1.date }
 
     var totalInterest = 0.0
-    var cashBalance = 0.0
+    var currentCash = fundSize
     var lastDate = events.first?.date ?? asOfDate
 
     for event in events {
-        let days = daysBetween(lastDate, event.date)
-        if days > 0 && cashBalance > 0 {
-            let years = Double(days) / 365.0
-            totalInterest += cashBalance * (pow(1.0 + cashApy, years) - 1.0)
+        if daysBetween(event.date, asOfDate) < 0 { continue }
+        if daysBetween(lastDate, event.date) < 0 { continue }
+
+        let periodDays = daysBetween(lastDate, event.date)
+        if periodDays > 0 && currentCash > 0 {
+            totalInterest += currentCash * (pow(1.0 + cashApy, Double(periodDays) / 365.0) - 1.0)
         }
-        cashBalance += event.cashChange
+
+        currentCash += event.sign * event.amount
+        currentCash = max(0, currentCash)
         lastDate = event.date
     }
 
-    // Accrue to asOfDate
-    let remainingDays = daysBetween(lastDate, asOfDate)
-    if remainingDays > 0 && cashBalance > 0 {
-        let years = Double(remainingDays) / 365.0
-        totalInterest += cashBalance * (pow(1.0 + cashApy, years) - 1.0)
+    let finalDays = daysBetween(lastDate, asOfDate)
+    if finalDays > 0 && currentCash > 0 {
+        totalInterest += currentCash * (pow(1.0 + cashApy, Double(finalDays) / 365.0) - 1.0)
     }
 
     return totalInterest
 }
 
 func computeRealizedGains(config: FundConfig, trades: [Trade], cashflows: [CashFlow], dividends: [Dividend], expenses: [Expense], asOfDate: String) -> Double {
-    let filtered = trades.filter { $0.date <= asOfDate }
+    let interest = computeCashInterest(config: config, trades: trades, cashflows: cashflows, asOfDate: asOfDate)
+    return computeRealizedGainsWithInterest(config: config, trades: trades, dividends: dividends, expenses: expenses, asOfDate: asOfDate, precomputedInterest: interest)
+}
+
+private func computeRealizedGainsWithInterest(config: FundConfig, trades: [Trade], dividends: [Dividend], expenses: [Expense], asOfDate: String, precomputedInterest: Double) -> Double {
+    var realized = 0.0
+    let sorted = trades.filter { daysBetween($0.date, asOfDate) >= 0 }
+        .sorted { $0.date < $1.date }
+
     var totalBuys = 0.0
     var totalSells = 0.0
 
-    for trade in filtered {
-        if trade.type == .buy { totalBuys += trade.amountUsd }
-        else { totalSells += trade.amountUsd }
+    for trade in sorted {
+        if trade.type == .buy {
+            totalBuys += trade.amountUsd
+        } else {
+            totalSells += trade.amountUsd
+            if totalSells >= totalBuys {
+                realized += totalSells - totalBuys
+                totalBuys = 0
+                totalSells = 0
+            }
+        }
     }
 
-    var realized = 0.0
-    if totalSells >= totalBuys {
-        realized = totalSells - totalBuys
-    }
+    realized += precomputedInterest
 
-    // Add interest
-    realized += computeCashInterest(config: config, trades: trades, cashflows: cashflows, asOfDate: asOfDate)
-
-    // Add dividends
-    for d in dividends.filter({ $0.date <= asOfDate }) {
+    for d in dividends where daysBetween(d.date, asOfDate) >= 0 {
         realized += d.amountUsd
     }
 
-    // Subtract expenses
-    if config.expense_from_fund == true {
-        for e in expenses.filter({ $0.date <= asOfDate }) {
+    let expenseFromFund = config.expense_from_fund != false
+    if expenseFromFund {
+        for e in expenses where daysBetween(e.date, asOfDate) >= 0 {
             realized -= e.amountUsd
         }
     }
@@ -157,30 +231,48 @@ func computeRealizedGains(config: FundConfig, trades: [Trade], cashflows: [CashF
 }
 
 func computeFundState(config: FundConfig, trades: [Trade], cashflows: [CashFlow], dividends: [Dividend], expenses: [Expense], actualValue: Double, asOfDate: String) -> FundState {
-    // Cash funds: state IS the cash balance
+    // Cash funds: value IS the cash balance
     if isCashFund(config.fund_type) {
-        let interest = computeCashInterest(config: config, trades: trades, cashflows: cashflows, asOfDate: asOfDate)
+        let cashInterest = computeCashInterest(config: config, trades: trades, cashflows: cashflows, asOfDate: asOfDate)
+        let startInput = actualValue - cashInterest
+        let gainPct = startInput > 0 && cashInterest.isFinite ? cashInterest / startInput : 0
         return FundState(
             cashAvailableUsd: actualValue,
-            expectedTargetUsd: actualValue,
+            expectedTargetUsd: 0,
             actualValueUsd: actualValue,
-            startInputUsd: actualValue,
+            startInputUsd: startInput,
+            gainUsd: cashInterest,
+            gainPct: gainPct,
+            targetDiffUsd: 0,
+            cashInterestUsd: cashInterest,
+            realizedGainsUsd: cashInterest
+        )
+    }
+
+    // Closed funds: zeroed state
+    if config.status == .closed {
+        return FundState(
+            cashAvailableUsd: 0,
+            expectedTargetUsd: 0,
+            actualValueUsd: actualValue,
+            startInputUsd: 0,
             gainUsd: 0,
             gainPct: 0,
             targetDiffUsd: 0,
-            cashInterestUsd: interest,
-            realizedGainsUsd: interest
+            cashInterestUsd: 0,
+            realizedGainsUsd: 0
         )
     }
 
     let startInput = computeStartInput(trades: trades, asOfDate: asOfDate, config: config)
     let expectedTarget = computeExpectedTarget(config: config, trades: trades, asOfDate: asOfDate)
-    let cashAvailable = computeCashAvailable(config: config, trades: trades, cashflows: cashflows, dividends: dividends, expenses: expenses, asOfDate: asOfDate)
     let cashInterest = computeCashInterest(config: config, trades: trades, cashflows: cashflows, asOfDate: asOfDate)
-    let realizedGains = computeRealizedGains(config: config, trades: trades, cashflows: cashflows, dividends: dividends, expenses: expenses, asOfDate: asOfDate)
+    let cashAvailable = computeCashAvailableWithInterest(config: config, trades: trades, cashflows: cashflows, dividends: dividends, expenses: expenses, asOfDate: asOfDate, precomputedInterest: cashInterest)
+    let realizedGains = computeRealizedGainsWithInterest(config: config, trades: trades, dividends: dividends, expenses: expenses, asOfDate: asOfDate, precomputedInterest: cashInterest)
 
-    let gainUsd = actualValue - startInput
-    let gainPct = startInput > 0 ? gainUsd / startInput : 0
+    let gainUsd = startInput > 0 ? actualValue - startInput : 0
+    let rawGainPct = startInput > 0 ? (actualValue / startInput) - 1.0 : 0
+    let gainPct = rawGainPct.isFinite ? rawGainPct : 0
     let targetDiff = actualValue - expectedTarget
 
     return FundState(
@@ -193,6 +285,40 @@ func computeFundState(config: FundConfig, trades: [Trade], cashflows: [CashFlow]
         targetDiffUsd: targetDiff,
         cashInterestUsd: cashInterest,
         realizedGainsUsd: realizedGains
+    )
+}
+
+// MARK: - Closed Fund Metrics
+
+func computeClosedFundMetrics(trades: [Trade], dividends: [Dividend], expenses: [Expense], cashInterest: Double, startDate: String, endDate: String) -> ClosedFundMetrics {
+    var totalInvested = 0.0
+    var totalReturned = 0.0
+
+    for trade in trades {
+        if trade.type == .buy { totalInvested += trade.amountUsd }
+        else { totalReturned += trade.amountUsd }
+    }
+
+    let totalDividends = dividends.reduce(0.0) { $0 + $1.amountUsd }
+    let totalExpenses = expenses.reduce(0.0) { $0 + $1.amountUsd }
+    let netGain = totalReturned + totalDividends + cashInterest - totalExpenses - totalInvested
+    let returnPct = totalInvested > 0 ? netGain / totalInvested : 0
+    let durationDays = daysBetween(startDate, endDate)
+    let clampedReturn = max(-0.99, returnPct)
+    let apy = durationDays > 3 ? pow(1.0 + clampedReturn, 365.0 / Double(durationDays)) - 1.0 : clampedReturn
+
+    return ClosedFundMetrics(
+        totalInvestedUsd: totalInvested,
+        totalReturnedUsd: totalReturned,
+        totalDividendsUsd: totalDividends,
+        totalCashInterestUsd: cashInterest,
+        totalExpensesUsd: totalExpenses,
+        netGainUsd: netGain,
+        returnPct: returnPct,
+        apy: apy,
+        startDate: startDate,
+        endDate: endDate,
+        durationDays: durationDays
     )
 }
 
@@ -251,7 +377,7 @@ func computeRecommendation(config: FundConfig, state: FundState) -> Recommendati
     return Recommendation(action: .BUY, amount: buyAmount, reasoning: reasoning)
 }
 
-// MARK: - Aggregate
+// MARK: - Aggregate (Time-Weighted Fund Size)
 
 func computeTimeWeightedFundSize(trades: [Trade], startDate: String, asOfDate: String) -> Double {
     let totalDays = daysBetween(startDate, asOfDate)
@@ -271,6 +397,7 @@ func computeTimeWeightedFundSize(trades: [Trade], startDate: String, asOfDate: S
         }
         if trade.type == .buy { cumulativeInvestment += trade.amountUsd }
         else { cumulativeInvestment -= trade.amountUsd }
+        cumulativeInvestment = max(0, cumulativeInvestment)
         lastDate = trade.date
     }
 
@@ -282,10 +409,208 @@ func computeTimeWeightedFundSize(trades: [Trade], startDate: String, asOfDate: S
     return weightedSum / Double(totalDays)
 }
 
-func computeRealizedAPY(_ realizedGains: Double, _ basis: Double, _ days: Int) -> Double {
+func computeCashFundTimeWeightedSize(cashFlows: [CashFlow], startDate: String, asOfDate: String) -> Double {
+    let totalDays = daysBetween(startDate, asOfDate)
+    if totalDays <= 0 { return 0 }
+
+    let sorted = cashFlows.sorted { $0.date < $1.date }
+    var balance = 0.0
+    var weightedSum = 0.0
+    var lastDate = startDate
+
+    for flow in sorted {
+        if daysBetween(flow.date, asOfDate) < 0 { continue }
+        if daysBetween(startDate, flow.date) < 0 { continue }
+        let periodDays = daysBetween(lastDate, flow.date)
+        if periodDays > 0 {
+            weightedSum += balance * Double(periodDays)
+        }
+        if flow.type == .deposit { balance += flow.amountUsd }
+        else { balance -= flow.amountUsd }
+        balance = max(0, balance)
+        lastDate = flow.date
+    }
+
+    let remaining = daysBetween(lastDate, asOfDate)
+    if remaining > 0 {
+        weightedSum += balance * Double(remaining)
+    }
+
+    return weightedSum / Double(totalDays)
+}
+
+// MARK: - Per-Fund APY (linear, matches web app)
+
+func computeLinearAPY(_ gain: Double, _ basis: Double, _ days: Int) -> Double {
     if basis <= 0 || days <= 0 { return 0 }
-    let returnPct = realizedGains / basis
-    return pow(1.0 + returnPct, 365.0 / Double(days)) - 1.0
+    return (gain / basis) * (365.0 / Double(days))
+}
+
+func computeProjectedAnnualReturn(_ currentValue: Double, _ realizedAPY: Double) -> Double {
+    currentValue * realizedAPY
+}
+
+// MARK: - Full Fund Metrics
+
+func computeFundMetricsForFund(_ fund: FundData, asOfDate: String) -> (metrics: FundMetrics, state: FundState) {
+    let config = fund.config
+    let trades = entriesToTrades(fund.entries)
+    let cashflows = entriesToCashFlows(fund.entries)
+    let dividends = entriesToDividends(fund.entries)
+    let expenses = entriesToExpenses(fund.entries)
+    let value = getLatestValue(fund.entries)
+    let isCash = isCashFund(config.fund_type)
+
+    let candidateDates = [
+        cashflows.isEmpty ? nil : getFundStartDate(cashflows.map { FundEntry(date: $0.date, value: 0) }),
+        trades.isEmpty ? nil : getFundStartDate(trades.map { FundEntry(date: $0.date, value: 0) }),
+        fund.entries.isEmpty ? nil : getFundStartDate(fund.entries)
+    ].compactMap { $0 }
+    let startDate = candidateDates.min() ?? asOfDate
+    let daysActive = max(1, daysBetween(startDate, asOfDate))
+
+    let state = computeFundState(config: config, trades: trades, cashflows: cashflows, dividends: dividends, expenses: expenses, actualValue: value, asOfDate: asOfDate)
+
+    let twfs = isCash
+        ? computeCashFundTimeWeightedSize(cashFlows: cashflows, startDate: startDate, asOfDate: asOfDate)
+        : computeTimeWeightedFundSize(trades: trades, startDate: startDate, asOfDate: asOfDate)
+
+    let realizedGains = state.realizedGainsUsd
+    let realizedAPY = computeLinearAPY(realizedGains, twfs, daysActive)
+    let projectedAnnualReturn = computeProjectedAnnualReturn(value, realizedAPY)
+    let unrealizedGains = isCash ? 0 : state.gainUsd
+    let liquidGain = unrealizedGains + realizedGains
+    let liquidAPY = computeLinearAPY(liquidGain, twfs, daysActive)
+    let gainUsd = isCash ? realizedGains : unrealizedGains
+
+    let metrics = FundMetrics(
+        id: fund.id,
+        platform: fund.platform,
+        ticker: fund.ticker,
+        status: config.status ?? .active,
+        fundType: config.fund_type ?? .stock,
+        category: config.category,
+        fundSize: config.fund_size_usd ?? 0,
+        currentValue: value,
+        startInput: state.startInputUsd,
+        daysActive: daysActive,
+        timeWeightedFundSize: twfs,
+        realizedGains: realizedGains,
+        unrealizedGains: unrealizedGains,
+        realizedAPY: realizedAPY,
+        liquidAPY: liquidAPY,
+        projectedAnnualReturn: projectedAnnualReturn,
+        gainUsd: gainUsd,
+        gainPct: state.gainPct,
+        fundShares: 0,
+        fundSharesPct: 0
+    )
+    return (metrics, state)
+}
+
+// MARK: - Portfolio Aggregate
+
+func computePortfolioMetrics(_ funds: [FundData], asOfDate: String? = nil) -> PortfolioMetrics {
+    let today = asOfDate ?? todayString()
+    let computed: [(FundMetrics, FundState)] = funds.map { computeFundMetricsForFund($0, asOfDate: today) }
+    let fundMetrics = computed.map(\.0)
+
+    var totalFundSize = 0.0
+    var totalValue = 0.0
+    var totalStartInput = 0.0
+    var totalTWFS = 0.0
+    var totalDaysActive = 0
+    var totalRealizedGains = 0.0
+    var totalUnrealizedGains = 0.0
+    var activeFunds = 0
+    var closedFunds = 0
+    var cashBalance = 0.0
+    var totalInterest = 0.0
+
+    for (fm, state) in computed {
+        totalFundSize += fm.fundSize
+        totalValue += fm.currentValue
+        totalStartInput += fm.startInput
+        totalTWFS += fm.timeWeightedFundSize
+        totalDaysActive += fm.daysActive
+        totalRealizedGains += fm.realizedGains
+        totalUnrealizedGains += fm.unrealizedGains
+        totalInterest += state.cashInterestUsd
+
+        if fm.status == .closed { closedFunds += 1 }
+        else { activeFunds += 1 }
+
+        if isCashFund(fm.fundType) && fm.status != .closed {
+            cashBalance += fm.currentValue
+        }
+    }
+
+    // Fund shares calculation (single pass)
+    let dollarsPerDay = totalTWFS > 0 && totalDaysActive > 0 ? totalTWFS / Double(totalDaysActive) : 0
+    var totalFundShares = 0.0
+    var fundsWithShares = fundMetrics.map { fm -> FundMetrics in
+        var updated = fm
+        updated.fundShares = dollarsPerDay > 0 && fm.daysActive > 0
+            ? (fm.timeWeightedFundSize / dollarsPerDay) * Double(fm.daysActive)
+            : 0
+        totalFundShares += updated.fundShares
+        return updated
+    }
+
+    for i in fundsWithShares.indices {
+        fundsWithShares[i].fundSharesPct = totalFundShares > 0 ? fundsWithShares[i].fundShares / totalFundShares : 0
+    }
+
+    // Dollar-weighted compound APY
+    var totalDollarDays = 0.0
+    var maxDaysActive = 0
+    for fm in fundsWithShares {
+        totalDollarDays += fm.timeWeightedFundSize * Double(fm.daysActive)
+        maxDaysActive = max(maxDaysActive, fm.daysActive)
+    }
+    let effectivePortfolioDays = maxDaysActive
+    let avgCapital = effectivePortfolioDays > 0 ? totalDollarDays / Double(effectivePortfolioDays) : 0
+
+    var weightedRealizedAPY = 0.0
+    if avgCapital > 0 && effectivePortfolioDays > 0 {
+        let totalReturn = max(-0.99, totalRealizedGains / avgCapital)
+        weightedRealizedAPY = pow(1.0 + totalReturn, 365.0 / Double(effectivePortfolioDays)) - 1.0
+    }
+
+    let totalGainUsd = totalRealizedGains + totalUnrealizedGains
+    var aggregateLiquidAPY = 0.0
+    if avgCapital > 0 && effectivePortfolioDays > 0 {
+        let liquidReturn = max(-0.99, totalGainUsd / avgCapital)
+        aggregateLiquidAPY = pow(1.0 + liquidReturn, 365.0 / Double(effectivePortfolioDays)) - 1.0
+    }
+
+    let totalActiveValue = fundsWithShares
+        .filter { $0.status != .closed && $0.currentValue > 0 }
+        .reduce(0.0) { $0 + $1.currentValue }
+    let projectedAnnualReturn = totalActiveValue * weightedRealizedAPY
+
+    let totalGainPct = totalStartInput > 0 ? (totalValue / totalStartInput - 1.0) : 0
+
+    return PortfolioMetrics(
+        totalFundSize: totalFundSize,
+        totalValue: totalValue,
+        totalStartInput: totalStartInput,
+        totalTimeWeightedFundSize: totalTWFS,
+        totalDaysActive: totalDaysActive,
+        totalRealizedGains: totalRealizedGains,
+        totalUnrealizedGains: totalUnrealizedGains,
+        realizedAPY: weightedRealizedAPY,
+        liquidAPY: aggregateLiquidAPY,
+        projectedAnnualReturn: projectedAnnualReturn,
+        totalGainUsd: totalGainUsd,
+        totalGainPct: totalGainPct,
+        activeFunds: activeFunds,
+        closedFunds: closedFunds,
+        portfolioDays: effectivePortfolioDays,
+        cashBalance: cashBalance,
+        totalInterest: totalInterest,
+        funds: fundsWithShares
+    )
 }
 
 // MARK: - Formatters (cached)

@@ -8,15 +8,18 @@
 
 /* Begin PBXBuildFile section */
 		0A946C739855BA689CE4EC01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4141AFA78E93A2BB544FFD49 /* Assets.xcassets */; };
+		0AC07BA8470D75514734E39D /* PlatformDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D9016C221D8B41402E543CF /* PlatformDetailView.swift */; };
 		0CA6CF646D2EF74DD5AC7700 /* FundEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADF82E9F62C6337CA018D70F /* FundEngine.swift */; };
 		11C864866C071577BE475340 /* PlatformModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E936380A18BD7F2191F202E /* PlatformModifiers.swift */; };
 		1B21A19E3A1DBE5232B4E2FF /* CreateFundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716845DB9D559691A02AEFAE /* CreateFundView.swift */; };
 		1CA8B07A2B186B8B449AE2D3 /* CreateFundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716845DB9D559691A02AEFAE /* CreateFundView.swift */; };
 		237C11327A55B367CD5EC233 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0536F00CCC4E2347521E1B56 /* Theme.swift */; };
+		2C7C7FEBEC9E2493FF061567 /* PlatformDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D9016C221D8B41402E543CF /* PlatformDetailView.swift */; };
 		3CC59A024D8346DE8F6B4F08 /* AddEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFF252A47ECBD98740348309 /* AddEntryView.swift */; };
 		42536F85618CDA7693CC33F2 /* EscapeMintApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89B67B9D0233CE75C2517D8B /* EscapeMintApp.swift */; };
 		43ABDDC343390B9A629C8276 /* FundStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8234569B6F7DD6620418A099 /* FundStore.swift */; };
 		4410F30862490B374CCE6632 /* EditFundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5178FBFF2608094D106457C0 /* EditFundView.swift */; };
+		58D0B9DE1C246402ADD32CF6 /* AppearanceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0653A0CB7C81F563F38D00C1 /* AppearanceManager.swift */; };
 		59C7ACF796B9A37DB6B2F832 /* Converters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15B673A9482FD463F5027CA9 /* Converters.swift */; };
 		5E2FF513C6EB32565600A3A4 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6AFD1F57B408213E9E0D3B /* DashboardView.swift */; };
 		5E57D2379D4A66CC5609FA44 /* FundTypeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84E4D35AF8187D701960FA42 /* FundTypeConfig.swift */; };
@@ -33,6 +36,7 @@
 		9D4F95A5410881EFEE36142F /* FundTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 123ED17F2A466332A31D87A3 /* FundTypes.swift */; };
 		A091E84FEB7B129C8C758FD1 /* FundTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 123ED17F2A466332A31D87A3 /* FundTypes.swift */; };
 		B78CF5602C037D36B8704885 /* EngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DEB29D5F7AD42857B739CEE /* EngineTests.swift */; };
+		BA705DF3CCF3E382D2289B65 /* AppearanceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0653A0CB7C81F563F38D00C1 /* AppearanceManager.swift */; };
 		CBF230C3FE1A6EB5F2D9E4CF /* FundTypeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84E4D35AF8187D701960FA42 /* FundTypeConfig.swift */; };
 		CC01A0E06B50D0B8B2FD6A86 /* AddEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFF252A47ECBD98740348309 /* AddEntryView.swift */; };
 		CFF07BF43EECAB7A8E1A4ECB /* EscapeMintApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89B67B9D0233CE75C2517D8B /* EscapeMintApp.swift */; };
@@ -60,6 +64,7 @@
 
 /* Begin PBXFileReference section */
 		0536F00CCC4E2347521E1B56 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		0653A0CB7C81F563F38D00C1 /* AppearanceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceManager.swift; sourceTree = "<group>"; };
 		0DF6302CD46DDE6D7F7FDF2A /* EscapeMint.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = EscapeMint.entitlements; sourceTree = "<group>"; };
 		0E936380A18BD7F2191F202E /* PlatformModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformModifiers.swift; sourceTree = "<group>"; };
 		123ED17F2A466332A31D87A3 /* FundTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundTypes.swift; sourceTree = "<group>"; };
@@ -75,6 +80,7 @@
 		84E4D35AF8187D701960FA42 /* FundTypeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundTypeConfig.swift; sourceTree = "<group>"; };
 		89B67B9D0233CE75C2517D8B /* EscapeMintApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EscapeMintApp.swift; sourceTree = "<group>"; };
 		99D7A4CBB9248028C4C8B2F9 /* EscapeMint.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EscapeMint.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9D9016C221D8B41402E543CF /* PlatformDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformDetailView.swift; sourceTree = "<group>"; };
 		9DEB29D5F7AD42857B739CEE /* EngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineTests.swift; sourceTree = "<group>"; };
 		ADF82E9F62C6337CA018D70F /* FundEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundEngine.swift; sourceTree = "<group>"; };
 		BFF252A47ECBD98740348309 /* AddEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddEntryView.swift; sourceTree = "<group>"; };
@@ -111,6 +117,7 @@
 			children = (
 				F83747F2DA3E9E59E33F983C /* Dashboard */,
 				D8FAFF6B6790D7A9F462993D /* FundDetail */,
+				A93BEC85456ACD4DAC4BC656 /* Platform */,
 				981EEB206CC98B8DC81F8B05 /* Settings */,
 			);
 			path = Views;
@@ -132,6 +139,14 @@
 			path = Settings;
 			sourceTree = "<group>";
 		};
+		A93BEC85456ACD4DAC4BC656 /* Platform */ = {
+			isa = PBXGroup;
+			children = (
+				9D9016C221D8B41402E543CF /* PlatformDetailView.swift */,
+			);
+			path = Platform;
+			sourceTree = "<group>";
+		};
 		AF3D37BB7266FDA1DA5C53D7 /* App */ = {
 			isa = PBXGroup;
 			children = (
@@ -146,6 +161,7 @@
 		BC5CE42357CDFFD71C7B8E54 /* Theme */ = {
 			isa = PBXGroup;
 			children = (
+				0653A0CB7C81F563F38D00C1 /* AppearanceManager.swift */,
 				0E936380A18BD7F2191F202E /* PlatformModifiers.swift */,
 				0536F00CCC4E2347521E1B56 /* Theme.swift */,
 			);
@@ -355,6 +371,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3CC59A024D8346DE8F6B4F08 /* AddEntryView.swift in Sources */,
+				58D0B9DE1C246402ADD32CF6 /* AppearanceManager.swift in Sources */,
 				94344EF2DAAFD9E0644FAF17 /* Converters.swift in Sources */,
 				1B21A19E3A1DBE5232B4E2FF /* CreateFundView.swift in Sources */,
 				5E2FF513C6EB32565600A3A4 /* DashboardView.swift in Sources */,
@@ -365,6 +382,7 @@
 				F339FA95C574744D9FAFC2AD /* FundStore.swift in Sources */,
 				CBF230C3FE1A6EB5F2D9E4CF /* FundTypeConfig.swift in Sources */,
 				9D4F95A5410881EFEE36142F /* FundTypes.swift in Sources */,
+				0AC07BA8470D75514734E39D /* PlatformDetailView.swift in Sources */,
 				7D9CEDB96C240E4C9B866F50 /* PlatformModifiers.swift in Sources */,
 				9393767F6EF181A9BB23C53A /* SettingsView.swift in Sources */,
 				237C11327A55B367CD5EC233 /* Theme.swift in Sources */,
@@ -376,6 +394,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CC01A0E06B50D0B8B2FD6A86 /* AddEntryView.swift in Sources */,
+				BA705DF3CCF3E382D2289B65 /* AppearanceManager.swift in Sources */,
 				59C7ACF796B9A37DB6B2F832 /* Converters.swift in Sources */,
 				1CA8B07A2B186B8B449AE2D3 /* CreateFundView.swift in Sources */,
 				8DF900326F27FB50847A2FA5 /* DashboardView.swift in Sources */,
@@ -386,6 +405,7 @@
 				43ABDDC343390B9A629C8276 /* FundStore.swift in Sources */,
 				5E57D2379D4A66CC5609FA44 /* FundTypeConfig.swift in Sources */,
 				A091E84FEB7B129C8C758FD1 /* FundTypes.swift in Sources */,
+				2C7C7FEBEC9E2493FF061567 /* PlatformDetailView.swift in Sources */,
 				11C864866C071577BE475340 /* PlatformModifiers.swift in Sources */,
 				7C8493E3B622C77F494D3D53 /* SettingsView.swift in Sources */,
 				800271A5BCD7F0CD15434FED /* Theme.swift in Sources */,
@@ -504,7 +524,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = EscapeMint/App/EscapeMint.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = TYQ32QCF6K;
@@ -529,7 +548,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = EscapeMint/App/EscapeMint.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = TYQ32QCF6K;
 				INFOPLIST_FILE = EscapeMint/App/Info.plist;
@@ -668,7 +687,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = EscapeMint/App/EscapeMint.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = TYQ32QCF6K;
@@ -693,7 +711,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = EscapeMint/App/EscapeMint.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = TYQ32QCF6K;
 				INFOPLIST_FILE = EscapeMint/App/Info.plist;

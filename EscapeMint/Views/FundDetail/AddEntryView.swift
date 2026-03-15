@@ -88,6 +88,7 @@ struct AddEntryView: View {
         Task {
             try? await FundStore.shared.appendEntry(fundId: fundId, entry: entry)
             onSaved()
+            notifyFundsChanged()
             dismiss()
         }
     }

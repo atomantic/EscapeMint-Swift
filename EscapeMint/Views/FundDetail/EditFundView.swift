@@ -104,6 +104,7 @@ struct EditFundView: View {
         Task {
             try? await FundStore.shared.updateConfig(fundId: fund.id, config: config)
             onSaved()
+            notifyFundsChanged()
             dismiss()
         }
     }
@@ -112,6 +113,7 @@ struct EditFundView: View {
         Task {
             try? await FundStore.shared.deleteFund(id: fund.id)
             onSaved()
+            notifyFundsChanged()
             dismiss()
         }
     }
