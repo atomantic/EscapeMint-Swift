@@ -30,6 +30,7 @@
 		58D0B9DE1C246402ADD32CF6 /* AppearanceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0653A0CB7C81F563F38D00C1 /* AppearanceManager.swift */; };
 		59C7ACF796B9A37DB6B2F832 /* Converters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15B673A9482FD463F5027CA9 /* Converters.swift */; };
 		5C9B25248B881F120DC7AC22 /* PortfolioCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5730A378FC32A73CBE470B4D /* PortfolioCharts.swift */; };
+		5D1ACA7E51AFB3F87310DE88 /* IntroContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CFE5DCF234170C9D9424BB9 /* IntroContent.swift */; };
 		5E2FF513C6EB32565600A3A4 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6AFD1F57B408213E9E0D3B /* DashboardView.swift */; };
 		5E57D2379D4A66CC5609FA44 /* FundTypeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84E4D35AF8187D701960FA42 /* FundTypeConfig.swift */; };
 		6699AD40036B9A80E20F5A66 /* EngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DEB29D5F7AD42857B739CEE /* EngineTests.swift */; };
@@ -68,6 +69,7 @@
 		E4E0DD9225F3EB3FF014E108 /* tqqq-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = AA7B587266915BE35EF3BDDF /* tqqq-weekly.json */; };
 		F2146FA5D69DD0694E1E29FF /* brgnx-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 7DD4A3D62A314EF39C7556F6 /* brgnx-weekly.json */; };
 		F339FA95C574744D9FAFC2AD /* FundStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8234569B6F7DD6620418A099 /* FundStore.swift */; };
+		F7B47A9723F0B8D7DF9154CF /* IntroContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CFE5DCF234170C9D9424BB9 /* IntroContent.swift */; };
 		F9AD19FCC89D6ED33D924C7D /* AuditTrailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72E8011701E83725108665A2 /* AuditTrailView.swift */; };
 		FE2F594896C76DE493FAD5C4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4141AFA78E93A2BB544FFD49 /* Assets.xcassets */; };
 		FFE3C12B0B0AABC7A36F4F7B /* FundDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C16280FEC2F986BC0F5C70C5 /* FundDetailView.swift */; };
@@ -93,6 +95,7 @@
 /* Begin PBXFileReference section */
 		0536F00CCC4E2347521E1B56 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		0653A0CB7C81F563F38D00C1 /* AppearanceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceManager.swift; sourceTree = "<group>"; };
+		0CFE5DCF234170C9D9424BB9 /* IntroContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroContent.swift; sourceTree = "<group>"; };
 		0DF6302CD46DDE6D7F7FDF2A /* EscapeMint.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = EscapeMint.entitlements; sourceTree = "<group>"; };
 		0E936380A18BD7F2191F202E /* PlatformModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformModifiers.swift; sourceTree = "<group>"; };
 		123ED17F2A466332A31D87A3 /* FundTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundTypes.swift; sourceTree = "<group>"; };
@@ -170,11 +173,20 @@
 				2A2F0CB76037ABEC550C87CA /* Backtest */,
 				F83747F2DA3E9E59E33F983C /* Dashboard */,
 				D8FAFF6B6790D7A9F462993D /* FundDetail */,
+				444CC13F9A79518844DEEFB4 /* IntroGuide */,
 				A93BEC85456ACD4DAC4BC656 /* Platform */,
 				78210AACA08A819AB7199F50 /* Platforms */,
 				981EEB206CC98B8DC81F8B05 /* Settings */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		444CC13F9A79518844DEEFB4 /* IntroGuide */ = {
+			isa = PBXGroup;
+			children = (
+				0CFE5DCF234170C9D9424BB9 /* IntroContent.swift */,
+			);
+			path = IntroGuide;
 			sourceTree = "<group>";
 		};
 		78210AACA08A819AB7199F50 /* Platforms */ = {
@@ -489,6 +501,7 @@
 				F339FA95C574744D9FAFC2AD /* FundStore.swift in Sources */,
 				CBF230C3FE1A6EB5F2D9E4CF /* FundTypeConfig.swift in Sources */,
 				9D4F95A5410881EFEE36142F /* FundTypes.swift in Sources */,
+				5D1ACA7E51AFB3F87310DE88 /* IntroContent.swift in Sources */,
 				0AC07BA8470D75514734E39D /* PlatformDetailView.swift in Sources */,
 				7D9CEDB96C240E4C9B866F50 /* PlatformModifiers.swift in Sources */,
 				3361AFF542BA7F42EDE09394 /* PlatformsView.swift in Sources */,
@@ -519,6 +532,7 @@
 				43ABDDC343390B9A629C8276 /* FundStore.swift in Sources */,
 				5E57D2379D4A66CC5609FA44 /* FundTypeConfig.swift in Sources */,
 				A091E84FEB7B129C8C758FD1 /* FundTypes.swift in Sources */,
+				F7B47A9723F0B8D7DF9154CF /* IntroContent.swift in Sources */,
 				2C7C7FEBEC9E2493FF061567 /* PlatformDetailView.swift in Sources */,
 				11C864866C071577BE475340 /* PlatformModifiers.swift in Sources */,
 				9E11DB41559D7F147E9C1B15 /* PlatformsView.swift in Sources */,
@@ -594,7 +608,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = TYQ32QCF6K;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -766,7 +780,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = TYQ32QCF6K;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
