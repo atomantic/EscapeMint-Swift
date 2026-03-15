@@ -63,7 +63,7 @@ struct DashboardView: View {
             HStack(spacing: 10) {
                 ProgressView()
                     .controlSize(.small)
-                Text("Loading fund data\u{2026} \(store.loadedFundCount)/\(store.totalFundCount)")
+                Text("Loading fund data\u{2026} \(store.loadedFundCount)/\(store.funds.count)")
                     .font(.caption).foregroundColor(.textSecondary)
                 Spacer()
                 ProgressView(value: store.loadProgress)
@@ -265,27 +265,6 @@ struct DashboardView: View {
             MetricCard(label: "Liquid APY", value: formatPercent(p.liquidAPY), color: p.liquidAPY > 0 ? .mint : .red)
             MetricCard(label: "Projected Annual", value: formatCurrency(p.projectedAnnualReturn), color: p.projectedAnnualReturn > 0 ? .mint : .red)
             MetricCard(label: "Cash Balance", value: formatCurrency(p.cashBalance), sub: "Int: \(formatCurrency(p.totalInterest))")
-        }
-    }
-
-    // MARK: - Metrics Scroll (iOS)
-
-    @ViewBuilder
-    private var metricsScroll: some View {
-        let p = store.portfolio
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                MetricCard(label: "Fund Size", value: formatCurrency(p.totalFundSize), sub: "\(store.funds.count) funds")
-                MetricCard(label: "Value", value: formatCurrency(p.totalValue), sub: "\(p.activeFunds) active")
-                MetricCard(label: "Realized", value: formatCurrency(p.totalRealizedGains), color: p.totalRealizedGains > 0 ? .mint : .red)
-                MetricCard(label: "R.APY", value: formatPercent(p.realizedAPY), color: p.realizedAPY > 0 ? .mint : .red)
-                MetricCard(label: "Unrealized", value: formatCurrency(p.totalUnrealizedGains), color: p.totalUnrealizedGains >= 0 ? .mint : .red)
-                MetricCard(label: "Liquid", value: formatCurrency(p.totalGainUsd), color: p.totalGainUsd >= 0 ? .mint : .red)
-                MetricCard(label: "L.APY", value: formatPercent(p.liquidAPY), color: p.liquidAPY > 0 ? .mint : .red)
-                MetricCard(label: "Projected", value: formatCurrency(p.projectedAnnualReturn), color: p.projectedAnnualReturn > 0 ? .mint : .red)
-                MetricCard(label: "Cash", value: formatCurrency(p.cashBalance), sub: "Int: \(formatCurrency(p.totalInterest))")
-            }
-            .padding(.horizontal)
         }
     }
 

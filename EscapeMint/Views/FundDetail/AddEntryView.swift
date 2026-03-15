@@ -25,38 +25,73 @@ struct AddEntryView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Entry") {
+                Section {
                     DatePicker("Date", selection: $date, displayedComponents: .date)
-
                     Picker("Action", selection: $action) {
                         ForEach(actions, id: \.self) { a in
                             Text(a.rawValue).tag(a)
                         }
                     }
                 }
-
-                Section("Values") {
-                    TextField("Portfolio Value (USD)", text: $value)
-                        .numericKeyboard()
-
+                Section {
+                    HStack {
+                        Text("Portfolio Value")
+                        Spacer()
+                        TextField("0.00", text: $value)
+                            .numericKeyboard()
+                            .multilineTextAlignment(.trailing)
+                            #if os(macOS)
+                            .frame(maxWidth: 200)
+                            #endif
+                    }
                     if action == .BUY || action == .SELL || action == .DEPOSIT || action == .WITHDRAW {
-                        TextField("Amount (USD)", text: $amount)
-                            .numericKeyboard()
+                        HStack {
+                            Text("Amount")
+                            Spacer()
+                            TextField("0.00", text: $amount)
+                                .numericKeyboard()
+                                .multilineTextAlignment(.trailing)
+                                #if os(macOS)
+                                .frame(maxWidth: 200)
+                                #endif
+                        }
                     }
-
                     if features.supportsShares && (action == .BUY || action == .SELL) {
-                        TextField("Shares", text: $shares)
-                            .numericKeyboard()
-                        TextField("Price per Share", text: $price)
-                            .numericKeyboard()
+                        HStack {
+                            Text("Shares")
+                            Spacer()
+                            TextField("0", text: $shares)
+                                .numericKeyboard()
+                                .multilineTextAlignment(.trailing)
+                                #if os(macOS)
+                                .frame(maxWidth: 200)
+                                #endif
+                        }
+                        HStack {
+                            Text("Price per Share")
+                            Spacer()
+                            TextField("0.00", text: $price)
+                                .numericKeyboard()
+                                .multilineTextAlignment(.trailing)
+                                #if os(macOS)
+                                .frame(maxWidth: 200)
+                                #endif
+                        }
                     }
+                } header: {
+                    Text("Values")
                 }
-
-                Section("Notes") {
+                Section {
                     TextField("Optional notes", text: $notes)
+                } header: {
+                    Text("Notes")
                 }
             }
+            .formStyle(.grouped)
             .navigationTitle("Add Entry")
+            #if os(macOS)
+            .frame(minWidth: 420, minHeight: 300)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

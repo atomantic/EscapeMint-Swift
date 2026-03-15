@@ -13,10 +13,13 @@ final class FundDataStore {
     /// True once configs are loaded (fund names/platforms visible). Entries may still be streaming.
     private(set) var isConfigLoaded = false
 
-    /// 0.0 to 1.0 — tracks how many funds have their entries loaded
-    private(set) var loadProgress: Double = 0
+    /// How many funds have their entries loaded (0 until streaming begins)
     private(set) var loadedFundCount: Int = 0
-    private(set) var totalFundCount: Int = 0
+
+    /// 0.0 to 1.0 — derived from loadedFundCount / funds.count
+    var loadProgress: Double {
+        funds.isEmpty ? 1.0 : Double(loadedFundCount) / Double(funds.count)
+    }
 
     /// Incremented on every recompute — views can observe this to invalidate caches
     private(set) var revision: Int = 0
@@ -30,12 +33,10 @@ final class FundDataStore {
 
     /// Audit entries are computed lazily — only when first accessed after a recompute
     private var _auditEntries: [AuditEntry]?
-    private var _auditFundsSnapshot: [FundData]?
     var auditEntries: [AuditEntry] {
         if let cached = _auditEntries { return cached }
         let entries = Self.buildAuditEntries(from: funds)
         _auditEntries = entries
-        _auditFundsSnapshot = funds
         return entries
     }
 
@@ -50,9 +51,7 @@ final class FundDataStore {
         // Phase 1: Load configs only (instant — just JSON files, no TSV parsing)
         let configs = await FundStore.shared.readAllFundConfigs()
         funds = configs
-        totalFundCount = configs.count
         loadedFundCount = 0
-        loadProgress = configs.isEmpty ? 1.0 : 0.0
         platforms = Array(Set(configs.map(\.platform))).sorted()
         isConfigLoaded = true
 
@@ -61,45 +60,37 @@ final class FundDataStore {
             return
         }
 
-        // Phase 2: Stream entries in parallel, recompute in batches
+        // Phase 2: Stream entries in parallel, apply as they arrive
         await loadEntriesProgressively()
         isLoaded = true
     }
 
-    /// Load TSV entries concurrently, updating the store in batches for smooth progress
+    /// Load TSV entries concurrently, applying each result as it arrives for true progressive updates
     private func loadEntriesProgressively() async {
         let fundIds = funds.map(\.id)
-        let batchSize = max(1, fundIds.count / 5) // ~5 progress updates
+        let batchSize = max(1, fundIds.count / 5) // ~5 recompute batches
 
-        // Load entries concurrently using a task group
-        let allEntries: [(String, [FundEntry])] = await withTaskGroup(of: (String, [FundEntry]).self) { group in
+        await withTaskGroup(of: (String, [FundEntry]).self) { group in
             for id in fundIds {
                 group.addTask {
-                    let entries = await FundStore.shared.readFundEntries(id: id)
+                    let entries = FundStore.shared.readFundEntries(id: id)
                     return (id, entries)
                 }
             }
-            var results: [(String, [FundEntry])] = []
-            results.reserveCapacity(fundIds.count)
-            for await result in group {
-                results.append(result)
-            }
-            return results
-        }
 
-        // Apply entries in batches for progressive UI updates
-        var applied = 0
-        for (id, entries) in allEntries {
-            if let idx = funds.firstIndex(where: { $0.id == id }) {
-                funds[idx].entries = entries
-            }
-            applied += 1
-            loadedFundCount = applied
-            loadProgress = Double(applied) / Double(totalFundCount)
+            // Apply results as they arrive — the for-await loop runs on @MainActor
+            var applied = 0
+            for await (id, entries) in group {
+                if let idx = funds.firstIndex(where: { $0.id == id }) {
+                    funds[idx].entries = entries
+                }
+                applied += 1
+                loadedFundCount = applied
 
-            // Recompute at batch boundaries and on the final fund
-            if applied % batchSize == 0 || applied == totalFundCount {
-                await recompute()
+                // Recompute at batch boundaries and on the final fund
+                if applied % batchSize == 0 || applied == fundIds.count {
+                    await recompute()
+                }
             }
         }
     }
@@ -109,9 +100,7 @@ final class FundDataStore {
     func reload() async {
         let loaded = await FundStore.shared.readAllFunds()
         funds = loaded
-        totalFundCount = loaded.count
         loadedFundCount = loaded.count
-        loadProgress = 1.0
         isConfigLoaded = true
         isLoaded = true
         await recompute()
@@ -132,7 +121,6 @@ final class FundDataStore {
     func addFund(_ fund: FundData) async {
         try? await FundStore.shared.writeFund(fund)
         funds.append(fund)
-        totalFundCount = funds.count
         loadedFundCount = funds.count
         await recompute()
     }
@@ -148,7 +136,6 @@ final class FundDataStore {
     func deleteFund(id: String) async {
         try? await FundStore.shared.deleteFund(id: id)
         funds.removeAll { $0.id == id }
-        totalFundCount = funds.count
         loadedFundCount = funds.count
         await recompute()
     }
