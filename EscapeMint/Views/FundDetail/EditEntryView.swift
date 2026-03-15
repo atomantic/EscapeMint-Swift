@@ -3,6 +3,7 @@ import SwiftUI
 struct EditEntryView: View {
     @Environment(\.dismiss) private var dismiss
     let entry: FundEntry
+    let entryIndex: Int
     let fundId: String
     let fundType: FundType
     let onSaved: () -> Void
@@ -24,8 +25,9 @@ struct EditEntryView: View {
         return f
     }()
 
-    init(entry: FundEntry, fundId: String, fundType: FundType, onSaved: @escaping () -> Void) {
+    init(entry: FundEntry, entryIndex: Int, fundId: String, fundType: FundType, onSaved: @escaping () -> Void) {
         self.entry = entry
+        self.entryIndex = entryIndex
         self.fundId = fundId
         self.fundType = fundType
         self.onSaved = onSaved
@@ -113,9 +115,8 @@ struct EditEntryView: View {
 
         Task {
             guard var fund = await FundStore.shared.readFundById(fundId) else { return }
-            if let idx = fund.entries.firstIndex(where: { $0.id == entry.id }) {
-                fund.entries[idx] = updated
-            }
+            guard entryIndex >= 0 && entryIndex < fund.entries.count else { return }
+            fund.entries[entryIndex] = updated
             try? await FundStore.shared.replaceEntries(fundId: fundId, entries: fund.entries)
             onSaved()
             notifyFundsChanged()
@@ -126,7 +127,8 @@ struct EditEntryView: View {
     private func deleteEntry() {
         Task {
             guard var fund = await FundStore.shared.readFundById(fundId) else { return }
-            fund.entries.removeAll { $0.id == entry.id }
+            guard entryIndex >= 0 && entryIndex < fund.entries.count else { return }
+            fund.entries.remove(at: entryIndex)
             try? await FundStore.shared.replaceEntries(fundId: fundId, entries: fund.entries)
             onSaved()
             notifyFundsChanged()

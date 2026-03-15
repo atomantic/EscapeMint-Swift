@@ -1,0 +1,20 @@
+{
+  "fund_type": "stock",
+  "status": "active",
+  "fund_size_usd": 10000,
+  "target_apy": 0.3,
+  "interval_days": 7,
+  "input_min_usd": 100,
+  "input_mid_usd": 150,
+  "input_max_usd": 200,
+  "max_at_pct": -0.25,
+  "min_profit_usd": 500,
+  "cash_apy": 0.04,
+  "margin_apr": 0,
+  "margin_access_usd": 0,
+  "accumulate": false,
+  "manage_cash": false,
+  "start_date": "2021-01-14",
+  "__platform": "robinhoodtest",
+  "__ticker": "spxl"
+}

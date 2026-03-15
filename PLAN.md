@@ -79,6 +79,9 @@ Match the web app's fund detail page:
 - [x] Edit entry buttons per row (pencil icon on macOS, tap on iOS → EditEntryView sheet)
 - [x] Delete entry (via EditEntryView with confirmation dialog)
 - [x] "+ Take Action" button
+- [x] Configurable entry table columns (per fund type, with column picker)
+- [x] Index-based entry editing (reliable edit/delete for entries with same dates)
+- [x] Expanded EditFundView: all config fields, platform/ticker rename
 - [ ] Audited status badge (deferred — needs config field in UI)
 
 ### 1D. Engine Completeness
@@ -176,6 +179,8 @@ Match the web app's backtest page and use it as intro:
 - [x] BUY/SELL badge labels on price/target charts
 - [x] Settings toggle: "Show intro on launch" + "Show Intro Guide" button
 - [x] Auto-show intro on first launch or when toggle enabled
+- [x] Load Test Data: 5 bundled demo funds (coinbasetest/robinhoodtest) matching web app dataset
+- [x] Remove Test Data: clean deletion of all test platform funds
 
 ---
 

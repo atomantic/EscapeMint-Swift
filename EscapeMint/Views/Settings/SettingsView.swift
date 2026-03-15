@@ -10,6 +10,9 @@ struct SettingsView: View {
     @State private var statusMessage = ""
     @State private var showStatus = false
     @State private var showClearConfirm = false
+    @State private var showLoadTestConfirm = false
+    @State private var showRemoveTestConfirm = false
+    @State private var testFundCount = 0
     @AppStorage("escapemint-show-intro-on-launch") var showIntroOnLaunch = false
     @State private var showIntroGuide = false
 
@@ -51,7 +54,10 @@ struct SettingsView: View {
                 }
 
                 Section("Actions") {
-                    Button("Generate Test Data") { generateTestData() }
+                    Button("Load Test Data") { showLoadTestConfirm = true }
+                    if testFundCount > 0 {
+                        Button("Remove Test Data", role: .destructive) { showRemoveTestConfirm = true }
+                    }
                     Button("Clear All Data", role: .destructive) { showClearConfirm = true }
                 }
 
@@ -84,6 +90,18 @@ struct SettingsView: View {
             } message: {
                 Text("A backup will be saved automatically before clearing. This cannot be undone.")
             }
+            .alert("Load Test Data", isPresented: $showLoadTestConfirm) {
+                Button("Cancel", role: .cancel) {}
+                Button("Load Test Data") { loadTestData() }
+            } message: {
+                Text("This will create 5 demo funds simulating DCA investing over 5 years:\n\n\u{2022} coinbasetest-btc (Bitcoin)\n\u{2022} robinhoodtest-tqqq (3x Nasdaq ETF)\n\u{2022} robinhoodtest-spxl (3x S&P 500 ETF)\n\u{2022} Plus cash funds for each platform\(testFundCount > 0 ? "\n\nExisting test funds will be replaced." : "")")
+            }
+            .alert("Remove Test Data?", isPresented: $showRemoveTestConfirm) {
+                Button("Cancel", role: .cancel) {}
+                Button("Remove", role: .destructive) { removeTestData() }
+            } message: {
+                Text("This will delete all \(testFundCount) test fund(s) (coinbasetest, robinhoodtest platforms). Your real funds will not be affected.")
+            }
     }
 
     private func showToast(_ message: String) {
@@ -99,6 +117,7 @@ struct SettingsView: View {
         fundCount = stats.fundCount
         dataSize = stats.formattedSize
         storageLocation = await FundStore.shared.isICloud ? "iCloud Drive" : "Local"
+        testFundCount = await FundStore.shared.testFundCount()
     }
 
     private func pickAndImportJSON() {
@@ -218,50 +237,29 @@ struct SettingsView: View {
         }
     }
 
-    private func generateTestData() {
+    private func loadTestData() {
         Task {
-            var stockConfig = fundTypeDefaults[.stock]!
-            stockConfig.fund_type = .stock
-            stockConfig.status = .active
-            stockConfig.category = .volatility
-            stockConfig.fund_size_usd = 5000
-            stockConfig.target_apy = 0.50
-            stockConfig.input_min_usd = 1000
-            stockConfig.input_mid_usd = 1000
-            stockConfig.input_max_usd = 2000
+            do {
+                let count = try await FundStore.shared.loadTestData()
+                await refreshStats()
+                notifyFundsChanged()
+                showToast("Created \(count) test funds with simulated DCA history")
+            } catch {
+                showToast("Failed to load test data: \(error.localizedDescription)")
+            }
+        }
+    }
 
-            let stockEntries: [FundEntry] = [
-                FundEntry(date: "2025-01-06", value: 500, action: .BUY, amount: 500, shares: 7.14, price: 70.00),
-                FundEntry(date: "2025-01-13", value: 520, action: .HOLD),
-                FundEntry(date: "2025-01-20", value: 480, action: .BUY, amount: 150, shares: 2.21, price: 67.87),
-                FundEntry(date: "2025-02-03", value: 710, action: .HOLD),
-                FundEntry(date: "2025-02-10", value: 690, action: .BUY, amount: 100, shares: 1.40, price: 71.43),
-                FundEntry(date: "2025-03-03", value: 850, action: .HOLD),
-                FundEntry(date: "2025-03-10", value: 780, action: .BUY, amount: 150, shares: 2.08, price: 72.12),
-                FundEntry(date: "2025-04-01", value: 920, action: .HOLD),
-                FundEntry(date: "2025-04-07", value: 1050, action: .HOLD),
-            ]
-
-            try? await FundStore.shared.writeFund(FundData(platform: "demo", ticker: "tqqq", config: stockConfig, entries: stockEntries))
-
-            var cashConfig = fundTypeDefaults[.cash]!
-            cashConfig.fund_type = .cash
-            cashConfig.status = .active
-            cashConfig.category = .liquidity
-            cashConfig.fund_size_usd = 10000
-            cashConfig.cash_apy = 0.04
-
-            let cashEntries: [FundEntry] = [
-                FundEntry(date: "2025-01-01", value: 5000, cash: 5000, action: .DEPOSIT, amount: 5000),
-                FundEntry(date: "2025-02-01", value: 5200, cash: 5200, action: .DEPOSIT, amount: 200),
-                FundEntry(date: "2025-03-01", value: 5400, cash: 5400, action: .DEPOSIT, amount: 200, cash_interest: 16.67),
-            ]
-
-            try? await FundStore.shared.writeFund(FundData(platform: "demo", ticker: "savings", config: cashConfig, entries: cashEntries))
-
-            await refreshStats()
-            notifyFundsChanged()
-            showToast("Generated 2 test funds")
+    private func removeTestData() {
+        Task {
+            do {
+                let count = try await FundStore.shared.deleteTestFunds()
+                await refreshStats()
+                notifyFundsChanged()
+                showToast("Deleted \(count) test fund(s)")
+            } catch {
+                showToast("Failed to remove test data: \(error.localizedDescription)")
+            }
         }
     }
 

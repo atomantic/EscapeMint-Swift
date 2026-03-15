@@ -174,6 +174,55 @@ actor FundStore {
         }
     }
 
+    /// Delete all funds belonging to test platforms (coinbasetest, robinhoodtest, demo, etc.)
+    func deleteTestFunds() throws -> Int {
+        let funds = readAllFunds()
+        var deleted = 0
+        for fund in funds where isTestPlatform(fund.platform) {
+            try deleteFund(id: fund.id)
+            deleted += 1
+        }
+        return deleted
+    }
+
+    /// Count how many test funds currently exist
+    func testFundCount() -> Int {
+        readAllFunds().filter { isTestPlatform($0.platform) }.count
+    }
+
+    /// Load bundled test data (5 funds matching the web app's test dataset)
+    func loadTestData() throws -> Int {
+        let testFundIds = [
+            "coinbasetest-btc",
+            "coinbasetest-cash",
+            "robinhoodtest-tqqq",
+            "robinhoodtest-spxl",
+            "robinhoodtest-cash"
+        ]
+
+        // Remove existing test funds first
+        _ = try deleteTestFunds()
+
+        var loaded = 0
+        for fundId in testFundIds {
+            guard let jsonURL = Bundle.main.url(forResource: fundId, withExtension: "json", subdirectory: "TestData"),
+                  let tsvURL = Bundle.main.url(forResource: fundId, withExtension: "tsv", subdirectory: "TestData") else {
+                continue
+            }
+
+            let destJSON = fundsDirectory.appendingPathComponent("\(fundId).json")
+            let destTSV = fundsDirectory.appendingPathComponent("\(fundId).tsv")
+
+            try? fileManager.removeItem(at: destJSON)
+            try? fileManager.removeItem(at: destTSV)
+
+            try fileManager.copyItem(at: jsonURL, to: destJSON)
+            try fileManager.copyItem(at: tsvURL, to: destTSV)
+            loaded += 1
+        }
+        return loaded
+    }
+
     // MARK: - Import
 
     func importFromDirectory(_ sourceDir: URL) throws -> Int {
@@ -228,7 +277,7 @@ actor FundStore {
             }
 
             // Skip test/demo funds
-            if platform.hasPrefix("test") || platform.hasPrefix("demo") {
+            if isTestPlatform(platform) {
                 continue
             }
 
@@ -495,6 +544,12 @@ func buildTSV(_ entries: [FundEntry]) -> String {
         lines.append(serializeEntry(entry))
     }
     return lines.joined(separator: "\n") + "\n"
+}
+
+/// Check if a platform is a test/demo platform
+func isTestPlatform(_ platform: String) -> Bool {
+    let p = platform.lowercased()
+    return p.hasSuffix("test") || p.hasPrefix("test") || p.hasPrefix("demo")
 }
 
 extension JSONEncoder {

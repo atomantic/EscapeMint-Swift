@@ -1,0 +1,20 @@
+{
+  "fund_type": "cash",
+  "status": "active",
+  "fund_size_usd": 0,
+  "target_apy": 0.01,
+  "interval_days": 7,
+  "input_min_usd": 0,
+  "input_mid_usd": 0,
+  "input_max_usd": 0,
+  "max_at_pct": 0,
+  "min_profit_usd": 0,
+  "cash_apy": 0.01,
+  "margin_apr": 0,
+  "margin_access_usd": 0,
+  "accumulate": true,
+  "manage_cash": true,
+  "start_date": "2021-01-14",
+  "__platform": "robinhoodtest",
+  "__ticker": "cash"
+}
