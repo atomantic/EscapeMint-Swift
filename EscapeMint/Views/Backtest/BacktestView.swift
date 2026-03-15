@@ -12,6 +12,10 @@ struct BacktestView: View {
     @State private var availableRange: BacktestDateRange?
     @State private var sortOrder: BacktestSortOrder = .asc
     @State private var backtestTask: Task<Void, Never>?
+    @State private var hoverVA: Int?
+    @State private var hoverCP: Int?
+    @State private var hoverGB: Int?
+    @State private var hoverAPY: Int?
 
     // First-run detection
     @AppStorage("escapemint-intro-completed") private var introCompleted = false
@@ -128,9 +132,7 @@ struct BacktestView: View {
     private func applyDatePreset(_ preset: String, available: BacktestDateRange) {
         let end = available.end
         let cal = Calendar.current
-        let df = DateFormatter()
-        df.dateFormat = "yyyy-MM-dd"
-        df.locale = Locale(identifier: "en_US_POSIX")
+        let df = isoDateFormatter
 
         guard let endDate = df.date(from: end) else { return }
 
@@ -338,10 +340,9 @@ struct BacktestView: View {
             Text(label)
                 .font(.system(size: 10)).foregroundColor(.textSecondary)
                 .frame(width: 42, alignment: .leading)
-            Slider(value: value, in: 0...1, step: 0.05) { _ in
+            CompactSlider(value: value, range: 0...1, step: 0.05, tint: color) {
                 runBacktestAsync()
             }
-            .tint(color)
             .accessibilityLabel("\(label) allocation")
             .accessibilityValue("\(Int(value.wrappedValue * 100)) percent")
             .accessibilityIdentifier("slider-\(label.lowercased())")
@@ -489,10 +490,9 @@ struct BacktestView: View {
                 .font(.system(size: 10)).foregroundColor(.textMuted)
                 .frame(width: 85, alignment: .leading)
                 .lineLimit(1)
-            Slider(value: value, in: range, step: step) { _ in
+            CompactSlider(value: value, range: range, step: step, tint: .blue) {
                 runBacktestAsync()
             }
-            .tint(.blue)
             .accessibilityLabel(label)
             .accessibilityValue(format(value.wrappedValue))
             .accessibilityIdentifier("slider-\(label.lowercased().replacingOccurrences(of: " ", with: "-"))")
@@ -587,27 +587,33 @@ struct BacktestView: View {
             }
 
             Chart(entries) { entry in
-                // Invested area
-                AreaMark(x: .value("Date", entry.date), y: .value("Invested", entry.invested))
-                    .foregroundStyle(Color.purple.opacity(0.2))
+                AreaMark(x: .value("Date", entry.dateValue), y: .value("Invested", entry.invested))
+                    .foregroundStyle(Color.purple.opacity(0.3))
                     .interpolationMethod(.catmullRom)
-                // Cash area
-                AreaMark(x: .value("Date", entry.date), y: .value("Cash", entry.cash))
-                    .foregroundStyle(Color.green.opacity(0.15))
+                AreaMark(x: .value("Date", entry.dateValue), y: .value("Cash", entry.cash))
+                    .foregroundStyle(Color.green.opacity(0.2))
                     .interpolationMethod(.catmullRom)
-                // Value line
-                LineMark(x: .value("Date", entry.date), y: .value("Value", entry.equity))
+                LineMark(x: .value("Date", entry.dateValue), y: .value("Value", entry.equity))
                     .foregroundStyle(Color.orange)
                     .interpolationMethod(.catmullRom)
-                // Target line (dashed)
-                LineMark(x: .value("Date", entry.date), y: .value("Target", entry.expectedTarget))
+                LineMark(x: .value("Date", entry.dateValue), y: .value("Target", entry.expectedTarget))
                     .foregroundStyle(Color.cyan)
                     .interpolationMethod(.catmullRom)
-                    .lineStyle(StrokeStyle(dash: [4, 4]))
+                    .lineStyle(StrokeStyle(dash: [4, 3]))
             }
-            .chartXAxis { emDateAxis() }
+            .chartXAxis { emDateAxisTemporal() }
             .chartYAxis { emCurrencyAxis() }
             .chartLegend(.hidden)
+            .chartOverlay { proxy in
+                chartHoverOverlay(proxy: proxy, entries: entries, hoverIndex: $hoverVA) { entry in
+                    [
+                        (label: "Value", value: formatCurrency(entry.equity), color: Color.orange),
+                        (label: "Invested", value: formatCurrency(entry.invested), color: Color.purple),
+                        (label: "Cash", value: formatCurrency(entry.cash), color: Color.green),
+                        (label: "Target", value: formatCurrency(entry.expectedTarget), color: Color.cyan),
+                    ]
+                }
+            }
         }
         .chartCard()
     }
@@ -627,35 +633,38 @@ struct BacktestView: View {
             }
 
             Chart(entries) { entry in
-                AreaMark(x: .value("Date", entry.date), y: .value("Extracted", entry.totalExtracted))
+                AreaMark(x: .value("Date", entry.dateValue), y: .value("Extracted", entry.totalExtracted))
                     .foregroundStyle(Color.blue.opacity(0.3))
                     .interpolationMethod(.catmullRom)
-                LineMark(x: .value("Date", entry.date), y: .value("Extracted", entry.totalExtracted))
+                LineMark(x: .value("Date", entry.dateValue), y: .value("Extracted", entry.totalExtracted))
                     .foregroundStyle(Color.blue)
                     .interpolationMethod(.catmullRom)
-                LineMark(x: .value("Date", entry.date), y: .value("Interest", entry.sumCashInterest))
+                LineMark(x: .value("Date", entry.dateValue), y: .value("Interest", entry.sumCashInterest))
                     .foregroundStyle(Color.cyan)
                     .interpolationMethod(.catmullRom)
-                LineMark(x: .value("Date", entry.date), y: .value("Dividends", entry.sumDividends))
+                LineMark(x: .value("Date", entry.dateValue), y: .value("Dividends", entry.sumDividends))
                     .foregroundStyle(Color.mint)
                     .interpolationMethod(.catmullRom)
             }
-            .chartXAxis { emDateAxis() }
+            .chartXAxis { emDateAxisTemporal() }
             .chartYAxis { emCurrencyAxis() }
             .chartLegend(.hidden)
+            .chartOverlay { proxy in
+                chartHoverOverlay(proxy: proxy, entries: entries, hoverIndex: $hoverCP) { entry in
+                    [
+                        (label: "Extracted", value: formatCurrency(entry.totalExtracted), color: Color.blue),
+                        (label: "Interest", value: formatCurrency(entry.sumCashInterest), color: Color.cyan),
+                        (label: "Dividends", value: formatCurrency(entry.sumDividends), color: Color.mint),
+                    ]
+                }
+            }
         }
         .chartCard()
     }
 
     @ViewBuilder
     private func gainBreakdownChart(_ entries: [BacktestResult.BacktestEntry]) -> some View {
-        let chartPoints: [MultiLinePoint] = entries.flatMap { e in
-            [
-                MultiLinePoint(date: e.date, series: "Liquid", value: e.liquidPnL),
-                MultiLinePoint(date: e.date, series: "Unrealized", value: e.unrealized),
-                MultiLinePoint(date: e.date, series: "Realized", value: e.realized),
-            ]
-        }
+        let hasNegative = entries.contains { $0.liquidPnL < 0 || $0.unrealized < 0 || $0.realized < 0 }
 
         VStack(alignment: .leading, spacing: 4) {
             HStack {
@@ -669,18 +678,33 @@ struct BacktestView: View {
                 }
             }
 
-            Chart(chartPoints) { pt in
-                LineMark(
-                    x: .value("Date", pt.date),
-                    y: .value("Gain", pt.value)
-                )
-                .foregroundStyle(by: .value("Series", pt.series))
-                .interpolationMethod(.catmullRom)
+            Chart {
+                ForEach(entries) { e in
+                    LineMark(x: .value("Date", e.dateValue), y: .value("Gain", e.liquidPnL))
+                        .foregroundStyle(by: .value("Series", "Liquid"))
+                        .interpolationMethod(.catmullRom)
+                    LineMark(x: .value("Date", e.dateValue), y: .value("Gain", e.unrealized))
+                        .foregroundStyle(by: .value("Series", "Unrealized"))
+                        .interpolationMethod(.catmullRom)
+                    LineMark(x: .value("Date", e.dateValue), y: .value("Gain", e.realized))
+                        .foregroundStyle(by: .value("Series", "Realized"))
+                        .interpolationMethod(.catmullRom)
+                }
+                if hasNegative { emZeroLine() }
             }
             .chartForegroundStyleScale(["Liquid": Color.purple, "Unrealized": Color.orange, "Realized": Color.mint])
-            .chartXAxis { emDateAxis() }
+            .chartXAxis { emDateAxisTemporal() }
             .chartYAxis { emCurrencyAxis() }
             .chartLegend(.hidden)
+            .chartOverlay { proxy in
+                chartHoverOverlay(proxy: proxy, entries: entries, hoverIndex: $hoverGB) { entry in
+                    [
+                        (label: "Liquid", value: formatCurrency(entry.liquidPnL), color: Color.purple),
+                        (label: "Unrealized", value: formatCurrency(entry.unrealized), color: Color.orange),
+                        (label: "Realized", value: formatCurrency(entry.realized), color: Color.mint),
+                    ]
+                }
+            }
         }
         .chartCard()
     }
@@ -689,7 +713,8 @@ struct BacktestView: View {
     private func apyBreakdownChart(_ entries: [BacktestResult.BacktestEntry]) -> some View {
         let firstDate = entries.first?.date ?? ""
         let initialCash = config.initialCash
-        let chartPoints: [MultiLinePoint] = entries.flatMap { e -> [MultiLinePoint] in
+
+        let apyEntries: [BacktestAPYEntry] = entries.map { e in
             let daysElapsed = daysBetween(firstDate, e.date)
             let yearsElapsed = Double(daysElapsed) / 365.0
 
@@ -698,16 +723,14 @@ struct BacktestView: View {
             let realized = (e.totalExtracted - soldCostBasis) + e.sumCashInterest + e.sumDividends
             let liquid = e.fundSize - initialCash
 
-            let liquidAPY = yearsElapsed > 0 && initialCash > 0 ? liquid / initialCash / yearsElapsed : 0
-            let realizedAPY = yearsElapsed > 0 && initialCash > 0 ? realized / initialCash / yearsElapsed : 0
-            let unrealizedAPY = yearsElapsed > 0 && initialCash > 0 ? unrealized / initialCash / yearsElapsed : 0
+            let lAPY = yearsElapsed > 0 && initialCash > 0 ? liquid / initialCash / yearsElapsed : 0
+            let rAPY = yearsElapsed > 0 && initialCash > 0 ? realized / initialCash / yearsElapsed : 0
+            let uAPY = yearsElapsed > 0 && initialCash > 0 ? unrealized / initialCash / yearsElapsed : 0
 
-            return [
-                MultiLinePoint(date: e.date, series: "Liquid", value: liquidAPY),
-                MultiLinePoint(date: e.date, series: "Unrealized", value: unrealizedAPY),
-                MultiLinePoint(date: e.date, series: "Realized", value: realizedAPY),
-            ]
+            return BacktestAPYEntry(date: e.date, liquidAPY: lAPY, unrealizedAPY: uAPY, realizedAPY: rAPY)
         }
+
+        let hasNegative = apyEntries.contains { $0.liquidAPY < 0 || $0.unrealizedAPY < 0 || $0.realizedAPY < 0 }
 
         VStack(alignment: .leading, spacing: 4) {
             HStack {
@@ -721,18 +744,33 @@ struct BacktestView: View {
                 }
             }
 
-            Chart(chartPoints) { pt in
-                LineMark(
-                    x: .value("Date", pt.date),
-                    y: .value("APY", pt.value)
-                )
-                .foregroundStyle(by: .value("Series", pt.series))
-                .interpolationMethod(.catmullRom)
+            Chart {
+                ForEach(apyEntries) { e in
+                    LineMark(x: .value("Date", e.dateValue), y: .value("APY", e.liquidAPY))
+                        .foregroundStyle(by: .value("Series", "Liquid"))
+                        .interpolationMethod(.catmullRom)
+                    LineMark(x: .value("Date", e.dateValue), y: .value("APY", e.unrealizedAPY))
+                        .foregroundStyle(by: .value("Series", "Unrealized"))
+                        .interpolationMethod(.catmullRom)
+                    LineMark(x: .value("Date", e.dateValue), y: .value("APY", e.realizedAPY))
+                        .foregroundStyle(by: .value("Series", "Realized"))
+                        .interpolationMethod(.catmullRom)
+                }
+                if hasNegative { emZeroLine() }
             }
             .chartForegroundStyleScale(["Liquid": Color.purple, "Unrealized": Color.orange, "Realized": Color.mint])
-            .chartXAxis { emDateAxis() }
+            .chartXAxis { emDateAxisTemporal() }
             .chartYAxis { emPercentAxis() }
             .chartLegend(.hidden)
+            .chartOverlay { proxy in
+                chartHoverOverlay(proxy: proxy, entries: apyEntries, hoverIndex: $hoverAPY) { entry in
+                    [
+                        (label: "Liquid", value: formatPercent(entry.liquidAPY), color: Color.purple),
+                        (label: "Unrealized", value: formatPercent(entry.unrealizedAPY), color: Color.orange),
+                        (label: "Realized", value: formatPercent(entry.realizedAPY), color: Color.mint),
+                    ]
+                }
+            }
         }
         .chartCard()
     }
@@ -967,13 +1005,149 @@ private extension View {
     }
 }
 
-// MARK: - Chart Data Types
+// MARK: - Chart Hover Overlay
 
-private struct MultiLinePoint: Identifiable {
-    var id: String { "\(date)-\(series)" }
+private protocol DateIdentifiable: Identifiable {
+    var date: String { get }
+    var dateValue: Date { get }
+}
+
+extension DateIdentifiable {
+    var dateValue: Date {
+        isoDateFormatter.date(from: date) ?? .distantPast
+    }
+}
+
+extension BacktestResult.BacktestEntry: DateIdentifiable {}
+
+private struct BacktestAPYEntry: DateIdentifiable {
+    var id: String { date }
     let date: String
-    let series: String
-    let value: Double
+    let liquidAPY: Double
+    let unrealizedAPY: Double
+    let realizedAPY: Double
+}
+
+private func chartHoverOverlay<T: DateIdentifiable>(
+    proxy: ChartProxy,
+    entries: [T],
+    hoverIndex: Binding<Int?>,
+    tooltipLines: @escaping (T) -> [(label: String, value: String, color: Color)]
+) -> some View {
+    GeometryReader { geo in
+        if let plotFrame = proxy.plotFrame {
+            let frame = geo[plotFrame]
+
+            Rectangle().fill(.clear).contentShape(Rectangle())
+                .onContinuousHover { phase in
+                    switch phase {
+                    case .active(let loc):
+                        let x = loc.x - frame.origin.x
+                        let frac = max(0, min(1, x / frame.width))
+                        hoverIndex.wrappedValue = Int(round(frac * Double(entries.count - 1)))
+                    case .ended:
+                        hoverIndex.wrappedValue = nil
+                    @unknown default:
+                        hoverIndex.wrappedValue = nil
+                    }
+                }
+                .overlay {
+                    if let idx = hoverIndex.wrappedValue,
+                       idx >= 0, idx < entries.count {
+                        let entry = entries[idx]
+                        let xFrac = Double(idx) / Double(max(1, entries.count - 1))
+                        let xPos = frame.origin.x + xFrac * frame.width
+                        let lines = tooltipLines(entry)
+
+                        // Vertical dashed hover line
+                        Path { path in
+                            path.move(to: CGPoint(x: xPos, y: frame.origin.y))
+                            path.addLine(to: CGPoint(x: xPos, y: frame.origin.y + frame.height))
+                        }
+                        .stroke(Color.textMuted.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+
+                        // Tooltip card
+                        let flipLeft = xPos > frame.midX
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(formatTooltipDate(entry.date))
+                                .font(.caption2).fontWeight(.medium).foregroundColor(.textPrimary)
+                            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                                HStack(spacing: 3) {
+                                    Circle().fill(line.color).frame(width: 5, height: 5)
+                                    Text("\(line.label):")
+                                        .font(.system(size: 9)).foregroundColor(.textMuted)
+                                    Text(line.value)
+                                        .font(.system(size: 9, weight: .medium)).foregroundColor(line.color)
+                                }
+                            }
+                        }
+                        .padding(6)
+                        .background(Color.bgCard)
+                        .cornerRadius(6)
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.textMuted.opacity(0.3), lineWidth: 1))
+                        .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+                        .position(
+                            x: flipLeft ? xPos - 70 : xPos + 70,
+                            y: frame.origin.y + 40
+                        )
+                    }
+                }
+        }
+    }
+}
+
+// MARK: - Compact Slider (no macOS tick marks)
+
+private struct CompactSlider: View {
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let step: Double
+    let tint: Color
+    let onDragEnd: () -> Void
+
+    init(value: Binding<Double>, range: ClosedRange<Double>, step: Double, tint: Color, onDragEnd: @escaping () -> Void) {
+        self._value = value
+        self.range = range
+        self.step = step
+        self.tint = tint
+        self.onDragEnd = onDragEnd
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let span = range.upperBound - range.lowerBound
+            let frac = span > 0 ? (value - range.lowerBound) / span : 0
+            let trackH: CGFloat = 4
+            let thumbD: CGFloat = 14
+
+            ZStack(alignment: .leading) {
+                // Track background
+                Capsule().fill(Color.textMuted.opacity(0.15))
+                    .frame(height: trackH)
+                // Filled track
+                Capsule().fill(tint)
+                    .frame(width: max(0, geo.size.width * frac), height: trackH)
+                // Thumb
+                Circle().fill(.white)
+                    .shadow(color: .black.opacity(0.2), radius: 1, y: 1)
+                    .frame(width: thumbD, height: thumbD)
+                    .offset(x: max(0, min(geo.size.width - thumbD, geo.size.width * frac - thumbD / 2)))
+            }
+            .frame(height: thumbD)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onDragEnd { drag in
+                        let pct = max(0, min(1, drag.location.x / geo.size.width))
+                        let raw = range.lowerBound + pct * span
+                        let stepped = step > 0 ? (raw / step).rounded() * step : raw
+                        value = max(range.lowerBound, min(range.upperBound, stepped))
+                    }
+                    .onEnded { _ in onDragEnd() }
+            )
+        }
+        .frame(height: 14)
+    }
 }
 
 // MARK: - Asset Colors

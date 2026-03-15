@@ -56,18 +56,42 @@ func getFundStartDate(_ entries: [FundEntry]) -> String {
     return first.date
 }
 
-private let dateFormatter: DateFormatter = {
+let isoDateFormatter: DateFormatter = {
     let f = DateFormatter()
     f.dateFormat = "yyyy-MM-dd"
     f.locale = Locale(identifier: "en_US_POSIX")
     return f
 }()
 
+let shortDateFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateFormat = "MMM ''yy"
+    f.locale = Locale(identifier: "en_US_POSIX")
+    return f
+}()
+
+private let tooltipDateFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateFormat = "MMM d, yyyy"
+    f.locale = Locale(identifier: "en_US_POSIX")
+    return f
+}()
+
+func formatDateLabel(_ dateStr: String) -> String {
+    guard let date = isoDateFormatter.date(from: dateStr) else { return dateStr }
+    return shortDateFormatter.string(from: date)
+}
+
+func formatTooltipDate(_ dateStr: String) -> String {
+    guard let date = isoDateFormatter.date(from: dateStr) else { return dateStr }
+    return tooltipDateFormatter.string(from: date)
+}
+
 func daysBetween(_ start: String, _ end: String) -> Int {
-    guard let s = dateFormatter.date(from: start), let e = dateFormatter.date(from: end) else { return 0 }
+    guard let s = isoDateFormatter.date(from: start), let e = isoDateFormatter.date(from: end) else { return 0 }
     return Calendar.current.dateComponents([.day], from: s, to: e).day ?? 0
 }
 
 func todayString() -> String {
-    dateFormatter.string(from: Date())
+    isoDateFormatter.string(from: Date())
 }

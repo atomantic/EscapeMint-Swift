@@ -492,14 +492,15 @@ struct ValueChartView: View {
                 .font(.subheadline).fontWeight(.medium).foregroundColor(.textPrimary)
 
             Chart(sampled, id: \.date) { entry in
-                LineMark(x: .value("Date", entry.date), y: .value("Value", entry.value))
+                let d = isoDateFormatter.date(from: entry.date) ?? Date()
+                LineMark(x: .value("Date", d), y: .value("Value", entry.value))
                     .foregroundStyle(Color.mint)
                     .interpolationMethod(.catmullRom)
-                AreaMark(x: .value("Date", entry.date), y: .value("Value", entry.value))
+                AreaMark(x: .value("Date", d), y: .value("Value", entry.value))
                     .foregroundStyle(Color.mint.opacity(0.15))
                     .interpolationMethod(.catmullRom)
             }
-            .chartXAxis { emDateAxis() }
+            .chartXAxis { emDateAxisTemporal() }
             .chartYAxis { emCurrencyAxis() }
             .frame(height: 160)
         }
@@ -515,16 +516,20 @@ struct PLChartView: View {
 
     var body: some View {
         let points = computePLPoints(entries: entries, config: config)
+        let hasNegative = points.contains { $0.realized < 0 || $0.liquid < 0 }
 
         VStack(alignment: .leading, spacing: 8) {
             Text("P&L Over Time")
                 .font(.subheadline).fontWeight(.medium).foregroundColor(.textPrimary)
 
-            Chart(points) { pt in
-                LineMark(x: .value("Date", pt.date), y: .value("Realized", pt.realized))
-                    .foregroundStyle(by: .value("Type", "Realized"))
-                LineMark(x: .value("Date", pt.date), y: .value("Liquid", pt.liquid))
-                    .foregroundStyle(by: .value("Type", "Liquid"))
+            Chart {
+                ForEach(points) { pt in
+                    LineMark(x: .value("Date", pt.date), y: .value("Realized", pt.realized))
+                        .foregroundStyle(by: .value("Type", "Realized"))
+                    LineMark(x: .value("Date", pt.date), y: .value("Liquid", pt.liquid))
+                        .foregroundStyle(by: .value("Type", "Liquid"))
+                }
+                if hasNegative { emZeroLine() }
             }
             .chartForegroundStyleScale(["Realized": Color.mint, "Liquid": Color.blue])
             .chartXAxis { emDateAxis() }
@@ -544,16 +549,20 @@ struct APYChartView: View {
 
     var body: some View {
         let points = computeAPYPoints(entries: entries, config: config)
+        let hasNegative = points.contains { $0.realizedAPY < 0 || $0.liquidAPY < 0 }
 
         VStack(alignment: .leading, spacing: 8) {
             Text("APY Over Time")
                 .font(.subheadline).fontWeight(.medium).foregroundColor(.textPrimary)
 
-            Chart(points) { pt in
-                LineMark(x: .value("Date", pt.date), y: .value("R.APY", pt.realizedAPY))
-                    .foregroundStyle(by: .value("Type", "Realized"))
-                LineMark(x: .value("Date", pt.date), y: .value("L.APY", pt.liquidAPY))
-                    .foregroundStyle(by: .value("Type", "Liquid"))
+            Chart {
+                ForEach(points) { pt in
+                    LineMark(x: .value("Date", pt.date), y: .value("R.APY", pt.realizedAPY))
+                        .foregroundStyle(by: .value("Type", "Realized"))
+                    LineMark(x: .value("Date", pt.date), y: .value("L.APY", pt.liquidAPY))
+                        .foregroundStyle(by: .value("Type", "Liquid"))
+                }
+                if hasNegative { emZeroLine() }
             }
             .chartForegroundStyleScale(["Realized": Color.mint, "Liquid": Color.blue])
             .chartXAxis { emDateAxis() }
@@ -598,13 +607,27 @@ struct CapturedProfitChartView: View {
 }
 
 // MARK: - Chart Axis Builders
+// Date formatters (isoDateFormatter, shortDateFormatter) and format helpers
+// (formatDateLabel, formatTooltipDate) are in Converters.swift
 
 @AxisContentBuilder
 func emDateAxis() -> some AxisContent {
     AxisMarks(values: .automatic(desiredCount: 4)) { value in
         AxisValueLabel {
             if let str = value.as(String.self) {
-                Text(String(str.suffix(5)))
+                Text(formatDateLabel(str))
+                    .font(.caption2).foregroundColor(.textMuted)
+            }
+        }
+    }
+}
+
+@AxisContentBuilder
+func emDateAxisTemporal() -> some AxisContent {
+    AxisMarks(values: .automatic(desiredCount: 5)) { value in
+        AxisValueLabel {
+            if let date = value.as(Date.self) {
+                Text(shortDateFormatter.string(from: date))
                     .font(.caption2).foregroundColor(.textMuted)
             }
         }
@@ -616,7 +639,7 @@ func emCurrencyAxis() -> some AxisContent {
     AxisMarks(position: .leading) { value in
         AxisValueLabel {
             if let v = value.as(Double.self) {
-                Text(formatCurrency(v))
+                Text(formatCurrencyCompact(v))
                     .font(.caption2).foregroundColor(.textMuted)
             }
         }
@@ -634,3 +657,13 @@ func emPercentAxis() -> some AxisContent {
         }
     }
 }
+
+// MARK: - Zero Reference Line
+
+@ChartContentBuilder
+func emZeroLine() -> some ChartContent {
+    RuleMark(y: .value("Zero", 0))
+        .foregroundStyle(Color.textMuted.opacity(0.4))
+        .lineStyle(StrokeStyle(dash: [4, 4]))
+}
+

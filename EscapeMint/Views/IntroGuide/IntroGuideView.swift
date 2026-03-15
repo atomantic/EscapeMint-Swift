@@ -4,6 +4,7 @@ struct IntroGuideView: View {
     @Binding var isPresented: Bool
     @State private var currentStep = 1
     @AppStorage("escapemint-intro-completed") private var introCompleted = false
+    @State private var modePreloader = ModeComparisonPreloader()
 
     private let totalSteps = introSteps.count
 
@@ -50,6 +51,7 @@ struct IntroGuideView: View {
         }
         .background(Color.bg)
         .frame(minWidth: 600, idealWidth: 700, minHeight: 500, idealHeight: 650)
+        .task { modePreloader.preload() }
     }
 
     // MARK: - Header
@@ -195,7 +197,7 @@ struct IntroGuideView: View {
         case .leverage:
             LeverageComparisonChart()
         case .modes:
-            ModeComparisonChart()
+            ModeComparisonChart(preloader: modePreloader)
         case .none:
             EmptyView()
         }

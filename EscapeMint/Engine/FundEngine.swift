@@ -346,32 +346,41 @@ func computeRecommendation(config: FundConfig, state: FundState) -> Recommendati
     guard features.allowsRecommendations else { return nil }
 
     let limit = computeLimit(config: config, state: state)
+    let hasCashPool = config.manage_cash ?? true
 
-    // SELL: above target AND in profit
-    if state.targetDiffUsd > 0 && state.gainUsd > 0 {
+    // Special case: no investment yet, recommend initial BUY
+    if state.startInputUsd == 0 && state.actualValueUsd == 0 {
+        let buyAmount = hasCashPool ? min(limit, state.cashAvailableUsd) : limit
+        return Recommendation(action: .BUY, amount: buyAmount,
+                              reasoning: "Initial DCA purchase of \(formatCurrency(buyAmount)).")
+    }
+
+    // SELL: above target by more than min_profit AND in profit
+    let minProfit = config.min_profit_usd ?? 0
+    if state.targetDiffUsd > minProfit && state.gainUsd > 0 {
         let accumulate = config.accumulate ?? true
         let sellAmount = accumulate ? limit : state.actualValueUsd
         let reasoning = accumulate
-            ? "Above target by \(formatCurrency(state.targetDiffUsd)) and in profit. Sell \(formatCurrency(limit)) to capture gains."
-            : "Above target by \(formatCurrency(state.targetDiffUsd)). Harvest entire position of \(formatCurrency(state.actualValueUsd))."
+            ? "Above target by \(formatCurrency(state.targetDiffUsd)) (> \(formatCurrency(minProfit)) threshold). Sell \(formatCurrency(sellAmount))."
+            : "Above target by \(formatCurrency(state.targetDiffUsd)) (> \(formatCurrency(minProfit)) threshold). Harvest entire position of \(formatCurrency(state.actualValueUsd))."
         return Recommendation(action: .SELL, amount: sellAmount, reasoning: reasoning)
     }
 
-    // BUY: below target or no investment yet
-    if state.cashAvailableUsd <= 0 {
-        return Recommendation(action: .HOLD, amount: 0, reasoning: "No cash available for purchase.")
+    // BUY: below or at target
+    let buyAmount = hasCashPool ? min(limit, state.cashAvailableUsd) : limit
+
+    // No cash available — HOLD
+    if (hasCashPool && buyAmount < 0.01) || (!hasCashPool && state.cashAvailableUsd < 0.01) {
+        return Recommendation(action: .HOLD, amount: 0, reasoning: "No cash available for DCA. Holding position.")
     }
 
-    let buyAmount = min(limit, state.cashAvailableUsd)
     let reasoning: String
-    if state.startInputUsd == 0 {
-        reasoning = "No position yet. Initial buy of \(formatCurrency(buyAmount))."
-    } else if state.gainPct < (config.max_at_pct ?? -0.25) {
-        reasoning = "Down \(formatPercent(state.gainPct)) (past max threshold). Max DCA of \(formatCurrency(buyAmount))."
+    if state.gainPct < 0 && state.gainPct <= (config.max_at_pct ?? -0.25) {
+        reasoning = "Significant loss (\(formatPercent(state.gainPct))). DCA max amount: \(formatCurrency(limit))."
     } else if state.gainPct < 0 {
-        reasoning = "Down \(formatPercent(state.gainPct)). Mid DCA of \(formatCurrency(buyAmount))."
+        reasoning = "Below cost basis (\(formatPercent(state.gainPct)) loss). DCA mid amount: \(formatCurrency(limit))."
     } else {
-        reasoning = "At cost or above but below target. Min DCA of \(formatCurrency(buyAmount))."
+        reasoning = "On track or above cost. DCA min amount: \(formatCurrency(limit))."
     }
 
     return Recommendation(action: .BUY, amount: buyAmount, reasoning: reasoning)

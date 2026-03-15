@@ -1,6 +1,38 @@
 import SwiftUI
 import Charts
 
+// MARK: - Mode Comparison Preloader
+
+@MainActor @Observable
+final class ModeComparisonPreloader {
+    var harvestResult: BacktestResult?
+    var accumulateResult: BacktestResult?
+
+    func preload() {
+        guard harvestResult == nil, accumulateResult == nil else { return }
+        let hist = cachedHistoricalData
+
+        var harvestCfg = BacktestConfig()
+        harvestCfg.spxlPct = 0; harvestCfg.vtiPct = 0; harvestCfg.brgnxPct = 0
+        harvestCfg.tqqqPct = 1.0; harvestCfg.btcPct = 0; harvestCfg.gldPct = 0; harvestCfg.slvPct = 0
+        harvestCfg.targetAPY = 0.52; harvestCfg.accumulate = false; harvestCfg.inputMax = 350
+
+        var accCfg = BacktestConfig()
+        accCfg.spxlPct = 0; accCfg.vtiPct = 0; accCfg.brgnxPct = 0
+        accCfg.tqqqPct = 1.0; accCfg.btcPct = 0; accCfg.gldPct = 0; accCfg.slvPct = 0
+        accCfg.targetAPY = 0.20; accCfg.accumulate = true
+
+        let hCfg = harvestCfg
+        let aCfg = accCfg
+        Task {
+            let harvest = await Task.detached { runBacktest(config: hCfg, historicalData: hist) }.value
+            let accumulate = await Task.detached { runBacktest(config: aCfg, historicalData: hist) }.value
+            harvestResult = harvest
+            accumulateResult = accumulate
+        }
+    }
+}
+
 // MARK: - Shared Data & Helpers
 
 private struct GrowthPoint: Identifiable {
@@ -45,16 +77,18 @@ private let investedPurple = Color(red: 139/255, green: 92/255, blue: 246/255)
 private let cachedHistoricalData: [String: HistoricalData] = loadHistoricalData()
 
 /// Shared price/target sample data used by TraditionalDCAChart and BuySellZonesChart
+/// Uses 200 points for smooth step-based area fills
 private let sharedPriceTargetData: (data: [PriceTargetPoint], yMin: Double, yMax: Double) = {
     var pts: [PriceTargetPoint] = []
-    let points = 60
+    let points = 200
     for i in 0...points {
         let progress = Double(i) / Double(points)
+        let x = progress * 60.0
         let target = 100.0 * pow(1.20, progress * 2.0)
         let wave1 = sin(progress * .pi * 4) * 25
         let wave2 = sin(progress * .pi * 7) * 15
         let price = target + wave1 + wave2
-        pts.append(PriceTargetPoint(id: i, x: Double(i), price: price, target: target))
+        pts.append(PriceTargetPoint(id: i, x: x, price: price, target: target))
     }
     let allValues = pts.flatMap { [$0.price, $0.target] }
     return (pts, (allValues.min() ?? 0) * 0.85, (allValues.max() ?? 200) * 1.1)
@@ -285,9 +319,11 @@ struct TraditionalDCAChart: View {
 
             Chart {
                 ForEach(visible) { point in
-                    AreaMark(x: .value("X", point.x), yStart: .value("Target", point.target), yEnd: .value("SellTop", point.sellZoneTop))
-                        .foregroundStyle(Color.orange.opacity(0.3))
-                        .interpolationMethod(.catmullRom)
+                    if point.price > point.target {
+                        AreaMark(x: .value("X", point.x), yStart: .value("Target", point.target), yEnd: .value("SellTop", point.price))
+                            .foregroundStyle(Color.orange.opacity(0.3))
+                            .interpolationMethod(.stepCenter)
+                    }
                 }
                 ForEach(visible) { point in
                     LineMark(x: .value("X", point.x), y: .value("Target", point.target), series: .value("Series", "Target"))
@@ -355,21 +391,16 @@ struct BuySellZonesChart: View {
 
             Chart {
                 ForEach(visible) { point in
-                    AreaMark(x: .value("X", point.x), yStart: .value("Target", point.target), yEnd: .value("BuyBottom", point.buyZoneBottom))
-                        .foregroundStyle(Color.mint.opacity(0.3))
-                        .interpolationMethod(.catmullRom)
+                    AreaMark(x: .value("X", point.x), yStart: .value("Price", point.price), yEnd: .value("Target", point.target))
+                        .foregroundStyle(point.price >= point.target ? Color.red.opacity(0.4) : Color.mint.opacity(0.4))
+                        .interpolationMethod(.stepCenter)
                 }
                 ForEach(visible) { point in
-                    AreaMark(x: .value("X", point.x), yStart: .value("Target2", point.target), yEnd: .value("SellTop", point.sellZoneTop))
-                        .foregroundStyle(Color.red.opacity(0.3))
-                        .interpolationMethod(.catmullRom)
-                }
-                ForEach(visible) { point in
-                    LineMark(x: .value("X", point.x), y: .value("Target", point.target), series: .value("Series", "Target"))
+                    LineMark(x: .value("X", point.x), y: .value("TargetLine", point.target), series: .value("Series", "Target"))
                         .foregroundStyle(Color.orange)
                         .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 5]))
                         .interpolationMethod(.catmullRom)
-                    LineMark(x: .value("X", point.x), y: .value("Price", point.price), series: .value("Series", "Price"))
+                    LineMark(x: .value("X", point.x), y: .value("PriceLine", point.price), series: .value("Series", "Price"))
                         .foregroundStyle(Color.textPrimary)
                         .lineStyle(StrokeStyle(lineWidth: 2.5))
                         .interpolationMethod(.catmullRom)
@@ -448,13 +479,14 @@ struct LeverageComparisonChart: View {
 
             Chart {
                 ForEach(visible) { point in
-                    LineMark(x: .value("Date", point.date), y: .value("BRGNX", point.brgnx), series: .value("Series", "BRGNX"))
+                    let date = isoDateFormatter.date(from: point.date) ?? Date()
+                    LineMark(x: .value("Date", date), y: .value("BRGNX", point.brgnx), series: .value("Series", "BRGNX"))
                         .foregroundStyle(Color.blue).lineStyle(StrokeStyle(lineWidth: 2)).interpolationMethod(.catmullRom)
-                    LineMark(x: .value("Date", point.date), y: .value("SPXL", point.spxl), series: .value("Series", "SPXL"))
+                    LineMark(x: .value("Date", date), y: .value("SPXL", point.spxl), series: .value("Series", "SPXL"))
                         .foregroundStyle(Color.mint).lineStyle(StrokeStyle(lineWidth: 2)).interpolationMethod(.catmullRom)
                 }
             }
-            .chartXAxis { emDateAxis() }
+            .chartXAxis { emDateAxisTemporal() }
             .chartYScale(domain: fullRange)
             .chartYAxis { introKAxis() }
             .chartLegend(.hidden)
@@ -504,12 +536,11 @@ struct LeverageComparisonChart: View {
 // MARK: - Mode Comparison Chart (Step 7)
 
 struct ModeComparisonChart: View {
-    @State private var harvestResult: BacktestResult?
-    @State private var accumulateResult: BacktestResult?
+    var preloader: ModeComparisonPreloader
 
     var body: some View {
         VStack(spacing: 12) {
-            if let harvest = harvestResult, let accumulate = accumulateResult {
+            if let harvest = preloader.harvestResult, let accumulate = preloader.accumulateResult {
                 HStack(spacing: 12) {
                     modeChart(result: harvest, targetAPY: 0.52, title: "Harvest Mode (TQQQ)", color: .mint)
                     modeChart(result: accumulate, targetAPY: 0.20, title: "Accumulate Mode (TQQQ)", color: .blue)
@@ -528,23 +559,6 @@ struct ModeComparisonChart: View {
             }
         }
         .padding(12).background(Color.bgCard).cornerRadius(12)
-        .task {
-            var harvestCfg = BacktestConfig()
-            harvestCfg.spxlPct = 0; harvestCfg.vtiPct = 0; harvestCfg.brgnxPct = 0
-            harvestCfg.tqqqPct = 1.0; harvestCfg.btcPct = 0; harvestCfg.gldPct = 0; harvestCfg.slvPct = 0
-            harvestCfg.targetAPY = 0.52; harvestCfg.accumulate = false; harvestCfg.inputMax = 350
-
-            var accCfg = BacktestConfig()
-            accCfg.spxlPct = 0; accCfg.vtiPct = 0; accCfg.brgnxPct = 0
-            accCfg.tqqqPct = 1.0; accCfg.btcPct = 0; accCfg.gldPct = 0; accCfg.slvPct = 0
-            accCfg.targetAPY = 0.20; accCfg.accumulate = true
-
-            let hist = cachedHistoricalData
-            async let h = Task.detached { runBacktest(config: harvestCfg, historicalData: hist) }.value
-            async let a = Task.detached { runBacktest(config: accCfg, historicalData: hist) }.value
-            harvestResult = await h
-            accumulateResult = await a
-        }
     }
 
     private enum LegendStyle { case line, square, dashed }
@@ -583,24 +597,25 @@ struct ModeComparisonChart: View {
 
             Chart(sampled.indices, id: \.self) { i in
                 let entry = sampled[i]
+                let date = isoDateFormatter.date(from: entry.date) ?? Date()
                 let expectedTarget = entry.invested * (1.0 + targetAPY * Double(i) * 7.0 / 365.0)
 
-                AreaMark(x: .value("Date", entry.date), y: .value("Invested", entry.invested))
+                AreaMark(x: .value("Date", date), y: .value("Invested", entry.invested))
                     .foregroundStyle(investedPurple.opacity(0.4))
                     .interpolationMethod(.catmullRom)
-                AreaMark(x: .value("Date", entry.date), yStart: .value("InvBase", entry.invested), yEnd: .value("InvPlusCash", entry.invested + entry.cash))
+                AreaMark(x: .value("Date", date), yStart: .value("InvBase", entry.invested), yEnd: .value("InvPlusCash", entry.invested + entry.cash))
                     .foregroundStyle(Color.mint.opacity(0.4))
                     .interpolationMethod(.catmullRom)
-                LineMark(x: .value("Date", entry.date), y: .value("Target", expectedTarget), series: .value("Series", "Target"))
+                LineMark(x: .value("Date", date), y: .value("Target", expectedTarget), series: .value("Series", "Target"))
                     .foregroundStyle(Color.cyan)
                     .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
                     .interpolationMethod(.catmullRom)
-                LineMark(x: .value("Date", entry.date), y: .value("Value", entry.equity), series: .value("Series", "Value"))
+                LineMark(x: .value("Date", date), y: .value("Value", entry.equity), series: .value("Series", "Value"))
                     .foregroundStyle(Color.orange)
                     .lineStyle(StrokeStyle(lineWidth: 2))
                     .interpolationMethod(.catmullRom)
             }
-            .chartXAxis { emDateAxis() }
+            .chartXAxis { emDateAxisTemporal() }
             .chartYScale(domain: 0...yMax)
             .chartYAxis {
                 AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
