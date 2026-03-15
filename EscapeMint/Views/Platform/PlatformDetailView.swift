@@ -12,11 +12,17 @@ struct PlatformDetailView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
+                #if os(macOS)
                 header
+                #endif
                 if !summaries.isEmpty {
                     metricsPanel
                     breakdownPanel
+                    #if os(macOS)
                     fundsTable
+                    #else
+                    iosFundsList
+                    #endif
                 }
             }
             .padding()
@@ -29,7 +35,7 @@ struct PlatformDetailView: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - Header (macOS)
 
     @ViewBuilder
     private var header: some View {
@@ -61,11 +67,12 @@ struct PlatformDetailView: View {
         let liquidPL = totalUnrealized + totalRealized
         let liquidPct = totalInvested > 0 ? liquidPL / totalInvested : 0
 
+        let cols = platformAdaptiveColumns(mac: 3, ios: 2)
         VStack(alignment: .leading, spacing: 8) {
             Text("P&L Summary")
                 .font(.headline).foregroundColor(.textPrimary)
 
-            LazyVGrid(columns: Array(repeating: .init(.flexible()), count: 3), spacing: 10) {
+            LazyVGrid(columns: cols, spacing: 10) {
                 StatBox(label: "Total Fund Size", value: formatCurrency(totalFundSize))
                 StatBox(label: "Current Value", value: formatCurrency(totalValue), color: .mint)
                 StatBox(label: "Total Invested", value: formatCurrency(totalInvested))
@@ -83,12 +90,17 @@ struct PlatformDetailView: View {
 
     @ViewBuilder
     private var breakdownPanel: some View {
-        let totalCash = activeSummaries.reduce(0.0) { $0 + $1.state.cashAvailableUsd }
-        let totalDividends = summaries.reduce(0.0) { $0 + entriesToDividends($1.fund.entries).reduce(0.0) { $0 + $1.amountUsd } }
-        let totalExpenses = summaries.reduce(0.0) { $0 + entriesToExpenses($1.fund.entries).reduce(0.0) { $0 + $1.amountUsd } }
-        let totalInterest = summaries.reduce(0.0) { $0 + $1.state.cashInterestUsd }
+        // Single-pass reduce over summaries
+        var totalCash = 0.0, totalDividends = 0.0, totalExpenses = 0.0, totalInterest = 0.0
+        let _ = summaries.forEach { s in
+            if s.fund.config.status != .closed { totalCash += s.state.cashAvailableUsd }
+            totalDividends += entriesToDividends(s.fund.entries).reduce(0.0) { $0 + $1.amountUsd }
+            totalExpenses += entriesToExpenses(s.fund.entries).reduce(0.0) { $0 + $1.amountUsd }
+            totalInterest += s.state.cashInterestUsd
+        }
 
-        LazyVGrid(columns: Array(repeating: .init(.flexible()), count: 5), spacing: 10) {
+        let cols = platformAdaptiveColumns(mac: 5, ios: 3)
+        LazyVGrid(columns: cols, spacing: 10) {
             miniStat("Cash", formatCurrency(totalCash))
             miniStat("Dividends", formatCurrency(totalDividends), color: totalDividends > 0 ? .mint : .textMuted)
             miniStat("Expenses", formatCurrency(totalExpenses), color: totalExpenses > 0 ? .red : .textMuted)
@@ -109,7 +121,7 @@ struct PlatformDetailView: View {
         .cornerRadius(8)
     }
 
-    // MARK: - Funds Table
+    // MARK: - macOS Funds Table
 
     @ViewBuilder
     private var fundsTable: some View {
@@ -118,7 +130,6 @@ struct PlatformDetailView: View {
                 .font(.headline).foregroundColor(.textPrimary)
 
             VStack(spacing: 0) {
-                // Header
                 Grid(horizontalSpacing: 8) {
                     GridRow {
                         Text("Fund").frame(maxWidth: .infinity, alignment: .leading)
@@ -186,6 +197,65 @@ struct PlatformDetailView: View {
             }
             .cornerRadius(8)
         }
+    }
+
+    // MARK: - iOS Funds List (card-based)
+
+    @ViewBuilder
+    private var iosFundsList: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Funds")
+                .font(.headline).foregroundColor(.textPrimary)
+
+            ForEach(activeSummaries + closedSummaries, id: \.fund.id) { s in
+                NavigationLink(destination: FundDetailView(fundId: s.fund.id)) {
+                    VStack(spacing: 6) {
+                        HStack {
+                            Circle().fill(Color.forCategory(s.fund.config.category)).frame(width: 8, height: 8)
+                            Text(s.fund.ticker.uppercased())
+                                .font(.callout).fontWeight(.semibold).foregroundColor(.textPrimary)
+                            Text(s.features.label)
+                                .font(.caption2).foregroundColor(.textMuted)
+                            if s.fund.config.status == .closed {
+                                Text("Closed").font(.caption2)
+                                    .padding(.horizontal, 4).padding(.vertical, 1)
+                                    .background(Color.bgInput).cornerRadius(3)
+                                    .foregroundColor(.textMuted)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption2).foregroundColor(.textMuted)
+                        }
+
+                        LazyVGrid(columns: [.init(.flexible()), .init(.flexible()), .init(.flexible())], spacing: 4) {
+                            fundMiniStat("Value", formatCurrency(s.currentValue))
+                            fundMiniStat("Realized", formatCurrency(s.state.realizedGainsUsd), color: s.state.realizedGainsUsd > 0 ? .mint : .red)
+                            fundMiniStat("L.APY", formatPercent(s.liquidAPY), color: s.liquidAPY > 0 ? .mint : .red)
+                        }
+                    }
+                    .padding(12)
+                    .background(Color.bgCard)
+                    .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func fundMiniStat(_ label: String, _ value: String, color: Color = .textPrimary) -> some View {
+        VStack(spacing: 1) {
+            Text(label).font(.caption2).foregroundColor(.textMuted)
+            Text(value).font(.caption).fontWeight(.medium).foregroundColor(color)
+        }
+    }
+
+    private func platformAdaptiveColumns(mac: Int, ios: Int) -> [GridItem] {
+        #if os(macOS)
+        Array(repeating: .init(.flexible()), count: mac)
+        #else
+        Array(repeating: .init(.flexible()), count: ios)
+        #endif
     }
 
     private func loadFunds() async {

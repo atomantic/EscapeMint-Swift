@@ -38,19 +38,17 @@ struct DashboardView: View {
         #if os(macOS)
         macDashboard
         #else
-        NavigationStack {
-            iosDashboard
-                .navigationTitle("EscapeMint")
-                .toolbar {
-                    Button { showCreateFund = true } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .foregroundColor(.mint)
-                    }
+        iosDashboard
+            .navigationTitle("EscapeMint")
+            .toolbar {
+                Button { showCreateFund = true } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundColor(.mint)
                 }
-                .sheet(isPresented: $showCreateFund) {
-                    CreateFundView { loadFunds() }
-                }
-        }
+            }
+            .sheet(isPresented: $showCreateFund) {
+                CreateFundView { loadFunds() }
+            }
         #endif
     }
 
@@ -86,7 +84,16 @@ struct DashboardView: View {
     private var iosDashboard: some View {
         ScrollView {
             VStack(spacing: 12) {
-                metricsScroll
+                // iOS header controls
+                iosHeaderControls
+                if !actionableFunds.isEmpty {
+                    ActionableFundsBanner(actionableFunds: actionableFunds, dismissedIds: $dismissedAlertIds)
+                        .padding(.horizontal)
+                }
+                iosMetricsGrid
+                if showCharts && !funds.isEmpty {
+                    iosDashboardCharts
+                }
                 fundList
                 emptyState
             }
@@ -102,6 +109,68 @@ struct DashboardView: View {
         .onReceive(NotificationCenter.default.publisher(for: .fundsDidChange)) { _ in
             loadFunds()
         }
+    }
+
+    // MARK: - iOS Header Controls
+
+    @ViewBuilder
+    private var iosHeaderControls: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Text("\(portfolio.activeFunds) active \u{2022} \(portfolio.closedFunds) closed")
+                    .font(.caption).foregroundColor(.textSecondary)
+                Spacer()
+                Button { showCharts.toggle() } label: {
+                    Image(systemName: showCharts ? "chart.bar.fill" : "chart.bar")
+                        .foregroundColor(showCharts ? .mint : .textMuted)
+                }
+            }
+            if platforms.count > 1 {
+                Picker("Platform", selection: $platformFilter) {
+                    Text("All Platforms").tag(nil as String?)
+                    ForEach(platforms, id: \.self) { p in
+                        Text(p.capitalized).tag(p as String?)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    // MARK: - iOS Metrics Grid (2-col)
+
+    @ViewBuilder
+    private var iosMetricsGrid: some View {
+        let p = portfolio
+        LazyVGrid(columns: [.init(.flexible(), spacing: 8), .init(.flexible(), spacing: 8)], spacing: 8) {
+            MetricCard(label: "Fund Size", value: formatCurrency(p.totalFundSize), sub: "\(funds.count) funds")
+            MetricCard(label: "Value", value: formatCurrency(p.totalValue), sub: "\(p.activeFunds) active")
+            MetricCard(label: "Realized", value: formatCurrency(p.totalRealizedGains), color: p.totalRealizedGains > 0 ? .mint : .red)
+            MetricCard(label: "R.APY", value: formatPercent(p.realizedAPY), color: p.realizedAPY > 0 ? .mint : .red)
+            MetricCard(label: "Unrealized", value: formatCurrency(p.totalUnrealizedGains), color: p.totalUnrealizedGains >= 0 ? .mint : .red)
+            MetricCard(label: "Liquid", value: formatCurrency(p.totalGainUsd), color: p.totalGainUsd >= 0 ? .mint : .red)
+            MetricCard(label: "L.APY", value: formatPercent(p.liquidAPY), color: p.liquidAPY > 0 ? .mint : .red)
+            MetricCard(label: "Projected", value: formatCurrency(p.projectedAnnualReturn), color: p.projectedAnnualReturn > 0 ? .mint : .red)
+            MetricCard(label: "Cash", value: formatCurrency(p.cashBalance), sub: "Int: \(formatCurrency(p.totalInterest))")
+        }
+        .padding(.horizontal)
+    }
+
+    // MARK: - iOS Dashboard Charts
+
+    @ViewBuilder
+    private var iosDashboardCharts: some View {
+        VStack(spacing: 12) {
+            // Allocation pie charts (vertical stack on mobile)
+            FundAllocationChart(summaries: activeSummaries)
+            PortfolioAllocationChart(summaries: activeSummaries)
+            PlatformAllocationChart(summaries: activeSummaries)
+            // Time series
+            DashboardAPYChart(funds: funds)
+            DashboardGainChart(funds: funds)
+        }
+        .padding(.horizontal)
     }
 
     // MARK: - Dashboard Header

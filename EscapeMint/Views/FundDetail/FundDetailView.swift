@@ -307,7 +307,7 @@ struct FundDetailView: View {
         HStack(spacing: 0) {
             Text(entry.date).frame(width: 85, alignment: .leading)
             Text(entry.action?.rawValue ?? "HOLD").frame(width: 60, alignment: .leading)
-                .foregroundColor(actionColor(entry.action))
+                .foregroundColor(Color.forAction(entry.action))
             Text(formatCurrency(entry.value)).frame(width: 80, alignment: .trailing)
             Text(entry.amount.map { formatCurrency($0) } ?? "").frame(width: 80, alignment: .trailing)
                 .foregroundColor(.textSecondary)
@@ -344,7 +344,7 @@ struct FundDetailView: View {
             HStack {
                 Text(entry.date).font(.caption).foregroundColor(.textSecondary)
                 Text(entry.action?.rawValue ?? "HOLD").font(.caption).fontWeight(.medium)
-                    .foregroundColor(actionColor(entry.action))
+                    .foregroundColor(Color.forAction(entry.action))
                 Spacer()
                 Text(formatCurrency(entry.value)).font(.caption).foregroundColor(.textPrimary)
                 if let amt = entry.amount {
@@ -363,14 +363,6 @@ struct FundDetailView: View {
             Text("... and \(fund.entries.count - 30) more")
                 .font(.caption).foregroundColor(.textMuted)
                 .frame(maxWidth: .infinity)
-        }
-    }
-
-    private func actionColor(_ action: FundAction?) -> Color {
-        switch action {
-        case .BUY, .DEPOSIT: return .mint
-        case .SELL, .WITHDRAW: return .red
-        default: return .textSecondary
         }
     }
 

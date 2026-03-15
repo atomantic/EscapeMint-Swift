@@ -56,4 +56,13 @@ extension Color {
         guard let cat else { return .gray }
         return categoryConfig[cat]?.color ?? .gray
     }
+
+    static func forAction(_ action: FundAction?) -> Color {
+        switch action {
+        case .BUY, .DEPOSIT: return .mint
+        case .SELL, .WITHDRAW: return .red
+        case .HOLD: return .textSecondary
+        default: return .orange
+        }
+    }
 }

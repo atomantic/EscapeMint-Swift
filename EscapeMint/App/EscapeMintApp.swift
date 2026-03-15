@@ -25,14 +25,36 @@ struct ContentView: View {
                 .tint(.mint)
             #else
             TabView {
-                DashboardView()
-                    .tabItem {
-                        Label("Dashboard", systemImage: "chart.bar.fill")
-                    }
-                SettingsView()
-                    .tabItem {
-                        Label("Settings", systemImage: "gear")
-                    }
+                NavigationStack {
+                    DashboardView()
+                }
+                .tabItem {
+                    Label("Dashboard", systemImage: "chart.bar.fill")
+                }
+                NavigationStack {
+                    BacktestView()
+                }
+                .tabItem {
+                    Label("Backtest", systemImage: "waveform.path.ecg")
+                }
+                NavigationStack {
+                    AuditTrailView()
+                }
+                .tabItem {
+                    Label("Audit Trail", systemImage: "list.clipboard.fill")
+                }
+                NavigationStack {
+                    PlatformsView()
+                }
+                .tabItem {
+                    Label("Platforms", systemImage: "building.2.fill")
+                }
+                NavigationStack {
+                    SettingsView()
+                }
+                .tabItem {
+                    Label("Settings", systemImage: "gear")
+                }
             }
             .tint(.mint)
             #endif

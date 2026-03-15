@@ -14,8 +14,12 @@ struct SettingsView: View {
     @State private var showIntroGuide = false
 
     var body: some View {
-        NavigationStack {
-            List {
+        settingsContent
+    }
+
+    @ViewBuilder
+    private var settingsContent: some View {
+        List {
                 Section("Appearance") {
                     Picker("Theme", selection: $appearance.mode) {
                         ForEach(AppearanceMode.allCases, id: \.self) { mode in
@@ -80,7 +84,6 @@ struct SettingsView: View {
             } message: {
                 Text("A backup will be saved automatically before clearing. This cannot be undone.")
             }
-        }
     }
 
     private func showToast(_ message: String) {

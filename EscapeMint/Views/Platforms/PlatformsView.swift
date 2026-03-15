@@ -35,7 +35,9 @@ struct PlatformsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
+                #if os(macOS)
                 header
+                #endif
                 if platformInfos.isEmpty {
                     emptyState
                 } else {
@@ -45,6 +47,15 @@ struct PlatformsView: View {
             .padding()
         }
         .background(Color.bg.ignoresSafeArea())
+        #if os(iOS)
+        .navigationTitle("Platforms")
+        .toolbar {
+            Button { showCreateFund = true } label: {
+                Image(systemName: "plus.circle.fill")
+                    .foregroundColor(.mint)
+            }
+        }
+        #endif
         .task { loadFunds() }
         .onReceive(NotificationCenter.default.publisher(for: .fundsDidChange)) { _ in
             loadFunds()
@@ -66,7 +77,7 @@ struct PlatformsView: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - Header (macOS only)
 
     @ViewBuilder
     private var header: some View {
@@ -101,7 +112,6 @@ struct PlatformsView: View {
     @ViewBuilder
     private func platformCard(_ info: PlatformInfo) -> some View {
         if editingPlatform == info.name {
-            // Inline rename editor
             VStack(spacing: 8) {
                 HStack {
                     TextField("Platform name", text: $editName)
@@ -118,53 +128,82 @@ struct PlatformsView: View {
             .background(Color.bgCard)
             .cornerRadius(12)
         } else {
+            #if os(macOS)
             Button {
                 NotificationCenter.default.post(name: .selectPlatform, object: info.name)
             } label: {
-                VStack(spacing: 0) {
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(info.name.capitalized)
-                                .font(.headline).fontWeight(.semibold)
-                                .foregroundColor(.textPrimary)
-                            Text("\(info.activeFundCount) active / \(info.fundCount) total fund\(info.fundCount == 1 ? "" : "s")")
-                                .font(.caption).foregroundColor(.textSecondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption).foregroundColor(.textMuted)
-                            .padding(.top, 4)
-                    }
-
-                    Divider()
-                        .background(Color.bgInput)
-                        .padding(.vertical, 10)
-
-                    HStack(spacing: 0) {
-                        statColumn(label: "Fund Size", value: formatCurrency(info.totalFundSize))
-                        statColumn(label: "Current Value", value: formatCurrency(info.totalValue), color: .mint)
-                        statColumn(label: "Funds", value: "\(info.fundCount)")
-                        statColumn(label: "Active", value: "\(info.activeFundCount)")
-                    }
-                }
-                .padding(14)
-                .background(Color.bgCard)
-                .cornerRadius(12)
+                platformCardContent(info)
             }
             .buttonStyle(.plain)
             .contextMenu {
-                Button {
-                    editName = info.name
-                    editingPlatform = info.name
-                } label: {
-                    Label("Rename Platform", systemImage: "pencil")
-                }
-                Button(role: .destructive) {
-                    attemptDelete(info)
-                } label: {
-                    Label("Delete Platform", systemImage: "trash")
-                }
+                platformContextMenu(info)
             }
+            #else
+            NavigationLink(destination: PlatformDetailView(platform: info.name)) {
+                platformCardContent(info)
+            }
+            .buttonStyle(.plain)
+            .contextMenu {
+                platformContextMenu(info)
+            }
+            #endif
+        }
+    }
+
+    @ViewBuilder
+    private func platformCardContent(_ info: PlatformInfo) -> some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(info.name.capitalized)
+                        .font(.headline).fontWeight(.semibold)
+                        .foregroundColor(.textPrimary)
+                    Text("\(info.activeFundCount) active / \(info.fundCount) total fund\(info.fundCount == 1 ? "" : "s")")
+                        .font(.caption).foregroundColor(.textSecondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption).foregroundColor(.textMuted)
+                    .padding(.top, 4)
+            }
+
+            Divider()
+                .background(Color.bgInput)
+                .padding(.vertical, 10)
+
+            #if os(macOS)
+            HStack(spacing: 0) {
+                statColumn(label: "Fund Size", value: formatCurrency(info.totalFundSize))
+                statColumn(label: "Current Value", value: formatCurrency(info.totalValue), color: .mint)
+                statColumn(label: "Funds", value: "\(info.fundCount)")
+                statColumn(label: "Active", value: "\(info.activeFundCount)")
+            }
+            #else
+            LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 8) {
+                statColumn(label: "Fund Size", value: formatCurrency(info.totalFundSize))
+                statColumn(label: "Value", value: formatCurrency(info.totalValue), color: .mint)
+                statColumn(label: "Funds", value: "\(info.fundCount)")
+                statColumn(label: "Active", value: "\(info.activeFundCount)")
+            }
+            #endif
+        }
+        .padding(14)
+        .background(Color.bgCard)
+        .cornerRadius(12)
+    }
+
+    @ViewBuilder
+    private func platformContextMenu(_ info: PlatformInfo) -> some View {
+        Button {
+            editName = info.name
+            editingPlatform = info.name
+        } label: {
+            Label("Rename Platform", systemImage: "pencil")
+        }
+        Button(role: .destructive) {
+            attemptDelete(info)
+        } label: {
+            Label("Delete Platform", systemImage: "trash")
         }
     }
 
@@ -218,7 +257,6 @@ struct PlatformsView: View {
         let cleanName = newName.trimmingCharacters(in: .whitespaces).lowercased()
         guard !cleanName.isEmpty else { return }
 
-        // Check if target name already exists
         if cleanName != oldName && platformInfos.contains(where: { $0.name == cleanName }) {
             renameErrorMessage = "A platform named '\(cleanName)' already exists."
             showRenameError = true

@@ -71,6 +71,23 @@ struct ActionableFundCard: View {
     }
 
     var body: some View {
+        cardContent
+            #if os(macOS)
+            .onTapGesture {
+                NotificationCenter.default.post(name: .selectFund, object: actionableFund.fund.id)
+            }
+            #else
+            .background(
+                NavigationLink(destination: FundDetailView(fundId: actionableFund.fund.id)) {
+                    EmptyView()
+                }
+                .opacity(0)
+            )
+            #endif
+    }
+
+    @ViewBuilder
+    private var cardContent: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(actionableFund.fund.ticker.uppercased())
@@ -100,10 +117,5 @@ struct ActionableFundCard: View {
         )
         .cornerRadius(8)
         .contentShape(Rectangle())
-        .onTapGesture {
-            #if os(macOS)
-            NotificationCenter.default.post(name: .selectFund, object: actionableFund.fund.id)
-            #endif
-        }
     }
 }
