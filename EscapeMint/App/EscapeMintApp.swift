@@ -87,8 +87,11 @@ struct MacContentView: View {
         funds.filter { $0.config.status == .closed }
     }
 
-    var groupedActive: [(String, [FundData])] {
-        let grouped = Dictionary(grouping: activeFunds, by: { $0.platform })
+    var groupedActive: [(String, [FundData])] { groupByPlatform(activeFunds) }
+    var groupedClosed: [(String, [FundData])] { groupByPlatform(closedFunds) }
+
+    private func groupByPlatform(_ funds: [FundData]) -> [(String, [FundData])] {
+        let grouped = Dictionary(grouping: funds, by: { $0.platform })
         return grouped.keys.sorted().map { ($0, grouped[$0]!) }
     }
 
@@ -149,10 +152,13 @@ struct MacContentView: View {
 
                 Label("Backtest", systemImage: "waveform.path.ecg")
                     .tag(NavItem.backtest)
+                    .accessibilityIdentifier("nav-backtest")
                 Label("Audit Trail", systemImage: "list.clipboard.fill")
                     .tag(NavItem.auditTrail)
+                    .accessibilityIdentifier("nav-audit-trail")
                 Label("Platforms", systemImage: "building.2.fill")
                     .tag(NavItem.platforms)
+                    .accessibilityIdentifier("nav-platforms")
             }
 
             // Active funds grouped by platform
@@ -197,8 +203,21 @@ struct MacContentView: View {
 
             if !closedFunds.isEmpty {
                 Section("Closed Funds") {
-                    DisclosureGroup {
-                        ForEach(closedFunds) { fund in
+                    ForEach(groupedClosed, id: \.0) { platform, platformFunds in
+                        HStack {
+                            Image(systemName: "building.2")
+                                .font(.caption).foregroundColor(.textMuted)
+                            Text(platform.capitalized)
+                                .font(.callout).fontWeight(.medium)
+                                .foregroundColor(.textMuted)
+                            Spacer()
+                            Text("\(platformFunds.count)")
+                                .font(.caption2)
+                                .foregroundColor(.textMuted)
+                        }
+                        .tag(NavItem.platform(platform))
+
+                        ForEach(platformFunds) { fund in
                             HStack(spacing: 6) {
                                 Circle()
                                     .fill(Color.forCategory(fund.config.category))
@@ -207,12 +226,9 @@ struct MacContentView: View {
                                     .font(.callout)
                                     .foregroundColor(.textMuted)
                             }
+                            .padding(.leading, 12)
                             .tag(NavItem.fund(fund.id))
                         }
-                    } label: {
-                        Text("\(closedFunds.count) closed")
-                            .font(.callout)
-                            .foregroundColor(.textMuted)
                     }
                 }
             }

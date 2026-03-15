@@ -164,7 +164,13 @@ Match the web app's backtest page and use it as intro:
 - [x] Presets (8 quick-start configs: Blend, TQQQ, SPXL, VTI, BRGNX, BTC, GLD, SLV)
 - [x] Historical price data bundled (7 JSON files from web app)
 - [x] Backtest engine: blended price normalization, DCA simulation, recommendation engine
-- [x] Results: metric cards (final value, invested, gain, APY, max drawdown) + portfolio value chart
+- [x] Results: 8 metric cards (final value, liquid APY, realized APY, unrealized gain, realized gain, liquid P&L, total invested, total extracted)
+- [x] 4 charts in 2x2 grid: Value & Allocation, Captured Profit, Gain Breakdown, APY Breakdown
+- [x] Transactions table with 15 columns, sortable, color-coded rows
+- [x] Date range picker with YTD/1Y/2Y/3Y/4Y/ALL presets
+- [x] 4-column config panel: Allocation (colored bar + sliders), Strategy, DCA Tiers, Fund Mode
+- [x] Dividend tracking via equivalent shares in backtest engine
+- [x] Accessibility identifiers on all interactive elements
 - [x] Full 13-step intro guide modal (ported from web app) with animated SwiftUI Charts
 - [x] 6 chart types: market growth, volatility, traditional DCA, buy/sell zones, leverage comparison, mode comparison
 - [x] BUY/SELL badge labels on price/target charts

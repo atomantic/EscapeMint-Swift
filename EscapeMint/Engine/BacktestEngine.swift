@@ -65,22 +65,58 @@ struct BacktestConfig {
 
 struct BacktestResult {
     let entries: [BacktestEntry]
+    let trades: [TradeRecord]
     let finalValue: Double
     let totalInvested: Double
-    let totalGain: Double
-    let gainPct: Double
-    let apy: Double
+    let totalExtracted: Double
+    let liquidAPY: Double
+    let realizedAPY: Double
+    let unrealizedGain: Double
+    let realizedGain: Double
+    let liquidGain: Double
+    let totalBuys: Int
+    let totalSells: Int
     let maxDrawdown: Double
-    let weeks: Int
+    let daysElapsed: Int
+    let sumDividends: Double
+    let sumCashInterest: Double
 
-    struct BacktestEntry {
+    // Legacy convenience
+    var totalGain: Double { liquidGain }
+    var gainPct: Double { totalInvested > 0 ? liquidGain / totalInvested : 0 }
+    var apy: Double { liquidAPY }
+    var weeks: Int { entries.count }
+
+    struct BacktestEntry: Identifiable {
+        let id = UUID()
         let date: String
         let equity: Double
         let cash: Double
-        let totalValue: Double
-        let costBasis: Double
+        let fundSize: Double
+        let invested: Double
+        let totalInvested: Double
+        let totalExtracted: Double
+        let expectedTarget: Double
         let action: FundAction?
-        let amount: Double?
+        let amount: Double
+        let cashInterest: Double
+        let sumCashInterest: Double
+        let dividend: Double
+        let sumDividends: Double
+
+        // Convenience - matches web app's computed fields
+        var unrealized: Double { equity - max(0, invested) }
+        var realized: Double { sumCashInterest + sumDividends + totalExtracted }
+        var liquidPnL: Double { realized + unrealized }
+    }
+
+    struct TradeRecord {
+        let date: String
+        let action: FundAction
+        let amount: Double
+        let equity: Double
+        let price: Double
+        let reason: String
     }
 }
 
@@ -98,39 +134,68 @@ enum BacktestPreset: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var config: BacktestConfig {
+    func config(accumulate: Bool) -> BacktestConfig {
+        var c = BacktestConfig()
+        c.accumulate = accumulate
+
         switch self {
         case .blend:
-            return BacktestConfig()
+            // Use defaults
+            break
         case .tqqq:
-            var c = BacktestConfig(); c.spxlPct = 0; c.vtiPct = 0; c.brgnxPct = 0
+            c.spxlPct = 0; c.vtiPct = 0; c.brgnxPct = 0
             c.tqqqPct = 1.0; c.btcPct = 0; c.gldPct = 0; c.slvPct = 0
-            c.targetAPY = 0.20; return c
+            c.targetAPY = accumulate ? 0.20 : 0.52
         case .spxl:
-            var c = BacktestConfig(); c.spxlPct = 1.0; c.vtiPct = 0; c.brgnxPct = 0
+            c.spxlPct = 1.0; c.vtiPct = 0; c.brgnxPct = 0
             c.tqqqPct = 0; c.btcPct = 0; c.gldPct = 0; c.slvPct = 0
-            c.targetAPY = 0.10; return c
+            c.targetAPY = accumulate ? 0.10 : 0.26
         case .vti:
-            var c = BacktestConfig(); c.spxlPct = 0; c.vtiPct = 1.0; c.brgnxPct = 0
+            c.spxlPct = 0; c.vtiPct = 1.0; c.brgnxPct = 0
             c.tqqqPct = 0; c.btcPct = 0; c.gldPct = 0; c.slvPct = 0
-            c.targetAPY = 0.10; return c
+            c.targetAPY = accumulate ? 0.10 : 0.26
         case .brgnx:
-            var c = BacktestConfig(); c.spxlPct = 0; c.vtiPct = 0; c.brgnxPct = 1.0
+            c.spxlPct = 0; c.vtiPct = 0; c.brgnxPct = 1.0
             c.tqqqPct = 0; c.btcPct = 0; c.gldPct = 0; c.slvPct = 0
-            c.targetAPY = 0.10; return c
+            c.targetAPY = accumulate ? 0.10 : 0.26
         case .btc:
-            var c = BacktestConfig(); c.spxlPct = 0; c.vtiPct = 0; c.brgnxPct = 0
+            c.spxlPct = 0; c.vtiPct = 0; c.brgnxPct = 0
             c.tqqqPct = 0; c.btcPct = 1.0; c.gldPct = 0; c.slvPct = 0
-            c.targetAPY = 0.30; return c
+            c.targetAPY = accumulate ? 0.30 : 0.80
         case .gld:
-            var c = BacktestConfig(); c.spxlPct = 0; c.vtiPct = 0; c.brgnxPct = 0
+            c.spxlPct = 0; c.vtiPct = 0; c.brgnxPct = 0
             c.tqqqPct = 0; c.btcPct = 0; c.gldPct = 1.0; c.slvPct = 0
-            c.targetAPY = 0.08; return c
+            c.targetAPY = accumulate ? 0.08 : 0.20
         case .slv:
-            var c = BacktestConfig(); c.spxlPct = 0; c.vtiPct = 0; c.brgnxPct = 0
+            c.spxlPct = 0; c.vtiPct = 0; c.brgnxPct = 0
             c.tqqqPct = 0; c.btcPct = 0; c.gldPct = 0; c.slvPct = 1.0
-            c.targetAPY = 0.10; return c
+            c.targetAPY = accumulate ? 0.10 : 0.26
         }
+
+        // Harvest mode defaults
+        if !accumulate {
+            c.targetAPY = max(c.targetAPY, 0.40)
+        }
+
+        return c
+    }
+
+    // Legacy compatibility
+    var config: BacktestConfig { config(accumulate: true) }
+}
+
+// MARK: - Date Range
+
+struct BacktestDateRange {
+    var start: String
+    var end: String
+
+    var daysElapsed: Int {
+        daysBetween(start, end)
+    }
+
+    var yearsElapsed: Double {
+        Double(daysElapsed) / 365.0
     }
 }
 
@@ -151,9 +216,31 @@ func loadHistoricalData() -> [String: HistoricalData] {
     return result
 }
 
+func computeAvailableDateRange(historicalData: [String: HistoricalData], allocations: [(ticker: String, pct: Double)]) -> BacktestDateRange? {
+    var latestStart: String?
+    var earliestEnd: String?
+
+    for (ticker, pct) in allocations where pct > 0 {
+        guard let hist = historicalData[ticker] else { continue }
+        if let ls = latestStart {
+            if hist.startDate > ls { latestStart = hist.startDate }
+        } else {
+            latestStart = hist.startDate
+        }
+        if let ee = earliestEnd {
+            if hist.endDate < ee { earliestEnd = hist.endDate }
+        } else {
+            earliestEnd = hist.endDate
+        }
+    }
+
+    guard let start = latestStart, let end = earliestEnd, start < end else { return nil }
+    return BacktestDateRange(start: start, end: end)
+}
+
 // MARK: - Backtest Runner
 
-func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData]) -> BacktestResult? {
+func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData], dateRange: BacktestDateRange? = nil) -> BacktestResult? {
     let allocations = config.allocations
     guard !allocations.isEmpty else { return nil }
 
@@ -169,13 +256,26 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
             commonDates = dates
         }
     }
-    guard let dates = commonDates?.sorted(), dates.count >= 2 else { return nil }
+    guard var dates = commonDates?.sorted(), dates.count >= 2 else { return nil }
+
+    // Apply date range filter
+    if let range = dateRange {
+        dates = dates.filter { $0 >= range.start && $0 <= range.end }
+        guard dates.count >= 2 else { return nil }
+    }
 
     // Build price lookup dictionaries for O(1) access
     var priceLookups: [String: [String: Double]] = [:]
     for (ticker, _) in allocations {
         guard let hist = historicalData[ticker] else { return nil }
         priceLookups[ticker] = Dictionary(uniqueKeysWithValues: hist.prices.map { ($0.date, $0.value) })
+    }
+
+    // Build dividend lookup
+    var dividendLookups: [String: [HistoricalData.DividendPoint]] = [:]
+    for (ticker, _) in allocations {
+        guard let hist = historicalData[ticker] else { continue }
+        dividendLookups[ticker] = hist.dividends ?? []
     }
 
     // Build blended price series (normalized to 100 at start)
@@ -200,11 +300,23 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
     // Run DCA simulation
     var cash = config.initialCash
     var shares = 0.0
-    var totalInvested = config.initialCash
+    var totalInvested = 0.0
+    var totalExtracted = 0.0
     var costBasis = 0.0
-    var peak = config.initialCash
+    var peak = 0.0
     var maxDrawdown = 0.0
+    var sumCashInterest = 0.0
+    var sumDividends = 0.0
     var entries: [BacktestResult.BacktestEntry] = []
+    var trades: [BacktestResult.TradeRecord] = []
+
+    // Equivalent shares for dividend tracking
+    var equivShares: [String: Double] = [:]
+    for (ticker, _) in allocations {
+        equivShares[ticker] = 0
+    }
+
+    let weeklyInterestRate = config.cashAPY / 52.0
 
     let fundConfig = FundConfig(
         fund_type: .stock, status: .active,
@@ -224,13 +336,25 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
         let price = pp.price
         let equity = shares * price
 
-        // Cash interest (weekly)
-        cash += cash * (config.cashAPY / 52.0)
+        // Cash interest (weekly, skip first week)
+        let weeklyInterest = i > 0 ? cash * weeklyInterestRate : 0
+        sumCashInterest += weeklyInterest
+        cash += weeklyInterest
 
-        // Add weekly DCA to cash (after first week)
+        // Dividend collection
+        var weeklyDividend = 0.0
         if i > 0 {
-            cash += config.weeklyDCA
-            totalInvested += config.weeklyDCA
+            let prevDate = blendedPrices[i - 1].date
+            for (ticker, _) in allocations {
+                let eqShares = equivShares[ticker] ?? 0
+                guard eqShares > 0 else { continue }
+                let divs = dividendLookups[ticker] ?? []
+                for div in divs where div.exDate > prevDate && div.exDate <= pp.date {
+                    weeklyDividend += eqShares * div.amount
+                }
+            }
+            cash += weeklyDividend
+            sumDividends += weeklyDividend
         }
 
         // Compute state for recommendation
@@ -253,54 +377,130 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
 
         let rec = computeRecommendation(config: fundConfig, state: state)
         var action: FundAction?
-        var amount: Double?
+        var amount = 0.0
 
-        if let rec {
-            if rec.action == .BUY && rec.amount > 0 && cash >= rec.amount {
+        if let rec, rec.action != .HOLD, rec.amount > 0 {
+            if rec.action == .BUY && cash >= rec.amount {
                 let buyAmount = min(rec.amount, cash)
                 let buyShares = buyAmount / price
                 shares += buyShares
                 cash -= buyAmount
+                totalInvested += buyAmount
                 costBasis += buyAmount
+
+                // Track equivalent shares per asset for dividends
+                for (ticker, pct) in allocations {
+                    guard let basePrice = basePrices[ticker], basePrice > 0 else { continue }
+                    equivShares[ticker] = (equivShares[ticker] ?? 0) + (buyAmount * pct) / basePrice
+                }
+
                 action = .BUY
                 amount = buyAmount
-            } else if rec.action == .SELL && rec.amount > 0 && shares > 0 {
-                let sellAmount = min(rec.amount, equity)
+
+                trades.append(.init(date: pp.date, action: .BUY, amount: buyAmount,
+                                    equity: equity, price: price, reason: rec.reasoning))
+            } else if rec.action == .SELL && shares > 0 {
+                let sellAmount: Double
+                if config.accumulate {
+                    sellAmount = min(rec.amount, equity)
+                } else {
+                    sellAmount = equity
+                }
+
                 let sellShares = sellAmount / price
-                shares -= sellShares
+                let sellProportion = shares > 0 ? sellShares / shares : 1.0
+                shares = max(0, shares - sellShares)
                 cash += sellAmount
-                let sellFraction = costBasis > 0 ? sellAmount / equity : 1.0
-                costBasis = max(0, costBasis * (1.0 - sellFraction))
+                totalExtracted += sellAmount
+
+                // Reduce equivalent shares proportionally
+                for (ticker, _) in allocations {
+                    equivShares[ticker] = (equivShares[ticker] ?? 0) * (1 - sellProportion)
+                }
+
+                // Liquidation detection
+                let sharesLiquidated = shares < 0.0001
+                let valueLiquidated = equity <= sellAmount + 0.01
+                let dollarsLiquidated = totalExtracted >= totalInvested
+                let isFullLiquidation = sharesLiquidated || valueLiquidated || dollarsLiquidated
+
+                if isFullLiquidation {
+                    costBasis = 0
+                    shares = 0
+                    for (ticker, _) in allocations {
+                        equivShares[ticker] = 0
+                    }
+                } else if !config.accumulate {
+                    costBasis = costBasis * (1 - sellProportion)
+                }
+
                 action = .SELL
                 amount = sellAmount
+
+                trades.append(.init(date: pp.date, action: .SELL, amount: sellAmount,
+                                    equity: equity, price: price, reason: rec.reasoning))
             }
         }
 
-        let newTotal = shares * price + cash
-        peak = max(peak, newTotal)
+        let currentEquity = shares * price
+        let fundSize = cash + costBasis
+
+        peak = max(peak, fundSize)
         if peak > 0 {
-            let drawdown = (peak - newTotal) / peak
+            let drawdown = (peak - fundSize) / peak
             maxDrawdown = max(maxDrawdown, drawdown)
         }
 
         entries.append(BacktestResult.BacktestEntry(
-            date: pp.date, equity: shares * price, cash: cash,
-            totalValue: newTotal, costBasis: costBasis,
-            action: action, amount: amount
+            date: pp.date,
+            equity: currentEquity,
+            cash: cash,
+            fundSize: fundSize,
+            invested: costBasis,
+            totalInvested: totalInvested,
+            totalExtracted: totalExtracted,
+            expectedTarget: expectedTarget,
+            action: action,
+            amount: amount,
+            cashInterest: weeklyInterest,
+            sumCashInterest: sumCashInterest,
+            dividend: weeklyDividend,
+            sumDividends: sumDividends
         ))
     }
 
-    let finalValue = entries.last?.totalValue ?? config.initialCash
-    let totalGain = finalValue - totalInvested
-    let gainPct = totalInvested > 0 ? totalGain / totalInvested : 0
-    let weeks = entries.count
-    let days = weeks * 7
-    let apy = days > 0 ? (totalGain / totalInvested) * (365.0 / Double(days)) : 0
+    let finalEquity = entries.last.map { $0.equity } ?? 0
+    let finalValue = (entries.last?.cash ?? cash) + finalEquity
+    let daysElapsed = dates.count >= 2 ? daysBetween(dates[0], dates[dates.count - 1]) : 0
+
+    let unrealizedGain = finalEquity - costBasis
+    let soldCostBasis = totalInvested - costBasis
+    let realizedGain = (totalExtracted - soldCostBasis) + sumCashInterest + sumDividends
+    let liquidGain = finalValue - config.initialCash
+
+    let realizedAPY = daysElapsed > 0 && config.initialCash > 0
+        ? (realizedGain / config.initialCash) * (365.0 / Double(daysElapsed)) : 0
+    let liquidAPY = daysElapsed > 0 && config.initialCash > 0
+        ? (liquidGain / config.initialCash) * (365.0 / Double(daysElapsed)) : 0
+
+    let totalBuys = trades.filter { $0.action == .BUY }.count
+    let totalSells = trades.filter { $0.action == .SELL }.count
 
     return BacktestResult(
-        entries: entries, finalValue: finalValue,
-        totalInvested: totalInvested, totalGain: totalGain,
-        gainPct: gainPct, apy: apy,
-        maxDrawdown: maxDrawdown, weeks: weeks
+        entries: entries, trades: trades,
+        finalValue: finalValue,
+        totalInvested: totalInvested,
+        totalExtracted: totalExtracted,
+        liquidAPY: liquidAPY,
+        realizedAPY: realizedAPY,
+        unrealizedGain: unrealizedGain,
+        realizedGain: realizedGain,
+        liquidGain: liquidGain,
+        totalBuys: totalBuys,
+        totalSells: totalSells,
+        maxDrawdown: maxDrawdown,
+        daysElapsed: daysElapsed,
+        sumDividends: sumDividends,
+        sumCashInterest: sumCashInterest
     )
 }

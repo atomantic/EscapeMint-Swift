@@ -700,3 +700,21 @@ func formatCurrency(_ value: Double) -> String {
 func formatPercent(_ value: Double) -> String {
     percentFormatter.string(from: NSNumber(value: value)) ?? "0%"
 }
+
+func formatCurrencyCompact(_ value: Double) -> String {
+    let absValue = abs(value)
+    let sign = value < 0 ? "-" : ""
+    if absValue >= 1_000_000 {
+        return "\(sign)$\(String(format: "%.1f", absValue / 1_000_000))M"
+    } else if absValue >= 1000 {
+        return "\(sign)$\(String(format: "%.1f", absValue / 1000))K"
+    } else {
+        return "\(sign)$\(String(format: "%.0f", absValue))"
+    }
+}
+
+func formatPercentSigned(_ value: Double) -> String {
+    let pct = value * 100
+    let sign = pct >= 0 ? "+" : ""
+    return "\(sign)\(String(format: "%.1f", pct))%"
+}

@@ -572,7 +572,7 @@ struct ModeComparisonChart: View {
 
         let yMax: Double = {
             var m = 0.0
-            for e in result.entries { m = max(m, e.totalValue, e.costBasis + e.cash) }
+            for e in result.entries { m = max(m, e.fundSize, e.invested + e.cash) }
             return m * 1.1
         }()
 
@@ -583,12 +583,12 @@ struct ModeComparisonChart: View {
 
             Chart(sampled.indices, id: \.self) { i in
                 let entry = sampled[i]
-                let expectedTarget = entry.costBasis * (1.0 + targetAPY * Double(i) * 7.0 / 365.0)
+                let expectedTarget = entry.invested * (1.0 + targetAPY * Double(i) * 7.0 / 365.0)
 
-                AreaMark(x: .value("Date", entry.date), y: .value("Invested", entry.costBasis))
+                AreaMark(x: .value("Date", entry.date), y: .value("Invested", entry.invested))
                     .foregroundStyle(investedPurple.opacity(0.4))
                     .interpolationMethod(.catmullRom)
-                AreaMark(x: .value("Date", entry.date), yStart: .value("InvBase", entry.costBasis), yEnd: .value("InvPlusCash", entry.costBasis + entry.cash))
+                AreaMark(x: .value("Date", entry.date), yStart: .value("InvBase", entry.invested), yEnd: .value("InvPlusCash", entry.invested + entry.cash))
                     .foregroundStyle(Color.mint.opacity(0.4))
                     .interpolationMethod(.catmullRom)
                 LineMark(x: .value("Date", entry.date), y: .value("Target", expectedTarget), series: .value("Series", "Target"))

@@ -512,6 +512,9 @@ struct MetricCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.bgCard)
         .cornerRadius(10)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label): \(value)\(sub.map { ", \($0)" } ?? "")")
+        .accessibilityIdentifier("metric-\(label.lowercased().replacingOccurrences(of: " ", with: "-"))")
     }
 }
 
