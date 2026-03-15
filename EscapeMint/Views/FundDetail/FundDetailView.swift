@@ -108,14 +108,12 @@ struct FundDetailView: View {
                 // Collapsible Stats section
                 DisclosureGroup(isExpanded: $showStats) {
                     VStack(spacing: 12) {
-                        if let cm = summary.closedMetrics {
-                            ClosedFundStateCard(closedMetrics: cm)
-                        } else {
+                        if summary.closedMetrics == nil {
                             statsGrid(state: state, summary: summary)
                         }
 
-                        // Charts
-                        if fund.entries.count >= 3 {
+                        // Charts (closed fund state card flows inside the grid for derivatives)
+                        if fund.entries.count >= 3 || summary.closedMetrics != nil {
                             #if os(macOS)
                             chartsGridMac(fund: fund, summary: summary)
                             #else
@@ -261,6 +259,9 @@ struct FundDetailView: View {
 
     @ViewBuilder
     private func derivativesChartContent() -> some View {
+        if let cm = summary?.closedMetrics {
+            ClosedFundStateCard(closedMetrics: cm)
+        }
         if let pts = derivPoints {
             DerivativesPLChart(points: pts)
             DerivativesAPYChart(points: pts)
