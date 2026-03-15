@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    name: Build & Test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: 'latest-stable'
+
+      - name: Install dependencies
+        run: brew install xcodegen xcbeautify
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Run tests
+        run: |
+          if xcrun simctl list devices available | grep -q "iPhone 16"; then
+            DESTINATION="platform=iOS Simulator,name=iPhone 16"
+          elif xcrun simctl list devices available | grep -q "iPhone 15"; then
+            DESTINATION="platform=iOS Simulator,name=iPhone 15"
+          else
+            DESTINATION="platform=iOS Simulator,name=iPhone 14"
+          fi
+
+          xcodebuild test \
+            -project EscapeMint.xcodeproj \
+            -scheme EscapeMint \
+            -only-testing:EscapeMintTests \
+            -destination "$DESTINATION" \
+            -configuration Debug \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            | xcbeautify
