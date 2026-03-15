@@ -151,7 +151,15 @@ func computeDerivativesChartData(entries: [FundEntry], config: FundConfig) -> [D
         )
     }
 
-    return sampleArray(all)
+    // Aggregate by date — keep only the last entry per date (end-of-day snapshot)
+    var byDate: [String: DerivativesChartPoint] = [:]
+    var dateOrder: [String] = []
+    for pt in all {
+        if byDate[pt.date] == nil { dateOrder.append(pt.date) }
+        byDate[pt.date] = pt
+    }
+    let aggregated = dateOrder.compactMap { byDate[$0] }
+    return sampleArray(aggregated)
 }
 
 // MARK: - Current State Card (Closed Funds)
@@ -197,9 +205,6 @@ struct DerivativesPLChart: View {
                 Chart {
                     ForEach(points) { pt in
                         let d = isoDateFormatter.date(from: pt.date) ?? Date()
-                        AreaMark(x: .value("Date", d), y: .value("Liquid", pt.liquidPL))
-                            .foregroundStyle(Color.orange.opacity(0.1))
-                            .interpolationMethod(.linear)
                         LineMark(x: .value("Date", d), y: .value("Liquid", pt.liquidPL))
                             .foregroundStyle(by: .value("Series", "Liquid"))
                             .interpolationMethod(.monotone)
@@ -236,9 +241,6 @@ struct DerivativesAPYChart: View {
                 Chart {
                     ForEach(points) { pt in
                         let d = isoDateFormatter.date(from: pt.date) ?? Date()
-                        AreaMark(x: .value("Date", d), y: .value("L.APY", pt.liquidAPY))
-                            .foregroundStyle(Color.orange.opacity(0.1))
-                            .interpolationMethod(.linear)
                         LineMark(x: .value("Date", d), y: .value("L.APY", pt.liquidAPY))
                             .foregroundStyle(by: .value("Series", "Liquid"))
                             .interpolationMethod(.monotone)
