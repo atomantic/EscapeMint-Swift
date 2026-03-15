@@ -168,25 +168,41 @@ struct ClosedFundStateCard: View {
     let closedMetrics: ClosedFundMetrics
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let cm = closedMetrics
+        VStack(alignment: .leading, spacing: 6) {
             Text("Current State")
                 .font(.headline).foregroundColor(.textPrimary)
 
-            let cm = closedMetrics
-            LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 8) {
-                StatBox(label: "Total Invested", value: formatCurrency(cm.totalInvestedUsd))
-                StatBox(label: "Total Returned", value: formatCurrency(cm.totalReturnedUsd))
-                StatBox(label: "Net Gain/Loss", value: "\(formatCurrency(cm.netGainUsd)) (\(formatPercent(cm.returnPct)))", color: cm.netGainUsd >= 0 ? .mint : .red)
-                StatBox(label: "Annualized Return", value: formatPercent(cm.apy), color: cm.apy > 0 ? .mint : .red)
-                StatBox(label: "Dividends", value: formatCurrency(cm.totalDividendsUsd))
-                StatBox(label: "Cash Interest", value: formatCurrency(cm.totalCashInterestUsd))
-                StatBox(label: "Duration", value: "\(cm.durationDays) days")
-                StatBox(label: "Expenses", value: formatCurrency(-cm.totalExpensesUsd), color: cm.totalExpensesUsd > 0 ? .red : .white)
+            Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 8) {
+                GridRow {
+                    metricLabel("Total Invested", formatCurrency(cm.totalInvestedUsd))
+                    metricLabel("Total Returned", formatCurrency(cm.totalReturnedUsd))
+                }
+                GridRow {
+                    metricLabel("Net Gain/Loss", "\(formatCurrency(cm.netGainUsd)) (\(formatPercent(cm.returnPct)))", color: cm.netGainUsd >= 0 ? .mint : .red)
+                    metricLabel("Annualized Return", formatPercent(cm.apy), color: cm.apy > 0 ? .mint : .red)
+                }
+                GridRow {
+                    metricLabel("Dividends", formatCurrency(cm.totalDividendsUsd))
+                    metricLabel("Cash Interest", formatCurrency(cm.totalCashInterestUsd))
+                }
+                GridRow {
+                    metricLabel("Duration", "\(cm.durationDays) days")
+                    metricLabel("Expenses", formatCurrency(-cm.totalExpensesUsd), color: cm.totalExpensesUsd > 0 ? .red : .white)
+                }
             }
         }
         .padding(12)
         .background(Color.bgCard)
         .cornerRadius(12)
+    }
+
+    @ViewBuilder
+    private func metricLabel(_ label: String, _ value: String, color: Color = .textPrimary) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label).font(.caption2).foregroundColor(.textMuted)
+            Text(value).font(.callout).fontWeight(.semibold).foregroundColor(color)
+        }
     }
 }
 
