@@ -11,20 +11,40 @@ actor FundStore {
     private init() {
         let fm = FileManager.default
 
-        // Prefer iCloud Documents if available
+        // Try iCloud first, verify it's actually accessible, fall back to local
+        let resolvedDir: URL
+        let resolvedICloud: Bool
+
         if let iCloudURL = fm.url(forUbiquityContainerIdentifier: "iCloud.net.shadowpuppet.EscapeMint") {
             let funds = iCloudURL.appendingPathComponent("Documents/funds")
-            try? fm.createDirectory(at: funds, withIntermediateDirectories: true)
-            self.fundsDirectory = funds
-            self.isICloud = true
+            var iCloudWorks = false
+            do {
+                try fm.createDirectory(at: funds, withIntermediateDirectories: true)
+                _ = try fm.contentsOfDirectory(at: funds, includingPropertiesForKeys: nil)
+                iCloudWorks = true
+            } catch {
+                // iCloud container exists but isn't accessible (e.g. permission denied)
+            }
+            if iCloudWorks {
+                resolvedDir = funds
+                resolvedICloud = true
+            } else {
+                let docs = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                let local = docs.appendingPathComponent("funds")
+                try? fm.createDirectory(at: local, withIntermediateDirectories: true)
+                resolvedDir = local
+                resolvedICloud = false
+            }
         } else {
-            // Fallback to local Documents
             let docs = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
             let funds = docs.appendingPathComponent("funds")
             try? fm.createDirectory(at: funds, withIntermediateDirectories: true)
-            self.fundsDirectory = funds
-            self.isICloud = false
+            resolvedDir = funds
+            resolvedICloud = false
         }
+
+        self.fundsDirectory = resolvedDir
+        self.isICloud = resolvedICloud
     }
 
     /// Migrate local funds to iCloud if iCloud became available
