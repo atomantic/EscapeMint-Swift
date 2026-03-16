@@ -575,8 +575,19 @@ struct LeverageComparisonChart: View {
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .padding(12).background(Color.bgCard).cornerRadius(12)
-        .task { computeLeverageData() }
-        .onAppear { withAnimation(.easeInOut(duration: 2.0)) { animationProgress = 1.0 } }
+        .task {
+            if ViewCache.shared.isHistoricalDataLoaded {
+                computeLeverageData()
+                withAnimation(.easeInOut(duration: 2.0)) { animationProgress = 1.0 }
+            }
+        }
+        .onChange(of: ViewCache.shared.isHistoricalDataLoaded) { _, loaded in
+            if loaded {
+                computeLeverageData()
+                animationProgress = 0
+                withAnimation(.easeInOut(duration: 2.0)) { animationProgress = 1.0 }
+            }
+        }
         .onChange(of: viewMode) { _, _ in
             animationProgress = 0
             withAnimation(.easeInOut(duration: 2.0)) { animationProgress = 1.0 }

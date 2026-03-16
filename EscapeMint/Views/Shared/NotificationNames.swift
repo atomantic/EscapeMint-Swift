@@ -5,4 +5,5 @@ extension Notification.Name {
     static let selectDashboard = Notification.Name("selectDashboard")
     static let selectBacktest = Notification.Name("selectBacktest")
     static let selectPlatform = Notification.Name("selectPlatform")
+    static let showAddEntry = Notification.Name("showAddEntry")
 }

@@ -72,19 +72,18 @@ struct ActionableFundCard: View {
     }
 
     var body: some View {
+        #if os(macOS)
         cardContent
-            #if os(macOS)
             .onTapGesture {
                 NotificationCenter.default.post(name: .selectFund, object: actionableFund.fund.id)
+                NotificationCenter.default.post(name: .showAddEntry, object: actionableFund.fund.id)
             }
-            #else
-            .background(
-                NavigationLink(destination: FundDetailView(fundId: actionableFund.fund.id)) {
-                    EmptyView()
-                }
-                .opacity(0)
-            )
-            #endif
+        #else
+        NavigationLink(destination: FundDetailView(fundId: actionableFund.fund.id, autoShowAddEntry: true)) {
+            cardContent
+        }
+        .buttonStyle(.plain)
+        #endif
     }
 
     @ViewBuilder

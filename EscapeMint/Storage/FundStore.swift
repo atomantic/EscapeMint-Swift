@@ -226,8 +226,8 @@ actor FundStore {
 
         var loaded = 0
         for fundId in testFundIds {
-            guard let jsonURL = Bundle.main.url(forResource: fundId, withExtension: "json", subdirectory: "TestData"),
-                  let tsvURL = Bundle.main.url(forResource: fundId, withExtension: "tsv", subdirectory: "TestData") else {
+            guard let jsonURL = Bundle.main.url(forResource: fundId, withExtension: "json"),
+                  let tsvURL = Bundle.main.url(forResource: fundId, withExtension: "tsv") else {
                 continue
             }
 

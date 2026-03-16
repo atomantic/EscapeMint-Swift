@@ -129,6 +129,7 @@ struct ContentView: View {
 struct MacContentView: View {
     private var store: FundDataStore { .shared }
     @State private var selectedNav: NavItem? = .dashboard
+    @State private var pendingAddEntryFundId: String?
 
     enum NavItem: Hashable {
         case dashboard
@@ -229,6 +230,11 @@ struct MacContentView: View {
                 }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .showAddEntry)) { note in
+            if let id = note.object as? String {
+                pendingAddEntryFundId = id
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .selectDashboard)) { _ in
             selectedNav = .dashboard
         }
@@ -236,6 +242,12 @@ struct MacContentView: View {
             if let name = note.object as? String {
                 selectedNav = .platform(name)
             }
+        }
+        .onChange(of: selectedNav) { _, newNav in
+            // Clear stale pending add-entry if user navigated elsewhere
+            guard let pending = pendingAddEntryFundId else { return }
+            if case .fund(let id) = newNav, id == pending { return }
+            pendingAddEntryFundId = nil
         }
     }
 
@@ -417,7 +429,9 @@ struct MacContentView: View {
             case .settings:
                 SettingsView()
             case .fund(let id):
-                FundDetailView(fundId: id).id(id)
+                FundDetailView(fundId: id, autoShowAddEntry: pendingAddEntryFundId == id)
+                    .id(id)
+                    .onAppear { pendingAddEntryFundId = nil }
             case .platform(let name):
                 PlatformDetailView(platform: name)
             }

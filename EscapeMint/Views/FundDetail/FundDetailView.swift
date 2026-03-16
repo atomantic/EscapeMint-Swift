@@ -3,6 +3,7 @@ import Charts
 
 struct FundDetailView: View {
     let fundId: String
+    var autoShowAddEntry: Bool = false
     private var store: FundDataStore { .shared }
     private var cache: ViewCache { .shared }
     @State private var showAddEntry = false
@@ -45,6 +46,11 @@ struct FundDetailView: View {
                     }
                 }
                 #endif
+            }
+        }
+        .onAppear {
+            if autoShowAddEntry {
+                showAddEntry = true
             }
         }
         .sheet(isPresented: $showAddEntry) {
@@ -116,18 +122,14 @@ struct FundDetailView: View {
                 // Collapsible Stats section
                 DisclosureGroup(isExpanded: $showStats) {
                     VStack(spacing: 12) {
-                        if summary.closedMetrics == nil {
-                            statsGrid(state: state, summary: summary)
-                        }
-
-                        // Charts (closed fund state card flows inside the grid for derivatives)
+                        #if os(macOS)
+                        chartsGridMac(fund: fund, summary: summary)
+                        #else
+                        stateCard(summary: summary)
                         if fund.entries.count >= 3 || summary.closedMetrics != nil {
-                            #if os(macOS)
-                            chartsGridMac(fund: fund, summary: summary)
-                            #else
                             chartsStackIOS(fund: fund, summary: summary)
-                            #endif
                         }
+                        #endif
                     }
                 } label: {
                     Text("Stats & Charts")
@@ -248,38 +250,18 @@ struct FundDetailView: View {
     // MARK: - Stats Grid
 
     @ViewBuilder
-    private func statsGrid(state: FundState, summary: FundSummary) -> some View {
-        #if os(macOS)
-        LazyVGrid(columns: Array(repeating: .init(.flexible()), count: 4), spacing: 8) {
-            statBoxes(state: state, summary: summary)
+    private func stateCard(summary: FundSummary) -> some View {
+        if let cm = summary.closedMetrics {
+            ClosedFundStateCard(closedMetrics: cm)
+        } else {
+            ActiveFundStateCard(state: summary.state, summary: summary)
         }
-        #else
-        LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 8) {
-            statBoxes(state: state, summary: summary)
-        }
-        #endif
-    }
-
-    @ViewBuilder
-    private func statBoxes(state: FundState, summary: FundSummary) -> some View {
-        StatBox(label: "Invested", value: formatCurrency(state.startInputUsd))
-        StatBox(label: "Asset Value", value: formatCurrency(summary.currentValue), color: summary.currentValue >= state.startInputUsd ? .mint : .red)
-        StatBox(label: "Unrealized", value: "\(state.gainUsd >= 0 ? "+" : "")\(formatCurrency(state.gainUsd))", color: state.gainUsd >= 0 ? .mint : .red)
-        StatBox(label: "Realized", value: formatCurrency(state.realizedGainsUsd), color: state.realizedGainsUsd > 0 ? .mint : .white)
-        StatBox(label: "Realized APY", value: formatPercent(summary.realizedAPY), color: summary.realizedAPY > 0 ? .mint : .red)
-        StatBox(label: "Liquid P&L", value: formatCurrency(summary.liquidGain), color: summary.liquidGain >= 0 ? .mint : .red)
-        StatBox(label: "Liquid APY", value: formatPercent(summary.liquidAPY), color: summary.liquidAPY > 0 ? .mint : .red)
-        StatBox(label: "Cash", value: formatCurrency(state.cashAvailableUsd))
     }
 
     // MARK: - Charts
 
     @ViewBuilder
     private func derivativesChartContent() -> some View {
-        // iOS: stacked layout with Current State card at top
-        if let cm = summary?.closedMetrics {
-            ClosedFundStateCard(closedMetrics: cm)
-        }
         if let pts = derivPoints, let fund {
             let cb = fund.config.chart_bounds
             DerivativesPLChart(points: pts, fundId: fund.id, bounds: cb?["pnl"])
@@ -307,44 +289,35 @@ struct FundDetailView: View {
 
     @ViewBuilder
     private func chartsGridMac(fund: FundData, summary: FundSummary) -> some View {
-        if fund.config.fund_type == .derivatives {
-            let cb = fund.config.chart_bounds
-            // First row: 3 columns (Current State + P&L + APY)
-            LazyVGrid(columns: Array(repeating: .init(.flexible()), count: 3), spacing: 12) {
-                if let cm = summary.closedMetrics {
-                    ClosedFundStateCard(closedMetrics: cm)
-                }
+        // First row: 3 columns (Current State + P&L + APY)
+        LazyVGrid(columns: Array(repeating: .init(.flexible()), count: 3), spacing: 12) {
+            stateCard(summary: summary)
+            if fund.config.fund_type == .derivatives {
                 if let pts = derivPoints {
+                    let cb = fund.config.chart_bounds
                     DerivativesPLChart(points: pts, fundId: fund.id, bounds: cb?["pnl"])
                     DerivativesAPYChart(points: pts, fundId: fund.id, bounds: cb?["apy"])
                 }
+            } else {
+                PLChartView(entries: fund.entries, config: fund.config, fundId: fund.id)
+                APYChartView(entries: fund.entries, config: fund.config, fundId: fund.id)
             }
-            // Remaining rows: 2 columns
-            LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
+        }
+        // Remaining rows: 2 columns
+        LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
+            if fund.config.fund_type == .derivatives {
                 if let pts = derivPoints {
+                    let cb = fund.config.chart_bounds
                     DerivativesValueChart(points: pts)
                     DerivativesPriceChart(points: pts, fundId: fund.id, bounds: cb?["derivativesPrice"])
                     DerivativesMarginChart(points: pts)
                     DerivativesCapturedProfitChart(points: pts)
                 }
-            }
-        } else if let cm = summary.closedMetrics {
-            // First row: 3 columns (Closed State + P&L + APY)
-            LazyVGrid(columns: Array(repeating: .init(.flexible()), count: 3), spacing: 12) {
-                ClosedFundStateCard(closedMetrics: cm)
-                PLChartView(entries: fund.entries, config: fund.config, fundId: fund.id)
-                APYChartView(entries: fund.entries, config: fund.config, fundId: fund.id)
-            }
-            // Second row: 2 columns
-            LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
+            } else {
                 ValueChartView(entries: fund.entries, config: fund.config, fundId: fund.id)
                 if fund.entries.contains(where: { ($0.dividend ?? 0) > 0 || ($0.cash_interest ?? 0) > 0 || ($0.action == .SELL && ($0.amount ?? 0) > 0) }) {
                     CapturedProfitChartView(entries: fund.entries, config: fund.config, fundId: fund.id)
                 }
-            }
-        } else {
-            LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
-                standardChartContent(fund: fund)
             }
         }
     }
@@ -356,9 +329,6 @@ struct FundDetailView: View {
         if fund.config.fund_type == .derivatives {
             derivativesChartContent()
         } else {
-            if let cm = summary.closedMetrics {
-                ClosedFundStateCard(closedMetrics: cm)
-            }
             standardChartContent(fund: fund)
         }
     }

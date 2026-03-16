@@ -169,46 +169,76 @@ func computeDerivativesChartData(entries: [FundEntry], config: FundConfig) -> [D
     return sampleArray(aggregated)
 }
 
-// MARK: - Current State Card (Closed Funds)
+// MARK: - State Cards
+
+private struct StateCardContainer<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Current State")
+                .font(.headline).foregroundColor(.textPrimary)
+            content
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(12)
+        .background(Color.bgCard)
+        .cornerRadius(12)
+    }
+}
 
 struct ClosedFundStateCard: View {
     let closedMetrics: ClosedFundMetrics
 
     var body: some View {
         let cm = closedMetrics
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Current State")
-                .font(.headline).foregroundColor(.textPrimary)
-
+        StateCardContainer {
             Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 8) {
                 GridRow {
-                    metricLabel("Total Invested", formatCurrency(cm.totalInvestedUsd))
-                    metricLabel("Total Returned", formatCurrency(cm.totalReturnedUsd))
+                    StatBox(label: "Total Invested", value: formatCurrency(cm.totalInvestedUsd), showCard: false)
+                    StatBox(label: "Total Returned", value: formatCurrency(cm.totalReturnedUsd), showCard: false)
                 }
                 GridRow {
-                    metricLabel("Net Gain/Loss", "\(formatCurrency(cm.netGainUsd)) (\(formatPercent(cm.returnPct)))", color: cm.netGainUsd >= 0 ? .mint : .red)
-                    metricLabel("Annualized Return", formatPercent(cm.apy), color: cm.apy > 0 ? .mint : .red)
+                    StatBox(label: "Net Gain/Loss", value: "\(formatCurrency(cm.netGainUsd)) (\(formatPercent(cm.returnPct)))", color: cm.netGainUsd >= 0 ? .mint : .red, showCard: false)
+                    StatBox(label: "Annualized Return", value: formatPercent(cm.apy), color: cm.apy > 0 ? .mint : .red, showCard: false)
                 }
                 GridRow {
-                    metricLabel("Dividends", formatCurrency(cm.totalDividendsUsd))
-                    metricLabel("Cash Interest", formatCurrency(cm.totalCashInterestUsd))
+                    StatBox(label: "Dividends", value: formatCurrency(cm.totalDividendsUsd), showCard: false)
+                    StatBox(label: "Cash Interest", value: formatCurrency(cm.totalCashInterestUsd), showCard: false)
                 }
                 GridRow {
-                    metricLabel("Duration", "\(cm.durationDays) days")
-                    metricLabel("Expenses", formatCurrency(-cm.totalExpensesUsd), color: cm.totalExpensesUsd > 0 ? .red : .white)
+                    StatBox(label: "Duration", value: "\(cm.durationDays) days", showCard: false)
+                    StatBox(label: "Expenses", value: formatCurrency(-cm.totalExpensesUsd), color: cm.totalExpensesUsd > 0 ? .red : .white, showCard: false)
                 }
             }
         }
-        .padding(12)
-        .background(Color.bgCard)
-        .cornerRadius(12)
     }
+}
 
-    @ViewBuilder
-    private func metricLabel(_ label: String, _ value: String, color: Color = .textPrimary) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(label).font(.caption2).foregroundColor(.textMuted)
-            Text(value).font(.callout).fontWeight(.semibold).foregroundColor(color)
+struct ActiveFundStateCard: View {
+    let state: FundState
+    let summary: FundSummary
+
+    var body: some View {
+        StateCardContainer {
+            Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 8) {
+                GridRow {
+                    StatBox(label: "Invested", value: formatCurrency(state.startInputUsd), showCard: false)
+                    StatBox(label: "Asset Value", value: formatCurrency(summary.currentValue), color: summary.currentValue >= state.startInputUsd ? .mint : .red, showCard: false)
+                }
+                GridRow {
+                    StatBox(label: "Unrealized", value: "\(state.gainUsd >= 0 ? "+" : "")\(formatCurrency(state.gainUsd))", color: state.gainUsd >= 0 ? .mint : .red, showCard: false)
+                    StatBox(label: "Cash", value: formatCurrency(state.cashAvailableUsd), showCard: false)
+                }
+                GridRow {
+                    StatBox(label: "Realized", value: formatCurrency(state.realizedGainsUsd), color: state.realizedGainsUsd > 0 ? .mint : .textPrimary, showCard: false)
+                    StatBox(label: "Realized APY", value: formatPercent(summary.realizedAPY), color: summary.realizedAPY > 0 ? .mint : .red, showCard: false)
+                }
+                GridRow {
+                    StatBox(label: "Liquid P&L", value: formatCurrency(summary.liquidGain), color: summary.liquidGain >= 0 ? .mint : .red, showCard: false)
+                    StatBox(label: "Liquid APY", value: formatPercent(summary.liquidAPY), color: summary.liquidAPY > 0 ? .mint : .red, showCard: false)
+                }
+            }
         }
     }
 }
