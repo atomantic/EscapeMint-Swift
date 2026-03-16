@@ -2,6 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct SettingsView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appearance = AppearanceManager.shared
     @State private var fundCount = 0
     @State private var dataSize = "..."
@@ -91,7 +92,7 @@ struct SettingsView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .animation(.easeInOut(duration: 0.3), value: showStatus)
+            .animation(reduceMotion ? .none : .easeInOut(duration: 0.3), value: showStatus)
             .sheet(isPresented: $showIntroGuide) {
                 IntroGuideView(isPresented: $showIntroGuide)
             }
@@ -115,10 +116,15 @@ struct SettingsView: View {
             }
     }
 
+    @State private var toastTask: Task<Void, Never>?
+
     private func showToast(_ message: String) {
         statusMessage = message
         showStatus = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+        toastTask?.cancel()
+        toastTask = Task {
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled else { return }
             showStatus = false
         }
     }
@@ -285,7 +291,7 @@ struct SettingsView: View {
                     let dest = docs.appendingPathComponent(backupURL.lastPathComponent)
                     try? FileManager.default.removeItem(at: dest)
                     try FileManager.default.moveItem(at: backupURL, to: dest)
-                    try? await FundStore.shared.deleteAllFunds()
+                    try await FundStore.shared.deleteAllFunds()
                     await refreshStats()
                     await FundDataStore.shared.reload()
                     showToast("Backed up \(stats.fundCount) fund(s), then cleared")
@@ -293,7 +299,7 @@ struct SettingsView: View {
                     showToast("Backup failed: \(error.localizedDescription)")
                 }
             } else {
-                try? await FundStore.shared.deleteAllFunds()
+                do { try await FundStore.shared.deleteAllFunds() } catch { print("Delete failed: \(error)") }
                 await FundDataStore.shared.reload()
                 await refreshStats()
                 showToast("All data cleared")

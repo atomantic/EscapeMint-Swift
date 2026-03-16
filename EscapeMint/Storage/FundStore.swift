@@ -358,10 +358,15 @@ actor FundStore {
 
     private func formatNum(_ value: Any?) -> String {
         guard let v = value else { return "" }
-        if let n = v as? Double { return n == 0 ? "" : String(n) }
-        if let n = v as? Int { return n == 0 ? "" : String(n) }
-        if let s = v as? String { return s }
-        return ""
+        switch v {
+        case let n as NSNumber:
+            let d = n.doubleValue
+            return d == 0 ? "" : String(d)
+        case let s as String:
+            return s
+        default:
+            return ""
+        }
     }
 
     func exportToDirectory(_ destDir: URL) throws -> Int {

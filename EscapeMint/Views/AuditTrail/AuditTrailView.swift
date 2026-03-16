@@ -129,11 +129,11 @@ struct AuditTrailView: View {
 
     @ViewBuilder
     private func statsCards(_ s: (buys: Double, sells: Double, dividends: Double)) -> some View {
-        statCard(title: "Entries", value: "\(filteredEntries.count)")
-        statCard(title: "Buys", value: formatCurrency(s.buys), color: .mint)
-        statCard(title: "Sells", value: formatCurrency(s.sells), color: .red)
-        statCard(title: "Net Flow", value: formatCurrency(s.buys - s.sells), color: s.buys - s.sells >= 0 ? .mint : .red)
-        statCard(title: "Dividends", value: formatCurrency(s.dividends), color: .mint)
+        MetricCard(label: "Entries", value: "\(filteredEntries.count)")
+        MetricCard(label: "Buys", value: formatCurrency(s.buys), color: .mint)
+        MetricCard(label: "Sells", value: formatCurrency(s.sells), color: .red)
+        MetricCard(label: "Net Flow", value: formatCurrency(s.buys - s.sells), color: s.buys - s.sells >= 0 ? .mint : .red)
+        MetricCard(label: "Dividends", value: formatCurrency(s.dividends), color: .mint)
     }
 
     // MARK: - macOS Filters
@@ -409,23 +409,6 @@ struct AuditTrailView: View {
             .font(.caption.weight(.medium))
             .foregroundColor(Color.forAction(action))
             .frame(width: width, alignment: .leading)
-    }
-
-    // MARK: - Stat Card
-
-    private func statCard(title: String, value: String, color: Color = .textPrimary) -> some View {
-        VStack(spacing: 4) {
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.textMuted)
-            Text(value)
-                .font(.system(.body, design: .monospaced).weight(.semibold))
-                .foregroundColor(color)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .background(Color.bgCard)
-        .cornerRadius(8)
     }
 
     // MARK: - Actions

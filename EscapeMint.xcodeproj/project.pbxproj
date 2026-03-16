@@ -11,11 +11,14 @@
 		09D7080C269F01DE77D73ADE /* ViewCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2164A2148317851922E92087 /* ViewCache.swift */; };
 		0A946C739855BA689CE4EC01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4141AFA78E93A2BB544FFD49 /* Assets.xcassets */; };
 		0AC07BA8470D75514734E39D /* PlatformDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D9016C221D8B41402E543CF /* PlatformDetailView.swift */; };
+		0B7D62B3B1AC28C01294E542 /* NotificationNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DDEBB26B5A4523E7DF3AB87 /* NotificationNames.swift */; };
 		0C2B4BA0E0583D0D81935D4F /* IntroGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5439E3A322BB84FE60191A58 /* IntroGuideView.swift */; };
 		0CA6CF646D2EF74DD5AC7700 /* FundEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADF82E9F62C6337CA018D70F /* FundEngine.swift */; };
 		0FC73A03BA9BAE5BA0A47AE8 /* BacktestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A9C1C2AB4CC69B168913475 /* BacktestView.swift */; };
 		11C864866C071577BE475340 /* PlatformModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E936380A18BD7F2191F202E /* PlatformModifiers.swift */; };
 		13736010A21E9F8458364233 /* robinhoodtest-tqqq.tsv in Resources */ = {isa = PBXBuildFile; fileRef = 2259AF8CF6454043EE230821 /* robinhoodtest-tqqq.tsv */; };
+		14BD6E470FBB3F05EE989E37 /* BacktestConfigPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3668C8C07BAA5888046A22B /* BacktestConfigPanel.swift */; };
+		192442462A6FE331F8E495C3 /* FundCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F80087125ABA29D4B680493 /* FundCardView.swift */; };
 		1AA71BFCED97656280FF3C07 /* BacktestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A9C1C2AB4CC69B168913475 /* BacktestView.swift */; };
 		1B21A19E3A1DBE5232B4E2FF /* CreateFundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716845DB9D559691A02AEFAE /* CreateFundView.swift */; };
 		1C1460916E8155A40E33142E /* ViewCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2164A2148317851922E92087 /* ViewCache.swift */; };
@@ -27,7 +30,10 @@
 		2C78E452ED32276E3C625249 /* robinhoodtest-cash.json in Resources */ = {isa = PBXBuildFile; fileRef = 9EF8DB147F5CCF5962032B26 /* robinhoodtest-cash.json */; };
 		2C7C7FEBEC9E2493FF061567 /* PlatformDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D9016C221D8B41402E543CF /* PlatformDetailView.swift */; };
 		2CCCC96D9726E43C2600B59B /* ActionableFundsBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA79537E5DE06EC77B10C04 /* ActionableFundsBanner.swift */; };
+		2CE987711651869ABD5AE628 /* MetricCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55C07B5D650437E29AF74984 /* MetricCard.swift */; };
+		33447DF6775996C30774BBB2 /* BacktestConfigPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3668C8C07BAA5888046A22B /* BacktestConfigPanel.swift */; };
 		3361AFF542BA7F42EDE09394 /* PlatformsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC7805190DCC3C9CC32685C4 /* PlatformsView.swift */; };
+		34D34944ADBC48298BC126F7 /* BacktestCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE273771E41052451E80DD9F /* BacktestCharts.swift */; };
 		3A8A4108E6390930A06CAC9A /* DerivativesCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 206783117061273B786BA40A /* DerivativesCharts.swift */; };
 		3C7D5FA1754A58827324398B /* robinhoodtest-tqqq.json in Resources */ = {isa = PBXBuildFile; fileRef = 28267799E2A77C972DF8DDB9 /* robinhoodtest-tqqq.json */; };
 		3CC59A024D8346DE8F6B4F08 /* AddEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFF252A47ECBD98740348309 /* AddEntryView.swift */; };
@@ -51,8 +57,10 @@
 		65B3EC108FE713A5B400FA5D /* robinhoodtest-cash.tsv in Resources */ = {isa = PBXBuildFile; fileRef = BDEC5159BE61B7F6E86705E7 /* robinhoodtest-cash.tsv */; };
 		6699AD40036B9A80E20F5A66 /* EngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DEB29D5F7AD42857B739CEE /* EngineTests.swift */; };
 		66BD159218FE4D82FE08B1A9 /* coinbasetest-cash.json in Resources */ = {isa = PBXBuildFile; fileRef = 28D10063CEA04E34B422E48A /* coinbasetest-cash.json */; };
+		7064B056C01915EFDB93C772 /* NotificationNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DDEBB26B5A4523E7DF3AB87 /* NotificationNames.swift */; };
 		73A0B128972CB4F65E452D7C /* IntroGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5439E3A322BB84FE60191A58 /* IntroGuideView.swift */; };
 		766BF0790E63551102726710 /* FundEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADF82E9F62C6337CA018D70F /* FundEngine.swift */; };
+		788AEA7348838EC514180C76 /* FundCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78DC2F09A67B37D9062AFAC8 /* FundCharts.swift */; };
 		7C8493E3B622C77F494D3D53 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A691160995BF44A1DFE5634 /* SettingsView.swift */; };
 		7D9CEDB96C240E4C9B866F50 /* PlatformModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E936380A18BD7F2191F202E /* PlatformModifiers.swift */; };
 		7F0795B73CDDA0F1740CC77F /* robinhoodtest-tqqq.json in Resources */ = {isa = PBXBuildFile; fileRef = 28267799E2A77C972DF8DDB9 /* robinhoodtest-tqqq.json */; };
@@ -72,6 +80,7 @@
 		952FF89A615E2D3D7D2B804A /* EditFundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5178FBFF2608094D106457C0 /* EditFundView.swift */; };
 		9D06DBF112A37DE74E6DE5A9 /* FundDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C16280FEC2F986BC0F5C70C5 /* FundDetailView.swift */; };
 		9D4F95A5410881EFEE36142F /* FundTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 123ED17F2A466332A31D87A3 /* FundTypes.swift */; };
+		9DC304A05E7B231C017F74C4 /* BacktestCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE273771E41052451E80DD9F /* BacktestCharts.swift */; };
 		9E11DB41559D7F147E9C1B15 /* PlatformsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC7805190DCC3C9CC32685C4 /* PlatformsView.swift */; };
 		A091E84FEB7B129C8C758FD1 /* FundTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 123ED17F2A466332A31D87A3 /* FundTypes.swift */; };
 		A795E282C3CCB5CE7DB24527 /* brgnx-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 7DD4A3D62A314EF39C7556F6 /* brgnx-weekly.json */; };
@@ -86,9 +95,12 @@
 		CBF230C3FE1A6EB5F2D9E4CF /* FundTypeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84E4D35AF8187D701960FA42 /* FundTypeConfig.swift */; };
 		CC01A0E06B50D0B8B2FD6A86 /* AddEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFF252A47ECBD98740348309 /* AddEntryView.swift */; };
 		CC31BD57B8B4EC7862535B39 /* btc-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 62673091D474C5E9C408B22C /* btc-weekly.json */; };
+		CDBED69DCFAFCF4B3A2D830B /* BacktestTransactions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42D65DB13952E5D475D4A596 /* BacktestTransactions.swift */; };
 		CDD968D5B4196DF0CEB2D798 /* spxl-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = A1CDA29D3BC058B300AC82EA /* spxl-weekly.json */; };
+		CE6E624BE9136E786FFF12F2 /* BacktestTransactions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42D65DB13952E5D475D4A596 /* BacktestTransactions.swift */; };
 		CFB0DB85FA6B787056AADE51 /* coinbasetest-cash.json in Resources */ = {isa = PBXBuildFile; fileRef = 28D10063CEA04E34B422E48A /* coinbasetest-cash.json */; };
 		CFF07BF43EECAB7A8E1A4ECB /* EscapeMintApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89B67B9D0233CE75C2517D8B /* EscapeMintApp.swift */; };
+		D4AA378DD170290DE9E65AD4 /* FundCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78DC2F09A67B37D9062AFAC8 /* FundCharts.swift */; };
 		DA1119CCE8C47551F26DCCB1 /* vti-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 72B24FDF289E498E5460BB1F /* vti-weekly.json */; };
 		DBD3CC62B6F1522CA01C89ED /* IntroCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4948BA46E25035E9E656E36 /* IntroCharts.swift */; };
 		DBF3B221C34D9633C2A18EDF /* BacktestEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E725D16A17E4F0835D06D981 /* BacktestEngine.swift */; };
@@ -100,7 +112,9 @@
 		F4AE21EA90918C341A6946AD /* IntroCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4948BA46E25035E9E656E36 /* IntroCharts.swift */; };
 		F73C2BA7DC7C77621AEF94B7 /* coinbasetest-btc.json in Resources */ = {isa = PBXBuildFile; fileRef = 73E706FC8B143B51FB8C2E3C /* coinbasetest-btc.json */; };
 		F7B47A9723F0B8D7DF9154CF /* IntroContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CFE5DCF234170C9D9424BB9 /* IntroContent.swift */; };
+		F85646C4B05938C26C193E81 /* FundCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F80087125ABA29D4B680493 /* FundCardView.swift */; };
 		F9AD19FCC89D6ED33D924C7D /* AuditTrailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72E8011701E83725108665A2 /* AuditTrailView.swift */; };
+		FB0DD1BA773F836A3434D1D0 /* MetricCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55C07B5D650437E29AF74984 /* MetricCard.swift */; };
 		FE2F594896C76DE493FAD5C4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4141AFA78E93A2BB544FFD49 /* Assets.xcassets */; };
 		FFE3C12B0B0AABC7A36F4F7B /* FundDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C16280FEC2F986BC0F5C70C5 /* FundDetailView.swift */; };
 /* End PBXBuildFile section */
@@ -140,18 +154,23 @@
 		28267799E2A77C972DF8DDB9 /* robinhoodtest-tqqq.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "robinhoodtest-tqqq.json"; sourceTree = "<group>"; };
 		28D10063CEA04E34B422E48A /* coinbasetest-cash.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "coinbasetest-cash.json"; sourceTree = "<group>"; };
 		2FA36F78945896AA5A44225F /* gld-weekly.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "gld-weekly.json"; sourceTree = "<group>"; };
+		3F80087125ABA29D4B680493 /* FundCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundCardView.swift; sourceTree = "<group>"; };
 		4141AFA78E93A2BB544FFD49 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		42D65DB13952E5D475D4A596 /* BacktestTransactions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacktestTransactions.swift; sourceTree = "<group>"; };
 		4A2D5E0BEEB8E52E0461ADC0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		4CB98C8C76DB995DB12DB51C /* EditEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditEntryView.swift; sourceTree = "<group>"; };
 		5178FBFF2608094D106457C0 /* EditFundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditFundView.swift; sourceTree = "<group>"; };
 		5439E3A322BB84FE60191A58 /* IntroGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroGuideView.swift; sourceTree = "<group>"; };
+		55C07B5D650437E29AF74984 /* MetricCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricCard.swift; sourceTree = "<group>"; };
 		5730A378FC32A73CBE470B4D /* PortfolioCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioCharts.swift; sourceTree = "<group>"; };
 		5E6AFD1F57B408213E9E0D3B /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		62673091D474C5E9C408B22C /* btc-weekly.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "btc-weekly.json"; sourceTree = "<group>"; };
+		6DDEBB26B5A4523E7DF3AB87 /* NotificationNames.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationNames.swift; sourceTree = "<group>"; };
 		716845DB9D559691A02AEFAE /* CreateFundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateFundView.swift; sourceTree = "<group>"; };
 		72B24FDF289E498E5460BB1F /* vti-weekly.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "vti-weekly.json"; sourceTree = "<group>"; };
 		72E8011701E83725108665A2 /* AuditTrailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuditTrailView.swift; sourceTree = "<group>"; };
 		73E706FC8B143B51FB8C2E3C /* coinbasetest-btc.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "coinbasetest-btc.json"; sourceTree = "<group>"; };
+		78DC2F09A67B37D9062AFAC8 /* FundCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundCharts.swift; sourceTree = "<group>"; };
 		7A691160995BF44A1DFE5634 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		7DD4A3D62A314EF39C7556F6 /* brgnx-weekly.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "brgnx-weekly.json"; sourceTree = "<group>"; };
 		8234569B6F7DD6620418A099 /* FundStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundStore.swift; sourceTree = "<group>"; };
@@ -170,9 +189,11 @@
 		BDEC5159BE61B7F6E86705E7 /* robinhoodtest-cash.tsv */ = {isa = PBXFileReference; path = "robinhoodtest-cash.tsv"; sourceTree = "<group>"; };
 		BFF252A47ECBD98740348309 /* AddEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddEntryView.swift; sourceTree = "<group>"; };
 		C16280FEC2F986BC0F5C70C5 /* FundDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundDetailView.swift; sourceTree = "<group>"; };
+		C3668C8C07BAA5888046A22B /* BacktestConfigPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacktestConfigPanel.swift; sourceTree = "<group>"; };
 		C4F9B91C6175B8A229A158A5 /* EscapeMint.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = EscapeMint.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C77048CAA018B5D730D1048A /* EscapeMintTests_iOS.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = EscapeMintTests_iOS.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D4948BA46E25035E9E656E36 /* IntroCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroCharts.swift; sourceTree = "<group>"; };
+		DE273771E41052451E80DD9F /* BacktestCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacktestCharts.swift; sourceTree = "<group>"; };
 		E0E8FFADDDBD64D9D18EDA3F /* coinbasetest-cash.tsv */ = {isa = PBXFileReference; path = "coinbasetest-cash.tsv"; sourceTree = "<group>"; };
 		E725D16A17E4F0835D06D981 /* BacktestEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacktestEngine.swift; sourceTree = "<group>"; };
 		EE13E05BF89434FDA4849CA4 /* coinbasetest-btc.tsv */ = {isa = PBXFileReference; path = "coinbasetest-btc.tsv"; sourceTree = "<group>"; };
@@ -206,6 +227,9 @@
 		2A2F0CB76037ABEC550C87CA /* Backtest */ = {
 			isa = PBXGroup;
 			children = (
+				DE273771E41052451E80DD9F /* BacktestCharts.swift */,
+				C3668C8C07BAA5888046A22B /* BacktestConfigPanel.swift */,
+				42D65DB13952E5D475D4A596 /* BacktestTransactions.swift */,
 				8A9C1C2AB4CC69B168913475 /* BacktestView.swift */,
 			);
 			path = Backtest;
@@ -222,6 +246,7 @@
 				A93BEC85456ACD4DAC4BC656 /* Platform */,
 				78210AACA08A819AB7199F50 /* Platforms */,
 				981EEB206CC98B8DC81F8B05 /* Settings */,
+				DE2631162B106E847110DBD5 /* Shared */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -357,9 +382,19 @@
 				206783117061273B786BA40A /* DerivativesCharts.swift */,
 				4CB98C8C76DB995DB12DB51C /* EditEntryView.swift */,
 				5178FBFF2608094D106457C0 /* EditFundView.swift */,
+				78DC2F09A67B37D9062AFAC8 /* FundCharts.swift */,
 				C16280FEC2F986BC0F5C70C5 /* FundDetailView.swift */,
 			);
 			path = FundDetail;
+			sourceTree = "<group>";
+		};
+		DE2631162B106E847110DBD5 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				55C07B5D650437E29AF74984 /* MetricCard.swift */,
+				6DDEBB26B5A4523E7DF3AB87 /* NotificationNames.swift */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 		ED4C3BA77D42148A6A9B09DA = {
@@ -377,6 +412,7 @@
 				FAA79537E5DE06EC77B10C04 /* ActionableFundsBanner.swift */,
 				716845DB9D559691A02AEFAE /* CreateFundView.swift */,
 				5E6AFD1F57B408213E9E0D3B /* DashboardView.swift */,
+				3F80087125ABA29D4B680493 /* FundCardView.swift */,
 				5730A378FC32A73CBE470B4D /* PortfolioCharts.swift */,
 			);
 			path = Dashboard;
@@ -576,7 +612,10 @@
 				3CC59A024D8346DE8F6B4F08 /* AddEntryView.swift in Sources */,
 				58D0B9DE1C246402ADD32CF6 /* AppearanceManager.swift in Sources */,
 				F9AD19FCC89D6ED33D924C7D /* AuditTrailView.swift in Sources */,
+				34D34944ADBC48298BC126F7 /* BacktestCharts.swift in Sources */,
+				33447DF6775996C30774BBB2 /* BacktestConfigPanel.swift in Sources */,
 				84A52F16EF27156A386853DE /* BacktestEngine.swift in Sources */,
+				CE6E624BE9136E786FFF12F2 /* BacktestTransactions.swift in Sources */,
 				1AA71BFCED97656280FF3C07 /* BacktestView.swift in Sources */,
 				94344EF2DAAFD9E0644FAF17 /* Converters.swift in Sources */,
 				1B21A19E3A1DBE5232B4E2FF /* CreateFundView.swift in Sources */,
@@ -585,6 +624,8 @@
 				3FF9F76DC70C4D2D2AAA77E2 /* EditEntryView.swift in Sources */,
 				952FF89A615E2D3D7D2B804A /* EditFundView.swift in Sources */,
 				42536F85618CDA7693CC33F2 /* EscapeMintApp.swift in Sources */,
+				F85646C4B05938C26C193E81 /* FundCardView.swift in Sources */,
+				D4AA378DD170290DE9E65AD4 /* FundCharts.swift in Sources */,
 				4CC387AE5BD815C7DCE6AC66 /* FundDataStore.swift in Sources */,
 				FFE3C12B0B0AABC7A36F4F7B /* FundDetailView.swift in Sources */,
 				766BF0790E63551102726710 /* FundEngine.swift in Sources */,
@@ -594,6 +635,8 @@
 				F4AE21EA90918C341A6946AD /* IntroCharts.swift in Sources */,
 				5D1ACA7E51AFB3F87310DE88 /* IntroContent.swift in Sources */,
 				73A0B128972CB4F65E452D7C /* IntroGuideView.swift in Sources */,
+				2CE987711651869ABD5AE628 /* MetricCard.swift in Sources */,
+				0B7D62B3B1AC28C01294E542 /* NotificationNames.swift in Sources */,
 				0AC07BA8470D75514734E39D /* PlatformDetailView.swift in Sources */,
 				7D9CEDB96C240E4C9B866F50 /* PlatformModifiers.swift in Sources */,
 				3361AFF542BA7F42EDE09394 /* PlatformsView.swift in Sources */,
@@ -612,7 +655,10 @@
 				CC01A0E06B50D0B8B2FD6A86 /* AddEntryView.swift in Sources */,
 				BA705DF3CCF3E382D2289B65 /* AppearanceManager.swift in Sources */,
 				8D8079E7073E294BC0F8BE35 /* AuditTrailView.swift in Sources */,
+				9DC304A05E7B231C017F74C4 /* BacktestCharts.swift in Sources */,
+				14BD6E470FBB3F05EE989E37 /* BacktestConfigPanel.swift in Sources */,
 				DBF3B221C34D9633C2A18EDF /* BacktestEngine.swift in Sources */,
+				CDBED69DCFAFCF4B3A2D830B /* BacktestTransactions.swift in Sources */,
 				0FC73A03BA9BAE5BA0A47AE8 /* BacktestView.swift in Sources */,
 				59C7ACF796B9A37DB6B2F832 /* Converters.swift in Sources */,
 				1CA8B07A2B186B8B449AE2D3 /* CreateFundView.swift in Sources */,
@@ -621,6 +667,8 @@
 				B2458A2217463775A1EE26B3 /* EditEntryView.swift in Sources */,
 				4410F30862490B374CCE6632 /* EditFundView.swift in Sources */,
 				CFF07BF43EECAB7A8E1A4ECB /* EscapeMintApp.swift in Sources */,
+				192442462A6FE331F8E495C3 /* FundCardView.swift in Sources */,
+				788AEA7348838EC514180C76 /* FundCharts.swift in Sources */,
 				881770F19680895E015AC2CE /* FundDataStore.swift in Sources */,
 				9D06DBF112A37DE74E6DE5A9 /* FundDetailView.swift in Sources */,
 				0CA6CF646D2EF74DD5AC7700 /* FundEngine.swift in Sources */,
@@ -630,6 +678,8 @@
 				DBD3CC62B6F1522CA01C89ED /* IntroCharts.swift in Sources */,
 				F7B47A9723F0B8D7DF9154CF /* IntroContent.swift in Sources */,
 				0C2B4BA0E0583D0D81935D4F /* IntroGuideView.swift in Sources */,
+				FB0DD1BA773F836A3434D1D0 /* MetricCard.swift in Sources */,
+				7064B056C01915EFDB93C772 /* NotificationNames.swift in Sources */,
 				2C7C7FEBEC9E2493FF061567 /* PlatformDetailView.swift in Sources */,
 				11C864866C071577BE475340 /* PlatformModifiers.swift in Sources */,
 				9E11DB41559D7F147E9C1B15 /* PlatformsView.swift in Sources */,

@@ -74,7 +74,10 @@ final class ViewCache {
         if config == lastBacktestConfig && dr == lastBacktestDateRange && backtestResult != nil { return }
         guard isHistoricalDataLoaded else { return }
 
-        backtestTask?.cancel()
+        if let old = backtestTask {
+            old.cancel()
+            backtestTask = nil
+        }
         isRunningBacktest = true
         let hist = historicalData
         lastBacktestConfig = config
@@ -156,20 +159,26 @@ final class ViewCache {
         }
     }
 
-    /// Generic typed cache for chart points (ValuePoint, PLPoint, APYPoint, ProfitPoint)
-    private var chartPointsCache: [String: Any] = [:]
+    /// Type-erased wrapper for chart point arrays
+    private struct ChartCacheEntry: @unchecked Sendable {
+        let value: Any
+        func unwrap<T>(as _: T.Type) -> [T]? { value as? [T] }
+    }
+
+    /// Type-safe chart points cache keyed by "\(TypeName)-\(fundId)-\(entryCount)"
+    private var chartPointsCache: [String: ChartCacheEntry] = [:]
 
     func cachedChartPoints<T>(type: T.Type, fundId: String, entryCount: Int) -> [T]? {
-        chartPointsCache["\(T.self)-\(fundCacheKey(fundId, entryCount: entryCount))"] as? [T]
+        chartPointsCache["\(T.self)-\(fundCacheKey(fundId, entryCount: entryCount))"]?.unwrap(as: T.self)
     }
 
     func cacheChartPoints<T>(_ points: [T], type: T.Type, fundId: String, entryCount: Int) {
-        chartPointsCache["\(T.self)-\(fundCacheKey(fundId, entryCount: entryCount))"] = points
+        chartPointsCache["\(T.self)-\(fundCacheKey(fundId, entryCount: entryCount))"] = ChartCacheEntry(value: points)
     }
 
     func invalidateFundCache(fundId: String) {
-        fundRowsCache = fundRowsCache.filter { !$0.key.hasPrefix(fundId) }
-        fundDerivCache = fundDerivCache.filter { !$0.key.hasPrefix(fundId) }
-        chartPointsCache = chartPointsCache.filter { !$0.key.contains(fundId) }
+        for key in fundRowsCache.keys where key.hasPrefix(fundId) { fundRowsCache.removeValue(forKey: key) }
+        for key in fundDerivCache.keys where key.hasPrefix(fundId) { fundDerivCache.removeValue(forKey: key) }
+        for key in chartPointsCache.keys where key.contains(fundId) { chartPointsCache.removeValue(forKey: key) }
     }
 }
