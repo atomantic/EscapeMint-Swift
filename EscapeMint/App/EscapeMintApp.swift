@@ -58,6 +58,12 @@ struct ContentView: View {
             IntroGuideView(isPresented: $showIntroGuide)
         }
         .task {
+            let isFirstTime = !introCompleted || showIntroOnLaunch
+            // Start historical data loading immediately, boosted priority for first-time users
+            ViewCache.shared.startLoading(prioritizeGuide: isFirstTime)
+            if isFirstTime {
+                ModeComparisonPreloader.shared.preload()
+            }
             await store.loadIfNeeded()
         }
         .onAppear {

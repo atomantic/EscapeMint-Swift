@@ -4,7 +4,7 @@ struct IntroGuideView: View {
     @Binding var isPresented: Bool
     @State private var currentStep = 1
     @AppStorage("escapemint-intro-completed") private var introCompleted = false
-    @State private var modePreloader = ModeComparisonPreloader()
+    private var modePreloader: ModeComparisonPreloader { .shared }
 
     private let totalSteps = introSteps.count
 
@@ -53,7 +53,7 @@ struct IntroGuideView: View {
         #if os(macOS)
         .frame(minWidth: 700, idealWidth: 900, minHeight: 500, idealHeight: 700)
         #endif
-        .task { modePreloader.preload() }
+        .task { ModeComparisonPreloader.shared.preload() }
     }
 
     // MARK: - Header

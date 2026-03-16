@@ -5,22 +5,27 @@ import Charts
 
 @MainActor @Observable
 final class ModeComparisonPreloader {
+    static let shared = ModeComparisonPreloader()
+
     var harvestResult: BacktestResult?
     var accumulateResult: BacktestResult?
+    private var started = false
 
     func preload() {
-        guard harvestResult == nil, accumulateResult == nil else { return }
+        guard !started else { return }
+        started = true
+        runIfDataReady()
+    }
 
-        // Wait for ViewCache (already loading on startup) rather than re-reading from disk
+    /// Called when ViewCache finishes loading historical data
+    func onHistoricalDataLoaded() {
+        guard harvestResult == nil else { return }
+        runIfDataReady()
+    }
+
+    private func runIfDataReady() {
         let cache = ViewCache.shared
-        guard cache.isHistoricalDataLoaded else {
-            // Retry once ViewCache finishes loading
-            Task {
-                while !cache.isHistoricalDataLoaded { try? await Task.sleep(for: .milliseconds(50)) }
-                preload()
-            }
-            return
-        }
+        guard cache.isHistoricalDataLoaded else { return }
 
         var harvestCfg = BacktestConfig()
         harvestCfg.spxlPct = 0; harvestCfg.vtiPct = 0; harvestCfg.brgnxPct = 0
@@ -36,7 +41,7 @@ final class ModeComparisonPreloader {
         let aCfg = accCfg
         let hist = cache.historicalData
         Task {
-            let (harvest, accumulate) = await Task.detached(priority: .utility) {
+            let (harvest, accumulate) = await Task.detached(priority: .userInitiated) {
                 let h = runBacktest(config: hCfg, historicalData: hist)
                 let a = runBacktest(config: aCfg, historicalData: hist)
                 return (h, a)

@@ -6,15 +6,26 @@ import SwiftUI
 @MainActor @Observable
 final class ViewCache {
     static let shared = ViewCache()
-    private init() {
-        // Eagerly load historical data off the main thread
+    private init() {}
+
+    /// Start loading historical data. Call early at app launch.
+    /// Priority is boosted for first-time users (guide needs backtest data ASAP).
+    func startLoading(prioritizeGuide: Bool = false) {
+        guard _historicalData == nil, !_loadingStarted else { return }
+        _loadingStarted = true
+        let priority: TaskPriority = prioritizeGuide ? .userInitiated : .utility
         Task {
-            let data = await Task.detached(priority: .utility) {
+            let data = await Task.detached(priority: priority) {
                 loadHistoricalData()
             }.value
             _historicalData = data
+            if prioritizeGuide {
+                ModeComparisonPreloader.shared.onHistoricalDataLoaded()
+            }
         }
     }
+
+    private var _loadingStarted = false
 
     // MARK: - Historical Data (static bundle data, loaded once)
 
