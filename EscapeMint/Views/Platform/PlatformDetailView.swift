@@ -58,10 +58,11 @@ struct PlatformDetailView: View {
 
     @ViewBuilder
     private var metricsPanel: some View {
-        let totalFundSize = platformSummaries.reduce(0.0) { $0 + ($1.fund.config.fund_size_usd ?? 0) }
+        // Match web app: fundSize/value/invested only from active funds; realized/unrealized from all
+        let totalFundSize = activeSummaries.reduce(0.0) { $0 + $1.metrics.fundSize }
         let totalValue = activeSummaries.reduce(0.0) { $0 + $1.currentValue }
-        let totalInvested = platformSummaries.reduce(0.0) { $0 + $1.effectiveInvested }
-        let totalUnrealized = activeSummaries.reduce(0.0) { $0 + $1.unrealizedGains }
+        let totalInvested = activeSummaries.reduce(0.0) { $0 + $1.metrics.startInput }
+        let totalUnrealized = platformSummaries.reduce(0.0) { $0 + $1.unrealizedGains }
         let totalRealized = platformSummaries.reduce(0.0) { $0 + $1.effectiveRealized }
         let liquidPL = totalUnrealized + totalRealized
         let liquidPct = totalInvested > 0 ? liquidPL / totalInvested : 0
@@ -89,19 +90,11 @@ struct PlatformDetailView: View {
 
     @ViewBuilder
     private var breakdownPanel: some View {
-        // Single-pass reduce over summaries
-        var totalCash = 0.0, totalDividends = 0.0, totalExpenses = 0.0, totalInterest = 0.0
-        let _ = platformSummaries.forEach { s in
-            if s.fund.config.status != .closed {
-                totalCash += s.state.cashAvailableUsd
-                totalInterest += s.state.cashInterestUsd
-            } else {
-                totalCash += s.fund.entries.last?.cash ?? 0
-                totalInterest += s.closedMetrics?.totalCashInterestUsd ?? 0
-            }
-            totalDividends += s.closedMetrics?.totalDividendsUsd ?? s.fund.entries.reduce(0.0) { $0 + ($1.dividend ?? 0) }
-            totalExpenses += s.closedMetrics?.totalExpensesUsd ?? s.fund.entries.reduce(0.0) { $0 + ($1.expense ?? 0) }
-        }
+        // Match web app: cash only from active funds; dividends/expenses/interest from all
+        let totalCash = activeSummaries.reduce(0.0) { $0 + $1.state.cashAvailableUsd }
+        let totalDividends = platformSummaries.reduce(0.0) { $0 + $1.metrics.totalDividends }
+        let totalExpenses = platformSummaries.reduce(0.0) { $0 + $1.metrics.totalExpenses }
+        let totalInterest = platformSummaries.reduce(0.0) { $0 + $1.metrics.totalCashInterest }
 
         let cols = platformAdaptiveColumns(mac: 5, ios: 3)
         LazyVGrid(columns: cols, spacing: 10) {
@@ -168,11 +161,11 @@ struct PlatformDetailView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             Text(s.features.label).foregroundColor(.textMuted)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                            Text(formatCurrency(s.fund.config.fund_size_usd ?? 0))
+                            Text(formatCurrency(s.metrics.fundSize))
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                             Text(formatCurrency(s.currentValue))
                                 .frame(maxWidth: .infinity, alignment: .trailing)
-                            Text(formatCurrency(s.effectiveInvested))
+                            Text(formatCurrency(s.metrics.startInput))
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                             Text(formatCurrency(s.unrealizedGains))
                                 .foregroundColor(s.unrealizedGains >= 0 ? .mint : .red)

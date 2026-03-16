@@ -49,6 +49,7 @@ func getLatestValue(_ entries: [FundEntry]) -> Double {
     entries.last?.value ?? 0
 }
 
+
 func getFundStartDate(_ entries: [FundEntry]) -> String {
     guard let first = entries.min(by: { $0.date < $1.date }) else {
         return todayString()

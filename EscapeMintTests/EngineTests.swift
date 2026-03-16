@@ -1051,7 +1051,8 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(result.metrics.ticker, "AAPL")
         XCTAssertEqual(result.metrics.currentValue, 1200, accuracy: 0.01)
         XCTAssertEqual(result.metrics.startInput, 1000, accuracy: 0.01)
-        XCTAssertGreaterThan(result.metrics.daysActive, 200)
+        // Cycle-based: BUY 2024-06-01 to last entry 2024-12-01 = 183 days
+        XCTAssertGreaterThan(result.metrics.daysActive, 180)
         XCTAssertEqual(result.state.gainUsd, 200, accuracy: 0.01)
         XCTAssertEqual(result.state.gainPct, 0.20, accuracy: 0.01)
     }

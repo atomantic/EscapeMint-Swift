@@ -462,38 +462,240 @@ func computeProjectedAnnualReturn(_ currentValue: Double, _ realizedAPY: Double)
     currentValue * realizedAPY
 }
 
-// MARK: - Full Fund Metrics
+// MARK: - Full Fund Metrics (single-pass, matches web app fund-metrics.ts)
 
 func computeFundMetricsForFund(_ fund: FundData, asOfDate: String) -> (metrics: FundMetrics, state: FundState) {
     let config = fund.config
-    let trades = entriesToTrades(fund.entries)
-    let cashflows = entriesToCashFlows(fund.entries)
-    let dividends = entriesToDividends(fund.entries)
-    let expenses = entriesToExpenses(fund.entries)
-    let value = getLatestValue(fund.entries)
     let isCash = isCashFund(config.fund_type)
+    let isAccumulate = config.accumulate == true
+    let manageCash = config.manage_cash != false
 
-    let candidateDates = [
-        cashflows.isEmpty ? nil : getFundStartDate(cashflows.map { FundEntry(date: $0.date, value: 0) }),
-        trades.isEmpty ? nil : getFundStartDate(trades.map { FundEntry(date: $0.date, value: 0) }),
-        fund.entries.isEmpty ? nil : getFundStartDate(fund.entries)
-    ].compactMap { $0 }
-    let startDate = candidateDates.min() ?? asOfDate
-    let daysActive = max(1, daysBetween(startDate, asOfDate))
+    // Sort entries chronologically
+    let entries = fund.entries.sorted { $0.date < $1.date }
 
-    let state = computeFundState(config: config, trades: trades, cashflows: cashflows, dividends: dividends, expenses: expenses, actualValue: value, asOfDate: asOfDate)
+    // Single-pass entry walking (matches web app's computeFundFinalMetrics)
+    var totalBuys = 0.0
+    var totalSells = 0.0
+    var sumShares = 0.0
+    var costBasis = 0.0
+    var sumDividends = 0.0
+    var sumExpenses = 0.0
+    var sumCashInterest = 0.0
+    var sumExtracted = 0.0
 
-    let twfs = isCash
-        ? computeCashFundTimeWeightedSize(cashFlows: cashflows, startDate: startDate, asOfDate: asOfDate)
-        : computeTimeWeightedFundSize(trades: trades, startDate: startDate, asOfDate: asOfDate)
+    // TWAP tracking (trading funds)
+    var twapNumerator = 0.0
+    var twapLastDate: String?
 
-    let realizedGains = state.realizedGainsUsd
-    let realizedAPY = computeLinearAPY(realizedGains, twfs, daysActive)
-    let projectedAnnualReturn = computeProjectedAnnualReturn(value, realizedAPY)
-    let unrealizedGains = isCash ? 0 : state.gainUsd
-    let liquidGain = unrealizedGains + realizedGains
-    let liquidAPY = computeLinearAPY(liquidGain, twfs, daysActive)
-    let gainUsd = isCash ? realizedGains : unrealizedGains
+    // TWAB tracking (cash funds)
+    var twabNumerator = 0.0
+    var lastCashBalance = 0.0
+    var lastDate: String?
+
+    // Active days: only count time when capital is deployed
+    var cycleStartDate: String?
+    var cumulativeActiveDays = 0.0
+    var hadFirstBuy = false
+
+    for entry in entries {
+        // TWAB for cash funds
+        if let ld = lastDate, isCash {
+            let daysBtw = max(0, Double(daysBetween(ld, entry.date)))
+            twabNumerator += lastCashBalance * daysBtw
+        }
+
+        // Track shares
+        if let shares = entry.shares {
+            if entry.action == .BUY { sumShares += shares }
+            else if entry.action == .SELL { sumShares -= shares }
+        }
+
+        // Cumulative income/expenses
+        if let d = entry.dividend { sumDividends += d }
+        if let e = entry.expense { sumExpenses += e }
+        if let ci = entry.cash_interest { sumCashInterest += ci }
+
+        // TWAP before processing this entry's action
+        if !isCash, let tld = twapLastDate, cycleStartDate != nil {
+            let daysBtw = max(0, Double(daysBetween(tld, entry.date)))
+            twapNumerator += costBasis * daysBtw
+        }
+        if cycleStartDate != nil { twapLastDate = entry.date }
+
+        // Process buys and sells
+        if entry.action == .BUY, let amt = entry.amount {
+            totalBuys += amt
+            costBasis += amt
+            if cycleStartDate == nil {
+                cycleStartDate = entry.date
+                twapLastDate = entry.date
+                hadFirstBuy = true
+            }
+        } else if entry.action == .SELL, let amt = entry.amount {
+            let hasShareTracking = entry.shares != nil && (entry.shares ?? 0) != 0
+            let sharesLiquidated = hasShareTracking && abs(sumShares) < 0.0001
+            let valueLiquidated = entry.value > 0 && entry.value <= amt + 0.01
+            let isFullLiq = sharesLiquidated || valueLiquidated
+
+            var extracted = 0.0
+            if isFullLiq {
+                extracted = amt - costBasis
+                costBasis = 0
+                totalBuys = 0
+                totalSells = 0
+                // Freeze active days on full liquidation
+                if let csd = cycleStartDate {
+                    cumulativeActiveDays += max(0, Double(daysBetween(csd, entry.date)))
+                    cycleStartDate = nil
+                }
+            } else if isAccumulate {
+                extracted = amt
+            } else {
+                // Harvest mode: proportional cost basis
+                let sellProportion = (entry.value + amt) > 0 ? amt / (entry.value + amt) : 1.0
+                let costBasisReturned = costBasis * sellProportion
+                extracted = amt - costBasisReturned
+                costBasis -= costBasisReturned
+                totalSells += amt
+            }
+            sumExtracted += extracted
+        }
+
+        // TWAB tracking
+        if isCash {
+            lastCashBalance = entry.cash ?? entry.value
+        }
+        lastDate = entry.date
+    }
+
+    // Final TWAP period
+    let latestEntry = entries.last
+    let endDate = latestEntry?.date ?? asOfDate
+    if !isCash, let tld = twapLastDate, cycleStartDate != nil {
+        let finalDays = max(0, Double(daysBetween(tld, endDate)))
+        twapNumerator += costBasis * finalDays
+    }
+
+    // Compute active days
+    let daysActive: Int
+    if hadFirstBuy {
+        let currentCycleDays = cycleStartDate.map { max(0, Double(daysBetween($0, endDate))) } ?? 0
+        daysActive = max(1, Int(cumulativeActiveDays + currentCycleDays))
+    } else {
+        let sd = entries.first?.date ?? asOfDate
+        daysActive = max(1, daysBetween(sd, endDate))
+    }
+
+    // Calculate final values
+    let netInvested = max(0, totalBuys - totalSells)
+
+    let computedFundSize: Double
+    let currentValue: Double
+    let cash: Double
+
+    if config.status == .closed {
+        computedFundSize = 0
+        currentValue = 0
+        cash = 0
+    } else if isCash {
+        let cashVal = latestEntry?.cash ?? latestEntry?.fund_size ?? latestEntry?.value ?? 0
+        cash = cashVal
+        computedFundSize = latestEntry?.fund_size ?? cashVal
+        currentValue = cashVal
+    } else {
+        // Trading fund: compute post-action value
+        var postActionValue = latestEntry?.value ?? 0
+        if latestEntry?.action == .BUY, let amt = latestEntry?.amount {
+            postActionValue += amt
+        } else if latestEntry?.action == .SELL, let amt = latestEntry?.amount {
+            postActionValue = max(0, postActionValue - amt)
+        }
+        currentValue = postActionValue
+
+        if !manageCash {
+            computedFundSize = isAccumulate
+                ? (latestEntry?.fund_size ?? netInvested)
+                : netInvested
+        } else {
+            computedFundSize = latestEntry?.fund_size ?? config.fund_size_usd ?? 0
+        }
+
+        if !manageCash {
+            cash = 0
+        } else {
+            cash = latestEntry?.cash ?? max(0, computedFundSize - netInvested)
+        }
+    }
+
+    // Gains
+    let unrealized = isCash ? 0 : (currentValue - costBasis)
+    let realized = isCash
+        ? sumCashInterest - sumExpenses
+        : sumCashInterest + sumDividends + sumExtracted - sumExpenses
+    let liquidPnl = unrealized + realized
+
+    // APY
+    var realizedAPY = 0.0
+    var liquidAPY = 0.0
+
+    if isCash {
+        let twab = Double(daysActive) > 0 ? twabNumerator / Double(daysActive) : 0
+        let denominator = twab > 0 ? twab : (computedFundSize > 0 ? computedFundSize : 1)
+        if abs(realized) >= 0.01 {
+            let returnPct = realized / denominator
+            let clampedPct = max(-0.99, returnPct)
+            realizedAPY = pow(1.0 + clampedPct, 365.0 / Double(daysActive)) - 1.0
+            liquidAPY = realizedAPY
+        }
+    } else {
+        let twap = Double(daysActive) > 0 ? twapNumerator / Double(daysActive) : 0
+        let denominator = twap > 0 ? twap : (costBasis > 0 ? costBasis : 1)
+        if denominator > 0 {
+            let realizedReturnPct = realized / denominator
+            let clampedRealizedPct = max(-0.99, realizedReturnPct)
+            realizedAPY = pow(1.0 + clampedRealizedPct, 365.0 / Double(daysActive)) - 1.0
+
+            let liquidReturnPct = liquidPnl / denominator
+            let clampedLiquidPct = max(-0.99, liquidReturnPct)
+            liquidAPY = pow(1.0 + clampedLiquidPct, 365.0 / Double(daysActive)) - 1.0
+        }
+    }
+
+    let gainUsd = isCash ? realized : unrealized
+    let projectedAnnualReturn = computeProjectedAnnualReturn(currentValue, realizedAPY)
+    let twfs = daysActive > 0 ? (isCash ? twabNumerator : twapNumerator) / Double(daysActive) : 0
+
+    // Build FundState directly from single-pass data (avoids redundant entry walks)
+    let startInput = isCash ? cash : netInvested
+    let gainUsdState = startInput > 0 ? currentValue - startInput : 0.0
+    let rawGainPct = startInput > 0 ? (currentValue / startInput) - 1.0 : 0.0
+    let gainPctState = rawGainPct.isFinite ? rawGainPct : 0.0
+
+    // Only compute expectedTarget/cashAvailable for recommendation engine (active non-cash funds)
+    let needsRecommendation = config.status != .closed && !isCash && config.fund_type != .derivatives
+    var expectedTarget = 0.0
+    var cashAvailable = cash
+
+    if needsRecommendation {
+        let trades = entriesToTrades(fund.entries)
+        let cashflows = entriesToCashFlows(fund.entries)
+        let divs = entriesToDividends(fund.entries)
+        let exps = entriesToExpenses(fund.entries)
+        expectedTarget = computeExpectedTarget(config: config, trades: trades, asOfDate: asOfDate)
+        cashAvailable = computeCashAvailable(config: config, trades: trades, cashflows: cashflows, dividends: divs, expenses: exps, asOfDate: asOfDate)
+    }
+
+    let state = FundState(
+        cashAvailableUsd: cashAvailable,
+        expectedTargetUsd: expectedTarget,
+        actualValueUsd: currentValue,
+        startInputUsd: startInput,
+        gainUsd: gainUsdState,
+        gainPct: gainPctState,
+        targetDiffUsd: currentValue - expectedTarget,
+        cashInterestUsd: sumCashInterest,
+        realizedGainsUsd: realized
+    )
 
     let metrics = FundMetrics(
         id: fund.id,
@@ -502,18 +704,21 @@ func computeFundMetricsForFund(_ fund: FundData, asOfDate: String) -> (metrics: 
         status: config.status ?? .active,
         fundType: config.fund_type ?? .stock,
         category: config.category,
-        fundSize: config.fund_size_usd ?? 0,
-        currentValue: value,
-        startInput: state.startInputUsd,
+        fundSize: computedFundSize,
+        currentValue: currentValue,
+        startInput: startInput,
         daysActive: daysActive,
         timeWeightedFundSize: twfs,
-        realizedGains: realizedGains,
-        unrealizedGains: unrealizedGains,
+        realizedGains: realized,
+        unrealizedGains: unrealized,
         realizedAPY: realizedAPY,
         liquidAPY: liquidAPY,
         projectedAnnualReturn: projectedAnnualReturn,
         gainUsd: gainUsd,
-        gainPct: state.gainPct,
+        gainPct: gainPctState,
+        totalDividends: sumDividends,
+        totalExpenses: sumExpenses,
+        totalCashInterest: sumCashInterest,
         fundShares: 0,
         fundSharesPct: 0
     )

@@ -280,6 +280,9 @@ struct FundMetrics {
     let projectedAnnualReturn: Double
     let gainUsd: Double
     let gainPct: Double
+    let totalDividends: Double
+    let totalExpenses: Double
+    let totalCashInterest: Double
     var fundShares: Double = 0
     var fundSharesPct: Double = 0
 }

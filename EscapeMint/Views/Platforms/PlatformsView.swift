@@ -20,14 +20,15 @@ struct PlatformsView: View {
     }
 
     var platformInfos: [PlatformInfo] {
-        let grouped = Dictionary(grouping: store.funds, by: { $0.platform })
-        return grouped.map { platform, platformFunds in
-            PlatformInfo(
+        let grouped = Dictionary(grouping: store.summaries, by: { $0.fund.platform })
+        return grouped.map { platform, summaries in
+            let active = summaries.filter { $0.fund.config.status != .closed }
+            return PlatformInfo(
                 name: platform,
-                fundCount: platformFunds.count,
-                activeFundCount: platformFunds.filter { $0.config.status != .closed }.count,
-                totalValue: platformFunds.reduce(0) { $0 + getLatestValue($1.entries) },
-                totalFundSize: platformFunds.reduce(0) { $0 + ($1.config.fund_size_usd ?? 0) }
+                fundCount: summaries.count,
+                activeFundCount: active.count,
+                totalValue: active.reduce(0) { $0 + $1.currentValue },
+                totalFundSize: active.reduce(0) { $0 + $1.metrics.fundSize }
             )
         }.sorted { $0.totalValue > $1.totalValue }
     }

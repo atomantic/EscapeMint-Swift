@@ -60,7 +60,7 @@ struct FundCardView: View {
                 } else {
                     VStack(alignment: .leading) {
                         Text("Size").font(.caption2).foregroundColor(.textMuted)
-                        Text(formatCurrency(fund.config.fund_size_usd ?? 0)).font(.caption).foregroundColor(.textPrimary)
+                        Text(formatCurrency(summary.metrics.fundSize)).font(.caption).foregroundColor(.textPrimary)
                     }
                     VStack(alignment: .leading) {
                         Text("Value").font(.caption2).foregroundColor(.textMuted)
