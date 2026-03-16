@@ -1,5 +1,36 @@
 import SwiftUI
 
+// Column definition shared between header and rows
+private struct Col {
+    let title: String
+    let width: CGFloat
+    let leading: Bool
+
+    init(_ title: String, _ width: CGFloat, leading: Bool = false) {
+        self.title = title
+        self.width = width
+        self.leading = leading
+    }
+}
+
+private let columns: [Col] = [
+    Col("Date", 78, leading: true),
+    Col("Fund Size", 70),
+    Col("Equity", 70),
+    Col("Cash", 65),
+    Col("Interest", 58),
+    Col("\u{03A3} Int", 58),
+    Col("Dividend", 58),
+    Col("\u{03A3} Div", 58),
+    Col("Action", 45),
+    Col("Amount", 65),
+    Col("Invested", 65),
+    Col("Unrealized", 72),
+    Col("Realized", 70),
+    Col("Liquid P&L", 72),
+    Col("Target", 70),
+]
+
 struct BacktestTransactions: View {
     let result: BacktestResult
     @Binding var sortOrder: BacktestView.SortOrder
@@ -12,24 +43,32 @@ struct BacktestTransactions: View {
                 VStack(spacing: 0) {
                     // Header
                     HStack(spacing: 0) {
-                        tableHeaderCell("Date", width: 90, sortable: true, leading: true)
-                            .id("dateHeader")
-                        tableHeaderCell("Fund Size", width: 85)
-                        tableHeaderCell("Equity", width: 85)
-                        tableHeaderCell("Cash", width: 85)
-                        tableHeaderCell("Interest", width: 70)
-                        tableHeaderCell("\u{03A3} Interest", width: 75)
-                        tableHeaderCell("Dividend", width: 70)
-                        tableHeaderCell("\u{03A3} Dividend", width: 80)
-                        tableHeaderCell("Action", width: 55)
-                        tableHeaderCell("Amount", width: 80)
-                        tableHeaderCell("Invested", width: 80)
-                        tableHeaderCell("Unrealized", width: 85)
-                        tableHeaderCell("Realized", width: 85)
-                        tableHeaderCell("Liquid P&L", width: 85)
-                        tableHeaderCell("Target", width: 85)
+                        ForEach(Array(columns.enumerated()), id: \.offset) { i, col in
+                            if i == 0 {
+                                // Sortable Date header
+                                Button {
+                                    sortOrder = sortOrder == .asc ? .desc : .asc
+                                } label: {
+                                    HStack(spacing: 2) {
+                                        Text(col.title)
+                                        Text(sortOrder == .asc ? "\u{25B2}" : "\u{25BC}")
+                                            .font(.system(size: 7))
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(.textMuted)
+                                .frame(width: col.width, alignment: .leading)
+                            } else {
+                                Text(col.title)
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundColor(.textMuted)
+                                    .frame(width: col.width, alignment: .trailing)
+                            }
+                        }
                     }
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 5)
+                    .padding(.horizontal, 6)
                     .background(Color.bgCard)
 
                     Divider().background(Color.textMuted.opacity(0.3))
@@ -65,32 +104,6 @@ struct BacktestTransactions: View {
         )
     }
 
-    // MARK: - Table Header Cell
-
-    private func tableHeaderCell(_ title: String, width: CGFloat, sortable: Bool = false, leading: Bool = false) -> some View {
-        let alignment: Alignment = leading ? .leading : .trailing
-        return Group {
-            if sortable {
-                Button {
-                    sortOrder = sortOrder == .asc ? .desc : .asc
-                } label: {
-                    HStack(spacing: 2) {
-                        Text(title)
-                        Text(sortOrder == .asc ? "\u{25B2}" : "\u{25BC}")
-                            .font(.system(size: 8))
-                    }
-                }
-                .buttonStyle(.plain)
-            } else {
-                Text(title)
-            }
-        }
-        .font(.system(size: 10, weight: .medium))
-        .foregroundColor(.textMuted)
-        .frame(width: width, alignment: alignment)
-        .padding(.horizontal, 4)
-    }
-
     // MARK: - Entry Row
 
     @ViewBuilder
@@ -104,76 +117,33 @@ struct BacktestTransactions: View {
         }()
 
         HStack(spacing: 0) {
-            Text(entry.date)
-                .frame(width: 90, alignment: .leading)
-                .foregroundColor(.textPrimary)
-
-            Text(formatCurrency(entry.fundSize))
-                .frame(width: 85, alignment: .trailing)
-                .foregroundColor(.textSecondary)
-
-            Text(formatCurrency(entry.equity))
-                .frame(width: 85, alignment: .trailing)
-                .foregroundColor(.mint)
-
-            Text(formatCurrency(entry.cash))
-                .frame(width: 85, alignment: .trailing)
-                .foregroundColor(.green)
-
-            Text(entry.cashInterest > 0.01 ? formatCurrency(entry.cashInterest) : "-")
-                .frame(width: 70, alignment: .trailing)
-                .foregroundColor(.cyan)
-
-            Text(formatCurrency(entry.sumCashInterest))
-                .frame(width: 75, alignment: .trailing)
-                .foregroundColor(.cyan.opacity(0.7))
-
-            Text(entry.dividend > 0.01 ? formatCurrency(entry.dividend) : "-")
-                .frame(width: 70, alignment: .trailing)
-                .foregroundColor(.mint)
-
-            Text(formatCurrency(entry.sumDividends))
-                .frame(width: 80, alignment: .trailing)
-                .foregroundColor(.mint.opacity(0.7))
-
-            Text(entry.action?.rawValue ?? "HOLD")
-                .frame(width: 55, alignment: .trailing)
-                .foregroundColor(actionColor(entry.action))
-
-            Group {
-                if entry.amount > 0 {
-                    Text(formatCurrency(entry.amount))
-                        .foregroundColor(entry.action == .BUY ? .green : .red)
-                } else {
-                    Text("-").foregroundColor(.textMuted)
-                }
-            }
-            .frame(width: 80, alignment: .trailing)
-
-            Text(formatCurrency(max(0, entry.invested)))
-                .frame(width: 80, alignment: .trailing)
-                .foregroundColor(.blue)
-
-            Text(formatCurrency(entry.unrealized))
-                .frame(width: 85, alignment: .trailing)
-                .foregroundColor(entry.unrealized >= 0 ? .green : .red)
-
-            Text(formatCurrency(entry.realized))
-                .frame(width: 85, alignment: .trailing)
-                .foregroundColor(entry.realized >= 0 ? .green : .red)
-
-            Text(formatCurrency(entry.liquidPnL))
-                .frame(width: 85, alignment: .trailing)
-                .foregroundColor(entry.liquidPnL >= 0 ? .green : .red)
-
-            Text(formatCurrency(entry.expectedTarget))
-                .frame(width: 85, alignment: .trailing)
-                .foregroundColor(.cyan)
+            cell(entry.date, width: columns[0].width, alignment: .leading, color: .textPrimary)
+            cell(formatCurrency(entry.fundSize), width: columns[1].width, color: .textSecondary)
+            cell(formatCurrency(entry.equity), width: columns[2].width, color: .mint)
+            cell(formatCurrency(entry.cash), width: columns[3].width, color: .green)
+            cell(entry.cashInterest > 0.01 ? formatCurrency(entry.cashInterest) : "-", width: columns[4].width, color: .cyan)
+            cell(formatCurrency(entry.sumCashInterest), width: columns[5].width, color: .cyan.opacity(0.7))
+            cell(entry.dividend > 0.01 ? formatCurrency(entry.dividend) : "-", width: columns[6].width, color: .mint)
+            cell(formatCurrency(entry.sumDividends), width: columns[7].width, color: .mint.opacity(0.7))
+            cell(entry.action?.rawValue ?? "HOLD", width: columns[8].width, color: actionColor(entry.action))
+            cell(entry.amount > 0 ? formatCurrency(entry.amount) : "-", width: columns[9].width,
+                 color: entry.amount > 0 ? (entry.action == .BUY ? .green : .red) : .textMuted)
+            cell(formatCurrency(max(0, entry.invested)), width: columns[10].width, color: .blue)
+            cell(formatCurrency(entry.unrealized), width: columns[11].width, color: entry.unrealized >= 0 ? .green : .red)
+            cell(formatCurrency(entry.realized), width: columns[12].width, color: entry.realized >= 0 ? .green : .red)
+            cell(formatCurrency(entry.liquidPnL), width: columns[13].width, color: entry.liquidPnL >= 0 ? .green : .red)
+            cell(formatCurrency(entry.expectedTarget), width: columns[14].width, color: .cyan)
         }
-        .font(.system(size: 10, design: .monospaced))
-        .padding(.horizontal, 4)
+        .font(.system(size: 9, design: .monospaced))
+        .padding(.horizontal, 6)
         .padding(.vertical, 3)
         .background(bgColor)
+    }
+
+    private func cell(_ text: String, width: CGFloat, alignment: Alignment = .trailing, color: Color) -> some View {
+        Text(text)
+            .frame(width: width, alignment: alignment)
+            .foregroundColor(color)
     }
 
     private func actionColor(_ action: FundAction?) -> Color {
@@ -191,15 +161,15 @@ struct BacktestTablePlaceholder: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                ForEach(["Date", "Fund Size", "Equity", "Cash", "Action", "Amount", "Invested", "Unrealized", "Realized"], id: \.self) { title in
-                    Text(title)
-                        .font(.system(size: 10, weight: .medium))
+                ForEach(Array(columns.prefix(9).enumerated()), id: \.offset) { _, col in
+                    Text(col.title)
+                        .font(.system(size: 9, weight: .semibold))
                         .foregroundColor(.textMuted)
-                        .frame(width: 85, alignment: title == "Date" ? .leading : .trailing)
-                        .padding(.horizontal, 4)
+                        .frame(width: col.width, alignment: col.leading ? .leading : .trailing)
                 }
             }
-            .padding(.vertical, 6)
+            .padding(.vertical, 5)
+            .padding(.horizontal, 6)
             .background(Color.bgCard)
 
             Divider().background(Color.textMuted.opacity(0.3))
@@ -210,7 +180,7 @@ struct BacktestTablePlaceholder: View {
                         ForEach(0..<9, id: \.self) { _ in
                             RoundedRectangle(cornerRadius: 3)
                                 .fill(Color.textMuted.opacity(0.1))
-                                .frame(width: 65, height: 10)
+                                .frame(width: 55, height: 10)
                                 .padding(.horizontal, 4)
                         }
                     }
