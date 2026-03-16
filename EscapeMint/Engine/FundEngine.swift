@@ -8,13 +8,16 @@ func trackShares(trade: Trade, currentShares: Double) -> Double {
     return currentShares + (trade.type == .sell ? -sharesAbs : sharesAbs)
 }
 
+func isFullLiquidation(shares: Double?, value: Double, amount: Double, sumShares: Double, totalBuys: Double, totalSells: Double) -> Bool {
+    let hasShareTracking = shares != nil && (shares ?? 0) != 0
+    let shareBasedLiq = hasShareTracking && abs(sumShares) < 0.0001
+    let valueBasedLiq = value > 0 && value <= amount + 0.01
+    let dollarBasedLiq = totalSells >= totalBuys
+    return shareBasedLiq || valueBasedLiq || dollarBasedLiq
+}
+
 func detectFullLiquidation(trade: Trade, sumShares: Double, totalBuys: Double, totalSells: Double) -> Bool {
-    let hasShareTracking = trade.shares != nil && trade.shares != 0
-    let shareBasedLiquidation = hasShareTracking && abs(sumShares) < 0.0001
-    // Only use value-based liquidation when value > 0 (value=0 means "unknown")
-    let valueBasedLiquidation = trade.value != nil && (trade.value ?? 0) > 0 && (trade.value ?? 0) <= trade.amountUsd + 0.01
-    let dollarBasedLiquidation = totalSells >= totalBuys
-    return shareBasedLiquidation || valueBasedLiquidation || dollarBasedLiquidation
+    isFullLiquidation(shares: trade.shares, value: trade.value ?? 0, amount: trade.amountUsd, sumShares: sumShares, totalBuys: totalBuys, totalSells: totalSells)
 }
 
 // MARK: - Core Computations
@@ -681,6 +684,117 @@ func computeActionableFunds(_ funds: [FundData], asOfDate: String? = nil) -> [Ac
         return ActionableFund(id: fund.id, fund: fund, daysOverdue: daysOverdue, intervalDays: intervalDays)
     }
     .sorted { $0.daysOverdue > $1.daysOverdue } // Most overdue first
+}
+
+// MARK: - Per-Entry Computed Data (for entries table columns)
+
+struct ComputedEntryRow {
+    let extracted: Double
+    let realized: Double
+    let liquidPnl: Double
+    let realizedApy: Double
+    let liquidApy: Double
+    let isClosingEntry: Bool
+}
+
+func computeEntryRows(entries: [FundEntry], config: FundConfig) -> [ComputedEntryRow] {
+    let isAccumulate = config.accumulate == true
+
+    var totalBuys = 0.0
+    var totalSells = 0.0
+    var sumShares = 0.0
+    var costBasis = 0.0
+    var sumExtracted = 0.0
+    var sumDividends = 0.0
+    var sumCashInterest = 0.0
+    var sumExpenses = 0.0
+    var twapNumerator = 0.0
+    var activeDays = 0
+    var lastDate = entries.first?.date ?? ""
+
+    return entries.map { entry in
+        let daysSinceLast = lastDate.isEmpty ? 0 : max(0, daysBetween(lastDate, entry.date))
+
+        // Accumulate TWAP using cost basis BEFORE this entry's action
+        if daysSinceLast > 0 && costBasis > 0 {
+            twapNumerator += costBasis * Double(daysSinceLast)
+        }
+        activeDays += daysSinceLast
+
+        // Accumulate income/expenses
+        sumDividends += entry.dividend ?? 0
+        sumCashInterest += entry.cash_interest ?? 0
+        sumExpenses += entry.expense ?? 0
+
+        var entryExtracted = 0.0
+        var isClosing = false
+
+        if entry.action == .BUY, let amt = entry.amount {
+            totalBuys += amt
+            costBasis += amt
+            sumShares += abs(entry.shares ?? 0)
+        } else if entry.action == .SELL, let amt = entry.amount {
+            totalSells += amt
+            sumShares -= abs(entry.shares ?? 0)
+
+            if isFullLiquidation(shares: entry.shares, value: entry.value, amount: amt, sumShares: sumShares, totalBuys: totalBuys, totalSells: totalSells) {
+                isClosing = true
+                entryExtracted = max(0, totalSells - totalBuys)
+                sumExtracted += entryExtracted
+                costBasis = 0
+                totalBuys = 0
+                totalSells = 0
+                sumShares = 0
+                twapNumerator = 0
+                activeDays = 0
+            } else if isAccumulate {
+                entryExtracted = amt
+                sumExtracted += entryExtracted
+                totalSells = 0
+            } else {
+                let hasShareTracking = entry.shares != nil && (entry.shares ?? 0) != 0
+                if hasShareTracking && totalBuys > 0 {
+                    let sharesBeforeSell = sumShares + abs(entry.shares ?? 0)
+                    let sellFraction = sharesBeforeSell > 0 ? abs(entry.shares ?? 0) / sharesBeforeSell : 1.0
+                    let costBasisReturned = costBasis * sellFraction
+                    entryExtracted = max(0, amt - costBasisReturned)
+                    sumExtracted += entryExtracted
+                    costBasis -= costBasisReturned
+                    totalBuys -= costBasisReturned
+                    totalSells = 0
+                }
+            }
+        }
+
+        let realized = sumExtracted + sumDividends + sumCashInterest - sumExpenses
+        let unrealized = entry.value - costBasis
+        let liquidPnl = unrealized + realized
+
+        // Compound APY (matches web app per-entry formula)
+        let twap = activeDays > 0 ? twapNumerator / Double(activeDays) : 0
+        let basis = twap > 0 ? twap : costBasis
+
+        var realizedApy = 0.0
+        var liquidApy = 0.0
+
+        if activeDays > 0 && basis > 0 {
+            let rPct = max(-0.99, realized / basis)
+            realizedApy = pow(1.0 + rPct, 365.0 / Double(activeDays)) - 1.0
+            let lPct = max(-0.99, liquidPnl / basis)
+            liquidApy = pow(1.0 + lPct, 365.0 / Double(activeDays)) - 1.0
+        }
+
+        lastDate = entry.date
+
+        return ComputedEntryRow(
+            extracted: entryExtracted,
+            realized: realized,
+            liquidPnl: liquidPnl,
+            realizedApy: realizedApy,
+            liquidApy: liquidApy,
+            isClosingEntry: isClosing
+        )
+    }
 }
 
 // MARK: - Formatters (cached)

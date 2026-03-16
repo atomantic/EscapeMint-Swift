@@ -5,7 +5,7 @@ struct DashboardView: View {
     private var store: FundDataStore { .shared }
     @State private var showCreateFund = false
     @State private var showImport = false
-    @State private var showCharts = false
+    @State private var showCharts = true
     @State private var timeSeries: [PortfolioTimeSeriesPoint] = []
     @State private var platformFilter: String? = nil
     @State private var viewMode: ViewMode = .grid
@@ -50,9 +50,22 @@ struct DashboardView: View {
         #endif
         }
         .onChange(of: showCharts) { _, on in
-            if on && timeSeries.isEmpty { timeSeries = computePortfolioTimeSeries(store.funds) }
+            if on && timeSeries.isEmpty && store.isLoaded { timeSeries = computePortfolioTimeSeries(store.funds) }
         }
-        .onAppear { loadDashCollapsedState() }
+        .onChange(of: store.revision) { _, _ in
+            guard store.isLoaded else { return }
+            if showCharts && !store.funds.isEmpty {
+                timeSeries = computePortfolioTimeSeries(store.funds)
+            } else {
+                timeSeries = []
+            }
+        }
+        .onAppear {
+            loadDashCollapsedState()
+            if showCharts && timeSeries.isEmpty && store.isLoaded {
+                timeSeries = computePortfolioTimeSeries(store.funds)
+            }
+        }
     }
 
     // MARK: - macOS Dashboard
@@ -95,7 +108,6 @@ struct DashboardView: View {
             .padding()
         }
         .background(Color.bg.ignoresSafeArea())
-        .onChange(of: store.revision) { _, _ in timeSeries = [] }
     }
 
     // MARK: - iOS Dashboard
@@ -128,7 +140,6 @@ struct DashboardView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         #endif
         .refreshable { await store.reload() }
-        .onChange(of: store.revision) { _, _ in timeSeries = [] }
     }
 
     // MARK: - iOS Header Controls
@@ -140,10 +151,13 @@ struct DashboardView: View {
                 Text("\(store.portfolio.activeFunds) active \u{2022} \(store.portfolio.closedFunds) closed")
                     .font(.caption).foregroundColor(.textSecondary)
                 Spacer()
-                Button { showCharts.toggle() } label: {
-                    Image(systemName: showCharts ? "chart.bar.fill" : "chart.bar")
-                        .foregroundColor(showCharts ? .mint : .textMuted)
+                Toggle(isOn: $showCharts) {
+                    Text("Charts")
+                        .font(.caption).foregroundColor(.textSecondary)
                 }
+                .toggleStyle(.switch)
+                .tint(.mint)
+                .frame(width: 100)
             }
             if platforms.count > 1 {
                 Picker("Platform", selection: $platformFilter) {
@@ -213,11 +227,13 @@ struct DashboardView: View {
             Spacer()
 
             // Charts toggle
-            Button { showCharts.toggle() } label: {
-                Image(systemName: showCharts ? "chart.bar.fill" : "chart.bar")
-                    .foregroundColor(showCharts ? .mint : .textMuted)
+            Toggle(isOn: $showCharts) {
+                Text("Charts")
+                    .font(.callout).foregroundColor(.textSecondary)
             }
-            .buttonStyle(.plain)
+            .toggleStyle(.switch)
+            .tint(.mint)
+            .frame(width: 110)
 
             // Platform filter
             if platforms.count > 1 {

@@ -13,6 +13,7 @@ struct FundDetailView: View {
     @State private var showColumnConfig = false
     @State private var showStats = true
     @State private var derivPoints: [DerivativesChartPoint]?
+    @State private var computedRows: [ComputedEntryRow] = []
 
     private var fund: FundData? { store.fund(byId: fundId) }
     private var summary: FundSummary? { store.summary(byId: fundId) }
@@ -126,12 +127,13 @@ struct FundDetailView: View {
                         .font(.headline).foregroundColor(.textPrimary)
                 }
                 .tint(.textSecondary)
-                .task(id: fund.id) {
+                .task(id: "\(fund.id)-\(fund.entries.count)") {
                     if fund.config.fund_type == .derivatives {
                         derivPoints = computeDerivativesChartData(entries: fund.entries, config: fund.config)
                     } else {
                         derivPoints = nil
                     }
+                    computedRows = computeEntryRows(entries: fund.entries, config: fund.config)
                 }
 
                 // Entries table
@@ -278,11 +280,11 @@ struct FundDetailView: View {
 
     @ViewBuilder
     private func standardChartContent(fund: FundData) -> some View {
-        ValueChartView(entries: fund.entries)
+        ValueChartView(entries: fund.entries, config: fund.config)
         PLChartView(entries: fund.entries, config: fund.config)
         APYChartView(entries: fund.entries, config: fund.config)
-        if fund.entries.contains(where: { ($0.dividend ?? 0) > 0 || ($0.cash_interest ?? 0) > 0 }) {
-            CapturedProfitChartView(entries: fund.entries)
+        if fund.entries.contains(where: { ($0.dividend ?? 0) > 0 || ($0.cash_interest ?? 0) > 0 || ($0.action == .SELL && ($0.amount ?? 0) > 0) }) {
+            CapturedProfitChartView(entries: fund.entries, config: fund.config)
         }
     }
 
@@ -291,8 +293,8 @@ struct FundDetailView: View {
     @ViewBuilder
     private func chartsGridMac(fund: FundData, summary: FundSummary) -> some View {
         if fund.config.fund_type == .derivatives {
-            // First row: 3 columns (Current State + P&L + APY)
             let cb = fund.config.chart_bounds
+            // First row: 3 columns (Current State + P&L + APY)
             LazyVGrid(columns: Array(repeating: .init(.flexible()), count: 3), spacing: 12) {
                 if let cm = summary.closedMetrics {
                     ClosedFundStateCard(closedMetrics: cm)
@@ -311,6 +313,20 @@ struct FundDetailView: View {
                     DerivativesCapturedProfitChart(points: pts)
                 }
             }
+        } else if let cm = summary.closedMetrics {
+            // First row: 3 columns (Closed State + P&L + APY)
+            LazyVGrid(columns: Array(repeating: .init(.flexible()), count: 3), spacing: 12) {
+                ClosedFundStateCard(closedMetrics: cm)
+                PLChartView(entries: fund.entries, config: fund.config)
+                APYChartView(entries: fund.entries, config: fund.config)
+            }
+            // Second row: 2 columns
+            LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
+                ValueChartView(entries: fund.entries, config: fund.config)
+                if fund.entries.contains(where: { ($0.dividend ?? 0) > 0 || ($0.cash_interest ?? 0) > 0 || ($0.action == .SELL && ($0.amount ?? 0) > 0) }) {
+                    CapturedProfitChartView(entries: fund.entries, config: fund.config)
+                }
+            }
         } else {
             LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
                 standardChartContent(fund: fund)
@@ -325,6 +341,9 @@ struct FundDetailView: View {
         if fund.config.fund_type == .derivatives {
             derivativesChartContent()
         } else {
+            if let cm = summary.closedMetrics {
+                ClosedFundStateCard(closedMetrics: cm)
+            }
             standardChartContent(fund: fund)
         }
     }
@@ -333,19 +352,24 @@ struct FundDetailView: View {
 
     private static let allEntryColumns: [(id: String, label: String, defaultVisible: Bool, excludeFrom: Set<FundType>)] = [
         ("date", "Date", true, []),
+        ("value", "Equity", true, []),
         ("action", "Action", true, []),
-        ("value", "Value", true, []),
         ("amount", "Amount", true, []),
-        ("shares", "Shares", true, [.cash, .derivatives]),
-        ("price", "Price", true, [.cash]),
-        ("dividend", "Dividend", true, [.crypto, .derivatives, .cash]),
+        ("extracted", "Extracted", true, [.cash, .derivatives]),
+        ("realized", "Realized", true, [.derivatives]),
+        ("liquid_pnl", "Liquid P&L", true, [.cash, .derivatives]),
+        ("realized_apy", "Realized APY", true, [.derivatives]),
+        ("liquid_apy", "Liq APY", true, [.cash, .derivatives]),
+        ("shares", "Shares", false, [.cash, .derivatives]),
+        ("price", "Price", false, [.cash]),
+        ("dividend", "Dividend", false, [.crypto, .derivatives, .cash]),
         ("expense", "Expense", false, []),
         ("cash_interest", "Interest", false, []),
         ("fund_size", "Fund Size", true, []),
         ("cash", "Cash", false, []),
         ("margin_available", "Margin Avail", false, [.crypto]),
         ("margin_borrowed", "Margin Borrowed", false, [.crypto]),
-        ("notes", "Notes", false, []),
+        ("notes", "Notes", true, []),
         ("contracts", "Contracts", false, [.cash, .stock, .crypto]),
         ("entry_price", "Avg Entry", false, [.cash, .stock, .crypto]),
         ("fee", "Fee", false, [.cash, .stock, .crypto]),
@@ -473,6 +497,9 @@ struct FundDetailView: View {
         case "date": return 85
         case "action": return 60
         case "notes": return 120
+        case "realized_apy": return 90
+        case "liquid_apy": return 80
+        case "liquid_pnl": return 85
         default: return 80
         }
     }
@@ -506,23 +533,58 @@ struct FundDetailView: View {
 
         ForEach(Array(fund.entries.reversed().enumerated()), id: \.offset) { reverseIdx, entry in
             let actualIndex = count - 1 - reverseIdx
-            entryRow(entry, entryIndex: actualIndex, columns: cols, config: fund.config, isEven: reverseIdx.isMultiple(of: 2))
+            let computed = actualIndex < computedRows.count ? computedRows[actualIndex] : nil
+            entryRow(entry, entryIndex: actualIndex, columns: cols, config: fund.config, isEven: reverseIdx.isMultiple(of: 2), computed: computed)
         }
     }
 
     @ViewBuilder
-    private func entryCell(_ entry: FundEntry, columnId: String) -> some View {
+    private func entryCell(_ entry: FundEntry, columnId: String, computed: ComputedEntryRow?) -> some View {
         switch columnId {
         case "date":
             Text(entry.date)
         case "action":
-            Text(entry.action?.rawValue ?? "HOLD")
-                .foregroundColor(Color.forAction(entry.action))
+            if computed?.isClosingEntry == true {
+                Text("Close").italic().foregroundColor(.textMuted)
+            } else {
+                Text(entry.action?.rawValue ?? "HOLD")
+                    .foregroundColor(Color.forAction(entry.action))
+            }
         case "value":
             Text(formatCurrency(entry.value))
         case "amount":
             Text(entry.amount.map { formatCurrency($0) } ?? "")
                 .foregroundColor(.textSecondary)
+        case "extracted":
+            if let c = computed, c.extracted > 0 {
+                Text(formatCurrency(c.extracted)).foregroundColor(.mint)
+            } else {
+                Text("-").foregroundColor(.textMuted)
+            }
+        case "realized":
+            if let c = computed {
+                Text(formatCurrency(c.realized)).foregroundColor(c.realized >= 0 ? .mint : .red)
+            } else {
+                Text("")
+            }
+        case "liquid_pnl":
+            if let c = computed {
+                Text(formatCurrency(c.liquidPnl)).foregroundColor(c.liquidPnl >= 0 ? .mint : .red)
+            } else {
+                Text("")
+            }
+        case "realized_apy":
+            if let c = computed {
+                Text(formatPercentSigned(c.realizedApy)).foregroundColor(c.realizedApy >= 0 ? .mint : .red)
+            } else {
+                Text("")
+            }
+        case "liquid_apy":
+            if let c = computed {
+                Text(formatPercentSigned(c.liquidApy)).foregroundColor(c.liquidApy >= 0 ? .mint : .red)
+            } else {
+                Text("")
+            }
         case "shares":
             Text(entry.shares.map { String(format: "%.4f", $0) } ?? "")
                 .foregroundColor(.textSecondary)
@@ -539,8 +601,12 @@ struct FundDetailView: View {
             Text(entry.cash_interest.map { formatCurrency($0) } ?? "")
                 .foregroundColor(.mint)
         case "fund_size":
-            Text(entry.fund_size.map { formatCurrency($0) } ?? "")
-                .foregroundColor(.textSecondary)
+            if computed?.isClosingEntry == true {
+                Text("closed").italic().foregroundColor(.textMuted)
+            } else {
+                Text(entry.fund_size.map { formatCurrency($0) } ?? "")
+                    .foregroundColor(.textSecondary)
+            }
         case "cash":
             Text(entry.cash.map { formatCurrency($0) } ?? "")
                 .foregroundColor(.textSecondary)
@@ -578,10 +644,10 @@ struct FundDetailView: View {
     }
 
     @ViewBuilder
-    private func entryRow(_ entry: FundEntry, entryIndex: Int, columns: [(id: String, label: String)], config: FundConfig, isEven: Bool) -> some View {
+    private func entryRow(_ entry: FundEntry, entryIndex: Int, columns: [(id: String, label: String)], config: FundConfig, isEven: Bool, computed: ComputedEntryRow?) -> some View {
         HStack(spacing: 0) {
             ForEach(columns, id: \.id) { col in
-                entryCell(entry, columnId: col.id)
+                entryCell(entry, columnId: col.id, computed: computed)
                     .frame(width: columnWidth(col.id), alignment: columnAlignment(col.id))
             }
             Button {
@@ -688,10 +754,19 @@ private struct ProfitPoint: Identifiable {
     let date: String
     let cumDividend: Double
     let cumInterest: Double
-    var total: Double { cumDividend + cumInterest }
+    let cumExtracted: Double
+    var total: Double { cumDividend + cumInterest + cumExtracted }
+}
+
+private func chartConfig(_ config: FundConfig) -> FundConfig {
+    var c = config
+    c.status = .active
+    return c
 }
 
 private func computePLPoints(entries: [FundEntry], config: FundConfig) -> [PLPoint] {
+    // Use active status for chart computation — closed funds return zeros from computeFundState
+    let chartConfig = chartConfig(config)
     let sampled = sampleArray(entries)
     return sampled.map { entry in
         let prior = entries.filter { $0.date <= entry.date }
@@ -699,12 +774,14 @@ private func computePLPoints(entries: [FundEntry], config: FundConfig) -> [PLPoi
         let cashflows = entriesToCashFlows(prior)
         let dividends = entriesToDividends(prior)
         let expenses = entriesToExpenses(prior)
-        let state = computeFundState(config: config, trades: trades, cashflows: cashflows, dividends: dividends, expenses: expenses, actualValue: entry.value, asOfDate: entry.date)
+        let state = computeFundState(config: chartConfig, trades: trades, cashflows: cashflows, dividends: dividends, expenses: expenses, actualValue: entry.value, asOfDate: entry.date)
         return PLPoint(id: entry.date, date: entry.date, realized: state.realizedGainsUsd, liquid: state.gainUsd + state.realizedGainsUsd)
     }
 }
 
 private func computeAPYPoints(entries: [FundEntry], config: FundConfig) -> [APYPoint] {
+    // Use active status for chart computation — closed funds return zeros from computeFundState
+    let chartConfig = chartConfig(config)
     let sampled = sampleArray(entries)
     return sampled.map { entry in
         let prior = entries.filter { $0.date <= entry.date }
@@ -714,7 +791,7 @@ private func computeAPYPoints(entries: [FundEntry], config: FundConfig) -> [APYP
         let expenses = entriesToExpenses(prior)
         let startDate = getFundStartDate(prior)
         let days = max(1, daysBetween(startDate, entry.date))
-        let state = computeFundState(config: config, trades: trades, cashflows: cashflows, dividends: dividends, expenses: expenses, actualValue: entry.value, asOfDate: entry.date)
+        let state = computeFundState(config: chartConfig, trades: trades, cashflows: cashflows, dividends: dividends, expenses: expenses, actualValue: entry.value, asOfDate: entry.date)
         let twfs = computeTimeWeightedFundSize(trades: trades, startDate: startDate, asOfDate: entry.date)
         let basis = twfs > 0 ? twfs : state.startInputUsd
         let rAPY = computeLinearAPY(state.realizedGainsUsd, basis, days)
@@ -724,14 +801,45 @@ private func computeAPYPoints(entries: [FundEntry], config: FundConfig) -> [APYP
     }
 }
 
-private func computeProfitPoints(entries: [FundEntry]) -> [ProfitPoint] {
-    // Accumulate over ALL entries first, then sample — avoids missing values from skipped entries
+private func computeProfitPoints(entries: [FundEntry], config: FundConfig) -> [ProfitPoint] {
+    let isAccumulate = config.accumulate == true
     var cumD = 0.0
     var cumI = 0.0
+    var cumE = 0.0
+    var totalBuys = 0.0
+    var totalSells = 0.0
+    var sumShares = 0.0
+    var costBasis = 0.0
     let all = entries.map { entry -> ProfitPoint in
         cumD += entry.dividend ?? 0
         cumI += entry.cash_interest ?? 0
-        return ProfitPoint(id: entry.date, date: entry.date, cumDividend: cumD, cumInterest: cumI)
+        if entry.action == .BUY, let amt = entry.amount {
+            totalBuys += amt
+            costBasis += amt
+            sumShares += abs(entry.shares ?? 0)
+        } else if entry.action == .SELL, let amt = entry.amount {
+            totalSells += amt
+            sumShares -= abs(entry.shares ?? 0)
+            if isFullLiquidation(shares: entry.shares, value: entry.value, amount: amt, sumShares: sumShares, totalBuys: totalBuys, totalSells: totalSells) {
+                cumE += max(0, totalSells - totalBuys)
+                totalBuys = 0; totalSells = 0; sumShares = 0; costBasis = 0
+            } else if isAccumulate {
+                cumE += amt
+                totalSells = 0
+            } else {
+                let hasShareTracking = entry.shares != nil && (entry.shares ?? 0) != 0
+                if hasShareTracking && costBasis > 0 {
+                    let sharesBeforeSell = sumShares + abs(entry.shares ?? 0)
+                    let sellFraction = sharesBeforeSell > 0 ? abs(entry.shares ?? 0) / sharesBeforeSell : 1.0
+                    let costBasisReturned = costBasis * sellFraction
+                    cumE += max(0, amt - costBasisReturned)
+                    costBasis -= costBasisReturned
+                    totalBuys -= costBasisReturned
+                    totalSells = 0
+                }
+            }
+        }
+        return ProfitPoint(id: entry.date, date: entry.date, cumDividend: cumD, cumInterest: cumI, cumExtracted: cumE)
     }
     let step = max(1, all.count / 60)
     return all.enumerated()
@@ -739,30 +847,104 @@ private func computeProfitPoints(entries: [FundEntry]) -> [ProfitPoint] {
         .map(\.element)
 }
 
+private struct ValuePoint: Identifiable {
+    let id: String
+    let date: String
+    let value: Double
+    let invested: Double
+    let target: Double
+}
+
+private func computeValuePoints(entries: [FundEntry], config: FundConfig) -> [ValuePoint] {
+    let isAccumulate = config.accumulate == true
+    var totalBuys = 0.0
+    var totalSells = 0.0
+    var sumShares = 0.0
+
+    // Single pass: compute net invested per entry
+    let allWithInvested: [(entry: FundEntry, invested: Double)] = entries.map { entry in
+        if entry.action == .BUY, let amt = entry.amount {
+            totalBuys += amt
+            sumShares += abs(entry.shares ?? 0)
+        } else if entry.action == .SELL, let amt = entry.amount {
+            totalSells += amt
+            sumShares -= abs(entry.shares ?? 0)
+            if isFullLiquidation(shares: entry.shares, value: entry.value, amount: amt, sumShares: sumShares, totalBuys: totalBuys, totalSells: totalSells) {
+                totalBuys = 0; totalSells = 0; sumShares = 0
+            } else if isAccumulate {
+                totalSells = 0
+            } else {
+                let hasShareTracking = entry.shares != nil && (entry.shares ?? 0) != 0
+                if hasShareTracking && totalBuys > 0 {
+                    let sharesBeforeSell = sumShares + abs(entry.shares ?? 0)
+                    let sellFraction = sharesBeforeSell > 0 ? abs(entry.shares ?? 0) / sharesBeforeSell : 1.0
+                    totalBuys -= totalBuys * sellFraction
+                    totalSells = 0
+                }
+            }
+        }
+        return (entry, max(0, totalBuys - totalSells))
+    }
+
+    // Sample, then compute target per sampled point
+    let step = max(1, allWithInvested.count / 60)
+    let sampled = allWithInvested.enumerated()
+        .filter { $0.offset % step == 0 || $0.offset == allWithInvested.count - 1 }
+        .map(\.element)
+
+    let chartConfig = chartConfig(config)
+
+    return sampled.map { item in
+        let prior = entries.filter { $0.date <= item.entry.date }
+        let trades = entriesToTrades(prior)
+        let target = computeExpectedTarget(config: chartConfig, trades: trades, asOfDate: item.entry.date)
+        return ValuePoint(id: item.entry.date, date: item.entry.date, value: item.entry.value, invested: item.invested, target: target)
+    }
+}
+
 struct ValueChartView: View {
     let entries: [FundEntry]
+    let config: FundConfig
+    @State private var points: [ValuePoint]?
 
     var body: some View {
-        let sampled = sampleArray(entries)
-
-        EMChartCard(title: "Value Over Time") {
-            if let last = sampled.last {
-                LegendDot(color: .mint, label: formatCurrency(last.value))
+        EMChartCard(title: "Value & Allocation") {
+            if let last = points?.last {
+                LegendDot(color: .mint, label: "Value \(formatCurrency(last.value))")
+                LegendDot(color: .purple, label: "Invested \(formatCurrency(last.invested))")
+                LegendDot(color: .green, label: "Target \(formatCurrency(last.target))")
             }
         } chart: {
-            Chart(sampled, id: \.date) { entry in
-                let d = isoDateFormatter.date(from: entry.date) ?? Date()
-                AreaMark(x: .value("Date", d), y: .value("Value", entry.value))
-                    .foregroundStyle(Color.mint.opacity(0.15))
-                    .interpolationMethod(.linear)
-                LineMark(x: .value("Date", d), y: .value("Value", entry.value))
-                    .foregroundStyle(Color.mint)
-                    .interpolationMethod(.monotone)
+            if let points {
+                Chart {
+                    ForEach(points) { pt in
+                        let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                        AreaMark(x: .value("Date", d), y: .value("Value", pt.value))
+                            .foregroundStyle(Color.mint.opacity(0.1))
+                            .interpolationMethod(.linear)
+                        LineMark(x: .value("Date", d), y: .value("Value", pt.value))
+                            .foregroundStyle(by: .value("Type", "Value"))
+                            .interpolationMethod(.monotone)
+                        LineMark(x: .value("Date", d), y: .value("Invested", pt.invested))
+                            .foregroundStyle(by: .value("Type", "Invested"))
+                            .interpolationMethod(.monotone)
+                            .lineStyle(StrokeStyle(dash: [4, 4]))
+                        LineMark(x: .value("Date", d), y: .value("Target", pt.target))
+                            .foregroundStyle(by: .value("Type", "Target"))
+                            .interpolationMethod(.monotone)
+                            .lineStyle(StrokeStyle(dash: [4, 4]))
+                    }
+                }
+                .chartForegroundStyleScale(["Value": Color.mint, "Invested": Color.purple, "Target": Color.green])
+                .chartXAxis { emDateAxisTemporal() }
+                .chartYAxis { emCurrencyAxis() }
+                .chartLegend(.hidden)
+                .frame(height: 160)
+            } else {
+                ProgressView().frame(height: 160)
             }
-            .chartXAxis { emDateAxisTemporal() }
-            .chartYAxis { emCurrencyAxis() }
-            .frame(height: 160)
         }
+        .task(id: entries.count) { points = computeValuePoints(entries: entries, config: config) }
     }
 }
 
@@ -804,7 +986,7 @@ struct PLChartView: View {
                 ProgressView().frame(height: 160)
             }
         }
-        .task { points = computePLPoints(entries: entries, config: config) }
+        .task(id: entries.count) { points = computePLPoints(entries: entries, config: config) }
     }
 }
 
@@ -846,40 +1028,67 @@ struct APYChartView: View {
                 ProgressView().frame(height: 160)
             }
         }
-        .task { points = computeAPYPoints(entries: entries, config: config) }
+        .task(id: entries.count) { points = computeAPYPoints(entries: entries, config: config) }
     }
 }
 
 struct CapturedProfitChartView: View {
     let entries: [FundEntry]
+    let config: FundConfig
+    @State private var points: [ProfitPoint]?
 
     var body: some View {
-        let points = computeProfitPoints(entries: entries)
+        let pts = points ?? []
+        let last = pts.last
+        let hasExtracted = (last?.cumExtracted ?? 0) > 0
+        let hasDividends = (last?.cumDividend ?? 0) > 0
+        let hasInterest = (last?.cumInterest ?? 0) > 0
 
         EMChartCard(title: "Captured Profit") {
-            if let last = points.last {
-                LegendDot(color: .green, label: "Div: \(formatCurrency(last.cumDividend))")
-                LegendDot(color: .yellow, label: "Int: \(formatCurrency(last.cumInterest))")
+            if let last {
+                if hasExtracted {
+                    LegendDot(color: .mint, label: "Extracted \(formatCurrency(last.cumExtracted))")
+                }
+                if hasDividends {
+                    LegendDot(color: .green, label: "Div: \(formatCurrency(last.cumDividend))")
+                }
+                if hasInterest {
+                    LegendDot(color: .yellow, label: "Int: \(formatCurrency(last.cumInterest))")
+                }
             }
         } chart: {
-            Chart(points) { pt in
-                let d = isoDateFormatter.date(from: pt.date) ?? Date()
-                AreaMark(x: .value("Date", d), y: .value("Total", pt.total))
-                    .foregroundStyle(Color.mint.opacity(0.15))
-                    .interpolationMethod(.linear)
-                LineMark(x: .value("Date", d), y: .value("Dividends", pt.cumDividend))
-                    .foregroundStyle(by: .value("Type", "Dividends"))
-                    .interpolationMethod(.monotone)
-                LineMark(x: .value("Date", d), y: .value("Interest", pt.cumInterest))
-                    .foregroundStyle(by: .value("Type", "Interest"))
-                    .interpolationMethod(.monotone)
+            if let points {
+                Chart(points) { pt in
+                    let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                    AreaMark(x: .value("Date", d), y: .value("Total", pt.total))
+                        .foregroundStyle(Color.mint.opacity(0.15))
+                        .interpolationMethod(.linear)
+                    if hasExtracted {
+                        LineMark(x: .value("Date", d), y: .value("Extracted", pt.cumExtracted))
+                            .foregroundStyle(by: .value("Type", "Extracted"))
+                            .interpolationMethod(.monotone)
+                    }
+                    if hasDividends {
+                        LineMark(x: .value("Date", d), y: .value("Dividends", pt.cumDividend))
+                            .foregroundStyle(by: .value("Type", "Dividends"))
+                            .interpolationMethod(.monotone)
+                    }
+                    if hasInterest {
+                        LineMark(x: .value("Date", d), y: .value("Interest", pt.cumInterest))
+                            .foregroundStyle(by: .value("Type", "Interest"))
+                            .interpolationMethod(.monotone)
+                    }
+                }
+                .chartForegroundStyleScale(["Extracted": Color.mint, "Dividends": Color.green, "Interest": Color.yellow])
+                .chartXAxis { emDateAxisTemporal() }
+                .chartYAxis { emCurrencyAxis() }
+                .chartLegend(.hidden)
+                .frame(height: 160)
+            } else {
+                ProgressView().frame(height: 160)
             }
-            .chartForegroundStyleScale(["Dividends": Color.green, "Interest": Color.yellow])
-            .chartXAxis { emDateAxisTemporal() }
-            .chartYAxis { emCurrencyAxis() }
-            .chartLegend(.hidden)
-            .frame(height: 160)
         }
+        .task(id: entries.count) { points = computeProfitPoints(entries: entries, config: config) }
     }
 }
 

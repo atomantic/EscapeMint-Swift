@@ -108,7 +108,8 @@ func computeDerivativesChartData(entries: [FundEntry], config: FundConfig) -> [D
         let marginLocked = entry.margin_locked ?? (position > 0 ? position * avgCostPerContract * imr : 0)
 
         // Dynamic leverage = Current Notional / Margin Locked (matches Coinbase's display)
-        let currentNotional = position * cm * (lastTradePrice > 0 ? lastTradePrice : avgCostPerContract)
+        // Note: lastTradePrice and avgCostPerContract are already per-contract USD, no cm needed
+        let currentNotional = position * (lastTradePrice > 0 ? lastTradePrice : avgCostPerContract)
         let leverage = marginLocked > 0 ? currentNotional / marginLocked : 0
 
         // Unrealized P&L: use TSV if available, else estimate from last trade price
