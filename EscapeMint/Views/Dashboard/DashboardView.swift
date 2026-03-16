@@ -3,10 +3,10 @@ import Charts
 
 struct DashboardView: View {
     private var store: FundDataStore { .shared }
+    private var cache: ViewCache { .shared }
     @State private var showCreateFund = false
     @State private var showImport = false
     @State private var showCharts = true
-    @State private var timeSeries: [PortfolioTimeSeriesPoint] = []
     @State private var platformFilter: String? = nil
     @State private var viewMode: ViewMode = .grid
     @State private var dismissedAlertIds: Set<String> = []
@@ -50,25 +50,33 @@ struct DashboardView: View {
         #endif
         }
         .onChange(of: showCharts) { _, on in
-            if on && timeSeries.isEmpty && store.isLoaded { timeSeries = computePortfolioTimeSeries(store.funds) }
+            if on && cache.dashboardTimeSeries.isEmpty && store.isLoaded { recomputeChartsIfNeeded() }
+            if !on { cache.cancelDashboard() }
         }
         .onChange(of: store.revision) { _, _ in
             guard store.isLoaded else { return }
-            if showCharts && !store.funds.isEmpty {
-                timeSeries = computePortfolioTimeSeries(store.funds)
-            } else {
-                timeSeries = []
-            }
+            if showCharts && !store.funds.isEmpty { recomputeChartsIfNeeded() }
         }
         .onAppear {
             loadDashCollapsedState()
-            if showCharts && timeSeries.isEmpty && store.isLoaded {
-                timeSeries = computePortfolioTimeSeries(store.funds)
-            }
+            if showCharts && store.isLoaded { recomputeChartsIfNeeded() }
         }
     }
 
     // MARK: - macOS Dashboard
+
+    private func recomputeChartsIfNeeded() {
+        cache.recomputeDashboardTimeSeries(funds: store.funds, revision: store.revision)
+    }
+
+    @ViewBuilder
+    private var chartLoadingIndicator: some View {
+        HStack(spacing: 8) {
+            ProgressView().controlSize(.small)
+            Text("Computing charts\u{2026}").font(.caption).foregroundColor(.textSecondary)
+        }
+        .frame(maxWidth: .infinity).padding(.vertical, 40)
+    }
 
     @ViewBuilder
     private var loadingBanner: some View {
@@ -100,7 +108,11 @@ struct DashboardView: View {
                 }
                 metricsGrid
                 if showCharts && !store.funds.isEmpty {
-                    dashboardCharts
+                    if cache.isComputingDashboard && cache.dashboardTimeSeries.isEmpty {
+                        chartLoadingIndicator
+                    } else {
+                        dashboardCharts
+                    }
                 }
                 toolbarRow
                 fundList
@@ -127,7 +139,11 @@ struct DashboardView: View {
                 }
                 iosMetricsGrid
                 if showCharts && !store.funds.isEmpty {
-                    iosDashboardCharts
+                    if cache.isComputingDashboard && cache.dashboardTimeSeries.isEmpty {
+                        chartLoadingIndicator
+                    } else {
+                        iosDashboardCharts
+                    }
                 }
                 fundList
                 emptyState
@@ -201,12 +217,12 @@ struct DashboardView: View {
             PortfolioAllocationChart(summaries: activeSummaries)
             PlatformAllocationChart(summaries: activeSummaries)
             // Time series
-            DashboardAPYChart(points: timeSeries)
-            DashboardGainChart(points: timeSeries)
-            DashboardValueChart(points: timeSeries)
-            DashboardFundSizeChart(points: timeSeries)
-            DashboardLiquidValueChart(points: timeSeries)
-            DashboardMarginChart(points: timeSeries)
+            DashboardAPYChart(points: cache.dashboardTimeSeries)
+            DashboardGainChart(points: cache.dashboardTimeSeries)
+            DashboardValueChart(points: cache.dashboardTimeSeries)
+            DashboardFundSizeChart(points: cache.dashboardTimeSeries)
+            DashboardLiquidValueChart(points: cache.dashboardTimeSeries)
+            DashboardMarginChart(points: cache.dashboardTimeSeries)
         }
         .padding(.horizontal)
     }
@@ -297,12 +313,12 @@ struct DashboardView: View {
 
         // Time series charts — 2-column grid
         LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
-            DashboardAPYChart(points: timeSeries)
-            DashboardGainChart(points: timeSeries)
-            DashboardValueChart(points: timeSeries)
-            DashboardFundSizeChart(points: timeSeries)
-            DashboardLiquidValueChart(points: timeSeries)
-            DashboardMarginChart(points: timeSeries)
+            DashboardAPYChart(points: cache.dashboardTimeSeries)
+            DashboardGainChart(points: cache.dashboardTimeSeries)
+            DashboardValueChart(points: cache.dashboardTimeSeries)
+            DashboardFundSizeChart(points: cache.dashboardTimeSeries)
+            DashboardLiquidValueChart(points: cache.dashboardTimeSeries)
+            DashboardMarginChart(points: cache.dashboardTimeSeries)
         }
     }
 
@@ -611,7 +627,7 @@ struct DashboardView: View {
 extension Notification.Name {
     static let selectFund = Notification.Name("selectFund")
     static let selectDashboard = Notification.Name("selectDashboard")
-
+    static let selectBacktest = Notification.Name("selectBacktest")
     static let selectPlatform = Notification.Name("selectPlatform")
 }
 

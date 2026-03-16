@@ -46,10 +46,16 @@ final class FundDataStore {
 
     func loadIfNeeded() async {
         guard !isLoaded else { return }
+
+        // Yield immediately so the UI (intro guide sheet) can finish rendering
+        await Task.yield()
+
         await FundStore.shared.migrateToICloudIfNeeded()
 
-        // Phase 1: Load configs only (instant — just JSON files, no TSV parsing)
-        let configs = await FundStore.shared.readAllFundConfigs()
+        // Phase 1: Load configs off the main thread (nonisolated does synchronous file I/O)
+        let configs = await Task.detached(priority: .userInitiated) {
+            FundStore.shared.readAllFundConfigs()
+        }.value
         funds = configs
         loadedFundCount = 0
         platforms = Array(Set(configs.map(\.platform))).sorted()
@@ -60,38 +66,51 @@ final class FundDataStore {
             return
         }
 
-        // Phase 2: Stream entries in parallel, apply as they arrive
+        // Yield so SwiftUI can render the initial layout before we start heavy work
+        await Task.yield()
+
+        // Phase 2: Load all entries off the main thread, then apply in one shot
         await loadEntriesProgressively()
         isLoaded = true
     }
 
-    /// Load TSV entries concurrently, applying each result as it arrives for true progressive updates
+    /// Load TSV entries concurrently off the main thread, apply in batches with yields
     private func loadEntriesProgressively() async {
         let fundIds = funds.map(\.id)
-        let batchSize = max(1, fundIds.count / 5) // ~5 recompute batches
 
-        await withTaskGroup(of: (String, [FundEntry]).self) { group in
-            for id in fundIds {
-                group.addTask {
-                    let entries = FundStore.shared.readFundEntries(id: id)
-                    return (id, entries)
+        // Do ALL file I/O in a single detached task — nothing touches the main thread
+        let allEntries: [(String, [FundEntry])] = await Task.detached(priority: .userInitiated) {
+            // Use a task group for parallel reads, collect all results
+            await withTaskGroup(of: (String, [FundEntry]).self, returning: [(String, [FundEntry])].self) { group in
+                for id in fundIds {
+                    group.addTask {
+                        let entries = FundStore.shared.readFundEntries(id: id)
+                        return (id, entries)
+                    }
                 }
+                var results: [(String, [FundEntry])] = []
+                results.reserveCapacity(fundIds.count)
+                for await result in group {
+                    results.append(result)
+                }
+                return results
             }
+        }.value
 
-            // Apply results as they arrive — the for-await loop runs on @MainActor
-            var applied = 0
-            for await (id, entries) in group {
+        // Back on main actor — apply in batches with yields between them
+        let batchSize = max(1, allEntries.count / 3) // ~3 batches
+        for batchStart in stride(from: 0, to: allEntries.count, by: batchSize) {
+            let batchEnd = min(batchStart + batchSize, allEntries.count)
+            for i in batchStart..<batchEnd {
+                let (id, entries) = allEntries[i]
                 if let idx = funds.firstIndex(where: { $0.id == id }) {
                     funds[idx].entries = entries
                 }
-                applied += 1
-                loadedFundCount = applied
-
-                // Recompute at batch boundaries and on the final fund
-                if applied % batchSize == 0 || applied == fundIds.count {
-                    await recompute()
-                }
             }
+            loadedFundCount = batchEnd
+            await recompute()
+            // Yield to let the main run loop process UI events (button taps, scrolls)
+            await Task.yield()
         }
     }
 

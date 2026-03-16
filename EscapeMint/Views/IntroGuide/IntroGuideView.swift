@@ -50,7 +50,9 @@ struct IntroGuideView: View {
             footer
         }
         .background(Color.bg)
+        #if os(macOS)
         .frame(minWidth: 700, idealWidth: 900, minHeight: 500, idealHeight: 700)
+        #endif
         .task { modePreloader.preload() }
     }
 
@@ -272,6 +274,7 @@ struct IntroGuideView: View {
                     Button {
                         introCompleted = true
                         isPresented = false
+                        NotificationCenter.default.post(name: .selectBacktest, object: nil)
                     } label: {
                         Text("Launch Backtest \u{2192}")
                             .font(.callout).fontWeight(.medium)

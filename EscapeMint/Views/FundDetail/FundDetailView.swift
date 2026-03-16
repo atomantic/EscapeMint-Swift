@@ -4,6 +4,7 @@ import Charts
 struct FundDetailView: View {
     let fundId: String
     private var store: FundDataStore { .shared }
+    private var cache: ViewCache { .shared }
     @State private var showAddEntry = false
     @State private var showEditFund = false
     @State private var showEditEntry = false
@@ -12,11 +13,17 @@ struct FundDetailView: View {
     @State private var visibleColumns: Set<String> = []
     @State private var showColumnConfig = false
     @State private var showStats = true
-    @State private var derivPoints: [DerivativesChartPoint]?
-    @State private var computedRows: [ComputedEntryRow] = []
 
     private var fund: FundData? { store.fund(byId: fundId) }
     private var summary: FundSummary? { store.summary(byId: fundId) }
+    private var derivPoints: [DerivativesChartPoint]? {
+        guard let fund else { return nil }
+        return cache.cachedDerivPoints(fundId: fund.id, entryCount: fund.entries.count)
+    }
+    private var computedRows: [ComputedEntryRow] {
+        guard let fund else { return [] }
+        return cache.cachedRows(fundId: fund.id, entryCount: fund.entries.count) ?? []
+    }
 
     var body: some View {
         Group {
@@ -128,12 +135,20 @@ struct FundDetailView: View {
                 }
                 .tint(.textSecondary)
                 .task(id: "\(fund.id)-\(fund.entries.count)") {
-                    if fund.config.fund_type == .derivatives {
-                        derivPoints = computeDerivativesChartData(entries: fund.entries, config: fund.config)
-                    } else {
-                        derivPoints = nil
+                    let ec = fund.entries.count
+                    // Use cached results if available
+                    if cache.cachedRows(fundId: fund.id, entryCount: ec) == nil {
+                        let rows = computeEntryRows(entries: fund.entries, config: fund.config)
+                        cache.cacheRows(rows, fundId: fund.id, entryCount: ec)
                     }
-                    computedRows = computeEntryRows(entries: fund.entries, config: fund.config)
+                    if fund.config.fund_type == .derivatives {
+                        if cache.cachedDerivPoints(fundId: fund.id, entryCount: ec) == nil {
+                            let pts = computeDerivativesChartData(entries: fund.entries, config: fund.config)
+                            cache.cacheDerivPoints(pts, fundId: fund.id, entryCount: ec)
+                        }
+                    } else {
+                        cache.cacheDerivPoints(nil, fundId: fund.id, entryCount: ec)
+                    }
                 }
 
                 // Entries table
@@ -280,11 +295,11 @@ struct FundDetailView: View {
 
     @ViewBuilder
     private func standardChartContent(fund: FundData) -> some View {
-        ValueChartView(entries: fund.entries, config: fund.config)
-        PLChartView(entries: fund.entries, config: fund.config)
-        APYChartView(entries: fund.entries, config: fund.config)
+        ValueChartView(entries: fund.entries, config: fund.config, fundId: fund.id)
+        PLChartView(entries: fund.entries, config: fund.config, fundId: fund.id)
+        APYChartView(entries: fund.entries, config: fund.config, fundId: fund.id)
         if fund.entries.contains(where: { ($0.dividend ?? 0) > 0 || ($0.cash_interest ?? 0) > 0 || ($0.action == .SELL && ($0.amount ?? 0) > 0) }) {
-            CapturedProfitChartView(entries: fund.entries, config: fund.config)
+            CapturedProfitChartView(entries: fund.entries, config: fund.config, fundId: fund.id)
         }
     }
 
@@ -317,14 +332,14 @@ struct FundDetailView: View {
             // First row: 3 columns (Closed State + P&L + APY)
             LazyVGrid(columns: Array(repeating: .init(.flexible()), count: 3), spacing: 12) {
                 ClosedFundStateCard(closedMetrics: cm)
-                PLChartView(entries: fund.entries, config: fund.config)
-                APYChartView(entries: fund.entries, config: fund.config)
+                PLChartView(entries: fund.entries, config: fund.config, fundId: fund.id)
+                APYChartView(entries: fund.entries, config: fund.config, fundId: fund.id)
             }
             // Second row: 2 columns
             LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
-                ValueChartView(entries: fund.entries, config: fund.config)
+                ValueChartView(entries: fund.entries, config: fund.config, fundId: fund.id)
                 if fund.entries.contains(where: { ($0.dividend ?? 0) > 0 || ($0.cash_interest ?? 0) > 0 || ($0.action == .SELL && ($0.amount ?? 0) > 0) }) {
-                    CapturedProfitChartView(entries: fund.entries, config: fund.config)
+                    CapturedProfitChartView(entries: fund.entries, config: fund.config, fundId: fund.id)
                 }
             }
         } else {
@@ -516,7 +531,7 @@ struct FundDetailView: View {
         let cols = availableColumns(for: fund.config.fund_type).filter { visibleColumns.contains($0.id) }
 
         // Header
-        HStack(spacing: 0) {
+        HStack(spacing: 6) {
             ForEach(cols, id: \.id) { col in
                 Text(col.label)
                     .frame(width: columnWidth(col.id), alignment: columnAlignment(col.id))
@@ -645,7 +660,7 @@ struct FundDetailView: View {
 
     @ViewBuilder
     private func entryRow(_ entry: FundEntry, entryIndex: Int, columns: [(id: String, label: String)], config: FundConfig, isEven: Bool, computed: ComputedEntryRow?) -> some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 6) {
             ForEach(columns, id: \.id) { col in
                 entryCell(entry, columnId: col.id, computed: computed)
                     .frame(width: columnWidth(col.id), alignment: columnAlignment(col.id))
@@ -905,6 +920,7 @@ private func computeValuePoints(entries: [FundEntry], config: FundConfig) -> [Va
 struct ValueChartView: View {
     let entries: [FundEntry]
     let config: FundConfig
+    let fundId: String
     @State private var points: [ValuePoint]?
 
     var body: some View {
@@ -944,13 +960,23 @@ struct ValueChartView: View {
                 ProgressView().frame(height: 160)
             }
         }
-        .task(id: entries.count) { points = computeValuePoints(entries: entries, config: config) }
+        .task(id: "\(fundId)-\(entries.count)") {
+            if let cached = ViewCache.shared.cachedChartPoints(type: ValuePoint.self, fundId: fundId, entryCount: entries.count) {
+                points = cached
+            } else {
+                let computed = computeValuePoints(entries: entries, config: config)
+                ViewCache.shared.cacheChartPoints(computed, type: ValuePoint.self, fundId: fundId, entryCount: entries.count)
+                points = computed
+            }
+        }
+        .onChange(of: fundId) { _, _ in points = nil }
     }
 }
 
 struct PLChartView: View {
     let entries: [FundEntry]
     let config: FundConfig
+    let fundId: String
     @State private var points: [PLPoint]?
 
     var body: some View {
@@ -986,13 +1012,23 @@ struct PLChartView: View {
                 ProgressView().frame(height: 160)
             }
         }
-        .task(id: entries.count) { points = computePLPoints(entries: entries, config: config) }
+        .task(id: "\(fundId)-\(entries.count)") {
+            if let cached = ViewCache.shared.cachedChartPoints(type: PLPoint.self, fundId: fundId, entryCount: entries.count) {
+                points = cached
+            } else {
+                let computed = computePLPoints(entries: entries, config: config)
+                ViewCache.shared.cacheChartPoints(computed, type: PLPoint.self, fundId: fundId, entryCount: entries.count)
+                points = computed
+            }
+        }
+        .onChange(of: fundId) { _, _ in points = nil }
     }
 }
 
 struct APYChartView: View {
     let entries: [FundEntry]
     let config: FundConfig
+    let fundId: String
     @State private var points: [APYPoint]?
 
     var body: some View {
@@ -1028,13 +1064,23 @@ struct APYChartView: View {
                 ProgressView().frame(height: 160)
             }
         }
-        .task(id: entries.count) { points = computeAPYPoints(entries: entries, config: config) }
+        .task(id: "\(fundId)-\(entries.count)") {
+            if let cached = ViewCache.shared.cachedChartPoints(type: APYPoint.self, fundId: fundId, entryCount: entries.count) {
+                points = cached
+            } else {
+                let computed = computeAPYPoints(entries: entries, config: config)
+                ViewCache.shared.cacheChartPoints(computed, type: APYPoint.self, fundId: fundId, entryCount: entries.count)
+                points = computed
+            }
+        }
+        .onChange(of: fundId) { _, _ in points = nil }
     }
 }
 
 struct CapturedProfitChartView: View {
     let entries: [FundEntry]
     let config: FundConfig
+    let fundId: String
     @State private var points: [ProfitPoint]?
 
     var body: some View {
@@ -1088,7 +1134,16 @@ struct CapturedProfitChartView: View {
                 ProgressView().frame(height: 160)
             }
         }
-        .task(id: entries.count) { points = computeProfitPoints(entries: entries, config: config) }
+        .task(id: "\(fundId)-\(entries.count)") {
+            if let cached = ViewCache.shared.cachedChartPoints(type: ProfitPoint.self, fundId: fundId, entryCount: entries.count) {
+                points = cached
+            } else {
+                let computed = computeProfitPoints(entries: entries, config: config)
+                ViewCache.shared.cacheChartPoints(computed, type: ProfitPoint.self, fundId: fundId, entryCount: entries.count)
+                points = computed
+            }
+        }
+        .onChange(of: fundId) { _, _ in points = nil }
     }
 }
 

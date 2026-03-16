@@ -10,7 +10,6 @@ final class ModeComparisonPreloader {
 
     func preload() {
         guard harvestResult == nil, accumulateResult == nil else { return }
-        let hist = cachedHistoricalData
 
         var harvestCfg = BacktestConfig()
         harvestCfg.spxlPct = 0; harvestCfg.vtiPct = 0; harvestCfg.brgnxPct = 0
@@ -24,9 +23,14 @@ final class ModeComparisonPreloader {
 
         let hCfg = harvestCfg
         let aCfg = accCfg
+        // Run entirely off the main thread — JSON parsing + backtest computation
         Task {
-            let harvest = await Task.detached { runBacktest(config: hCfg, historicalData: hist) }.value
-            let accumulate = await Task.detached { runBacktest(config: aCfg, historicalData: hist) }.value
+            let (harvest, accumulate) = await Task.detached(priority: .utility) {
+                let hist = loadHistoricalData()
+                let h = runBacktest(config: hCfg, historicalData: hist)
+                let a = runBacktest(config: aCfg, historicalData: hist)
+                return (h, a)
+            }.value
             harvestResult = harvest
             accumulateResult = accumulate
         }
@@ -74,7 +78,7 @@ private struct LeveragePoint: Identifiable {
 private let investedPurple = Color(red: 139/255, green: 92/255, blue: 246/255)
 
 /// Cached historical data — loaded once from disk, shared across all intro charts
-private let cachedHistoricalData: [String: HistoricalData] = loadHistoricalData()
+
 
 /// Shared price/target sample data used by TraditionalDCAChart and BuySellZonesChart
 /// Uses 200 points for smooth step-based area fills
@@ -577,7 +581,7 @@ struct LeverageComparisonChart: View {
     }
 
     private func computeLeverageData() {
-        let hist = cachedHistoricalData
+        let hist = ViewCache.shared.historicalData
         guard let brgnx = hist["BRGNX"], let spxl = hist["SPXL"] else { return }
         let spxlByDate = Dictionary(uniqueKeysWithValues: spxl.prices.map { ($0.date, $0.value) })
         let brgnxStart = brgnx.prices.first?.value ?? 1

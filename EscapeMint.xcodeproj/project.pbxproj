@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		05E6EE7E9E935792AFD0637E /* coinbasetest-cash.tsv in Resources */ = {isa = PBXBuildFile; fileRef = E0E8FFADDDBD64D9D18EDA3F /* coinbasetest-cash.tsv */; };
+		09D7080C269F01DE77D73ADE /* ViewCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2164A2148317851922E92087 /* ViewCache.swift */; };
 		0A946C739855BA689CE4EC01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4141AFA78E93A2BB544FFD49 /* Assets.xcassets */; };
 		0AC07BA8470D75514734E39D /* PlatformDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D9016C221D8B41402E543CF /* PlatformDetailView.swift */; };
 		0C2B4BA0E0583D0D81935D4F /* IntroGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5439E3A322BB84FE60191A58 /* IntroGuideView.swift */; };
@@ -17,6 +18,7 @@
 		13736010A21E9F8458364233 /* robinhoodtest-tqqq.tsv in Resources */ = {isa = PBXBuildFile; fileRef = 2259AF8CF6454043EE230821 /* robinhoodtest-tqqq.tsv */; };
 		1AA71BFCED97656280FF3C07 /* BacktestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A9C1C2AB4CC69B168913475 /* BacktestView.swift */; };
 		1B21A19E3A1DBE5232B4E2FF /* CreateFundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716845DB9D559691A02AEFAE /* CreateFundView.swift */; };
+		1C1460916E8155A40E33142E /* ViewCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2164A2148317851922E92087 /* ViewCache.swift */; };
 		1CA8B07A2B186B8B449AE2D3 /* CreateFundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716845DB9D559691A02AEFAE /* CreateFundView.swift */; };
 		204E9721E790338C60C1F67E /* robinhoodtest-spxl.tsv in Resources */ = {isa = PBXBuildFile; fileRef = 21D4714188FFBF94FFC7D146 /* robinhoodtest-spxl.tsv */; };
 		215E053FDD165C9E469C48A6 /* PortfolioCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5730A378FC32A73CBE470B4D /* PortfolioCharts.swift */; };
@@ -131,6 +133,7 @@
 		1B5C0157B3A2F0FEB594AA56 /* FundDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundDataStore.swift; sourceTree = "<group>"; };
 		2057B87E511BC30733DF4121 /* EscapeMintTests_macOS.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EscapeMintTests_macOS.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		206783117061273B786BA40A /* DerivativesCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DerivativesCharts.swift; sourceTree = "<group>"; };
+		2164A2148317851922E92087 /* ViewCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewCache.swift; sourceTree = "<group>"; };
 		21D4714188FFBF94FFC7D146 /* robinhoodtest-spxl.tsv */ = {isa = PBXFileReference; path = "robinhoodtest-spxl.tsv"; sourceTree = "<group>"; };
 		2259AF8CF6454043EE230821 /* robinhoodtest-tqqq.tsv */ = {isa = PBXFileReference; path = "robinhoodtest-tqqq.tsv"; sourceTree = "<group>"; };
 		2324DA91E49C3F0CD95CE1DE /* robinhoodtest-spxl.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "robinhoodtest-spxl.json"; sourceTree = "<group>"; };
@@ -254,6 +257,7 @@
 			children = (
 				1B5C0157B3A2F0FEB594AA56 /* FundDataStore.swift */,
 				8234569B6F7DD6620418A099 /* FundStore.swift */,
+				2164A2148317851922E92087 /* ViewCache.swift */,
 			);
 			path = Storage;
 			sourceTree = "<group>";
@@ -596,6 +600,7 @@
 				215E053FDD165C9E469C48A6 /* PortfolioCharts.swift in Sources */,
 				9393767F6EF181A9BB23C53A /* SettingsView.swift in Sources */,
 				237C11327A55B367CD5EC233 /* Theme.swift in Sources */,
+				1C1460916E8155A40E33142E /* ViewCache.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -631,6 +636,7 @@
 				5C9B25248B881F120DC7AC22 /* PortfolioCharts.swift in Sources */,
 				7C8493E3B622C77F494D3D53 /* SettingsView.swift in Sources */,
 				800271A5BCD7F0CD15434FED /* Theme.swift in Sources */,
+				09D7080C269F01DE77D73ADE /* ViewCache.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -750,6 +756,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = TYQ32QCF6K;
 				INFOPLIST_FILE = EscapeMint/App/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = EscapeMint;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -774,6 +781,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = TYQ32QCF6K;
 				INFOPLIST_FILE = EscapeMint/App/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = EscapeMint;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -913,6 +921,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = TYQ32QCF6K;
 				INFOPLIST_FILE = EscapeMint/App/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = EscapeMint;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -937,6 +946,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = TYQ32QCF6K;
 				INFOPLIST_FILE = EscapeMint/App/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = EscapeMint;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";

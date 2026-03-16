@@ -2,16 +2,12 @@ import SwiftUI
 import Charts
 
 struct BacktestView: View {
-    @State private var config = BacktestConfig()
-    @State private var result: BacktestResult?
-    @State private var historicalData: [String: HistoricalData] = [:]
-    @State private var selectedPreset: BacktestPreset = .blend
-    @State private var isRunning = false
+    private var cache: ViewCache { .shared }
+    @State private var config: BacktestConfig
+    @State private var selectedPreset: BacktestPreset
     @State private var showIntroGuide = false
     @State private var dateRange: BacktestDateRange?
-    @State private var availableRange: BacktestDateRange?
-    @State private var sortOrder: BacktestSortOrder = .asc
-    @State private var backtestTask: Task<Void, Never>?
+    @State private var sortOrder: SortOrder
     @State private var hoverVA: Int?
     @State private var hoverCP: Int?
     @State private var hoverGB: Int?
@@ -20,8 +16,22 @@ struct BacktestView: View {
     // First-run detection
     @AppStorage("escapemint-intro-completed") private var introCompleted = false
 
-    enum BacktestSortOrder {
+    // Read expensive results from persistent cache
+    private var result: BacktestResult? { cache.backtestResult }
+    private var historicalData: [String: HistoricalData] { cache.historicalData }
+    private var isRunning: Bool { cache.isRunningBacktest }
+    private var availableRange: BacktestDateRange? { cache.backtestAvailableRange }
+
+    enum SortOrder {
         case asc, desc
+    }
+
+    init() {
+        let c = ViewCache.shared
+        _config = State(initialValue: c.backtestConfig)
+        _selectedPreset = State(initialValue: c.backtestPreset)
+        _dateRange = State(initialValue: c.backtestDateRange)
+        _sortOrder = State(initialValue: c.backtestSortOrder == .asc ? .asc : .desc)
     }
 
     var body: some View {
@@ -39,12 +49,18 @@ struct BacktestView: View {
             .padding()
         }
         .background(Color.bg.ignoresSafeArea())
+        #if os(iOS)
+        .navigationTitle("Backtest")
+        .navigationBarTitleDisplayMode(.large)
+        #endif
         .task {
-            historicalData = loadHistoricalData()
-            updateAvailableRange()
-            if introCompleted {
-                runBacktestAsync()
+            cache.updateBacktestConfig(config)
+            if cache.isHistoricalDataLoaded {
+                initAndRun()
             }
+        }
+        .onChange(of: cache.isHistoricalDataLoaded) { _, loaded in
+            if loaded { initAndRun() }
         }
         .sheet(isPresented: $showIntroGuide) {
             IntroGuideView(isPresented: $showIntroGuide)
@@ -55,6 +71,7 @@ struct BacktestView: View {
 
     @ViewBuilder
     private var header: some View {
+        #if os(macOS)
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Backtest")
@@ -72,6 +89,25 @@ struct BacktestView: View {
             }
             .buttonStyle(.bordered).tint(.mint)
         }
+        #else
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Bet long on the future to build a money tree")
+                .font(.subheadline).foregroundColor(.textSecondary)
+            ScrollView(.horizontal, showsIndicators: false) {
+                dateRangePicker
+            }
+            HStack {
+                Spacer()
+                Button {
+                    showIntroGuide = true
+                } label: {
+                    Label("Guide", systemImage: "book.fill")
+                        .font(.callout)
+                }
+                .buttonStyle(.bordered).tint(.mint)
+            }
+        }
+        #endif
     }
 
     // MARK: - Date Range Picker
@@ -240,26 +276,29 @@ struct BacktestView: View {
     @ViewBuilder
     private var configPanel: some View {
         VStack(spacing: 0) {
+            #if os(macOS)
             HStack(spacing: 16) {
-                // Column 1: Allocation
                 allocationColumn
-
                 Divider().frame(height: 180)
-
-                // Column 2: Strategy
                 strategyColumn
-
                 Divider().frame(height: 180)
-
-                // Column 3: DCA Tiers
                 dcaTiersColumn
-
                 Divider().frame(height: 180)
-
-                // Column 4: Fund Mode + Presets
                 fundModeColumn
             }
             .padding(12)
+            #else
+            VStack(spacing: 12) {
+                allocationColumn
+                Divider()
+                strategyColumn
+                Divider()
+                dcaTiersColumn
+                Divider()
+                fundModeColumn
+            }
+            .padding(12)
+            #endif
         }
         .background(Color.bgCard)
         .cornerRadius(12)
@@ -509,7 +548,11 @@ struct BacktestView: View {
         HStack(spacing: 4) {
             Text(label)
                 .font(.system(size: 10)).foregroundColor(.textMuted)
+                #if os(macOS)
                 .frame(width: 85, alignment: .leading)
+                #else
+                .frame(width: 70, alignment: .leading)
+                #endif
                 .lineLimit(1)
             CompactSlider(value: value, range: range, step: step, tint: .blue) {
                 runBacktestAsync()
@@ -529,7 +572,12 @@ struct BacktestView: View {
     @ViewBuilder
     private var metricsGrid: some View {
         if let result {
-            let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 8)
+            #if os(macOS)
+            let columnCount = 8
+            #else
+            let columnCount = 2
+            #endif
+            let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: columnCount)
             LazyVGrid(columns: columns, spacing: 8) {
                 MetricCard(label: "Final Value",
                            value: formatCurrency(result.finalValue),
@@ -571,7 +619,12 @@ struct BacktestView: View {
 
     @ViewBuilder
     private var metricsPlaceholder: some View {
-        let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 8)
+        #if os(macOS)
+        let columnCount = 8
+        #else
+        let columnCount = 2
+        #endif
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: columnCount)
         LazyVGrid(columns: columns, spacing: 8) {
             ForEach(["Final Value", "Liquid APY", "Realized APY", "Unrealized Gain",
                      "Realized Gain", "Liquid P&L", "Total Invested", "Total Extracted"], id: \.self) { label in
@@ -589,6 +642,7 @@ struct BacktestView: View {
         if let result, result.entries.count > 1 {
             let sampled = sampleArray(result.entries, maxPoints: 120)
 
+            #if os(macOS)
             HStack(spacing: 12) {
                 valueAllocationChart(sampled)
                     .accessibilityIdentifier("chart-value-allocation")
@@ -604,6 +658,20 @@ struct BacktestView: View {
                     .accessibilityIdentifier("chart-apy-breakdown")
             }
             .frame(height: 200)
+            #else
+            valueAllocationChart(sampled)
+                .accessibilityIdentifier("chart-value-allocation")
+                .frame(height: 200)
+            capturedProfitChart(sampled)
+                .accessibilityIdentifier("chart-captured-profit")
+                .frame(height: 200)
+            gainBreakdownChart(sampled)
+                .accessibilityIdentifier("chart-gain-breakdown")
+                .frame(height: 200)
+            apyBreakdownChart(sampled)
+                .accessibilityIdentifier("chart-apy-breakdown")
+                .frame(height: 200)
+            #endif
         } else if isRunning {
             chartsPlaceholder
         }
@@ -611,6 +679,7 @@ struct BacktestView: View {
 
     @ViewBuilder
     private var chartsPlaceholder: some View {
+        #if os(macOS)
         HStack(spacing: 12) {
             chartPlaceholderCard("Value & Allocation")
             chartPlaceholderCard("Captured Profit")
@@ -622,6 +691,12 @@ struct BacktestView: View {
             chartPlaceholderCard("APY Breakdown")
         }
         .frame(height: 200)
+        #else
+        chartPlaceholderCard("Value & Allocation").frame(height: 200)
+        chartPlaceholderCard("Captured Profit").frame(height: 200)
+        chartPlaceholderCard("Gain Breakdown").frame(height: 200)
+        chartPlaceholderCard("APY Breakdown").frame(height: 200)
+        #endif
     }
 
     private func chartPlaceholderCard(_ title: String) -> some View {
@@ -1082,31 +1157,22 @@ struct BacktestView: View {
 
     // MARK: - Actions
 
-    private func updateAvailableRange() {
-        availableRange = computeAvailableDateRange(
-            historicalData: historicalData,
-            allocations: config.allocations
-        )
+    private func initAndRun() {
+        cache.updateAvailableRange()
         if dateRange == nil {
-            dateRange = availableRange
+            dateRange = cache.backtestAvailableRange
+        }
+        if introCompleted {
+            runBacktestAsync()
         }
     }
 
     private func runBacktestAsync() {
-        updateAvailableRange()
-        backtestTask?.cancel()
-        isRunning = true
-        let cfg = config
-        let hist = historicalData
-        let dr = dateRange
-        backtestTask = Task {
-            let r = await Task.detached(priority: .userInitiated) {
-                runBacktest(config: cfg, historicalData: hist, dateRange: dr)
-            }.value
-            guard !Task.isCancelled else { return }
-            result = r
-            isRunning = false
-        }
+        cache.updateBacktestConfig(config)
+        cache.updateBacktestDateRange(dateRange)
+        cache.updateBacktestPreset(selectedPreset)
+        cache.updateBacktestSortOrder(sortOrder == .asc ? .asc : .desc)
+        cache.runBacktestIfNeeded()
     }
 }
 

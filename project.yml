@@ -28,13 +28,17 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: net.shadowpuppet.EscapeMint
         DEVELOPMENT_TEAM: TYQ32QCF6K
         CODE_SIGN_STYLE: Automatic
-        INFOPLIST_FILE: EscapeMint/App/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_CFBundleDisplayName: EscapeMint
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: false
         INFOPLIST_KEY_UILaunchScreen_Generation: true
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: false
+    info:
+      path: EscapeMint/App/Info.plist
+      properties:
+        CFBundleDisplayName: EscapeMint
     entitlements:
       path: EscapeMint/App/EscapeMint.entitlements
       properties:

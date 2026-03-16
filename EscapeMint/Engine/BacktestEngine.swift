@@ -23,7 +23,7 @@ struct HistoricalData: Codable {
     }
 }
 
-struct BacktestConfig {
+struct BacktestConfig: Equatable {
     // Allocation percentages (must sum to 1.0)
     var spxlPct: Double = 0
     var vtiPct: Double = 0.05
@@ -194,7 +194,7 @@ enum BacktestPreset: String, CaseIterable, Identifiable {
 
 // MARK: - Date Range
 
-struct BacktestDateRange {
+struct BacktestDateRange: Equatable {
     var start: String
     var end: String
 

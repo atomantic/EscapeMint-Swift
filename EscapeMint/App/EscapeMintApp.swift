@@ -25,6 +25,15 @@ struct ContentView: View {
     @AppStorage("escapemint-intro-completed") private var introCompleted = false
     @AppStorage("escapemint-show-intro-on-launch") private var showIntroOnLaunch = false
     @State private var showIntroGuide = false
+    @State private var selectedTab: Int = {
+        if CommandLine.arguments.contains("-startTab"),
+           let idx = CommandLine.arguments.firstIndex(of: "-startTab"),
+           idx + 1 < CommandLine.arguments.count,
+           let tab = Int(CommandLine.arguments[idx + 1]) {
+            return tab
+        }
+        return 0
+    }()
     private var store: FundDataStore { .shared }
 
     var body: some View {
@@ -36,39 +45,11 @@ struct ContentView: View {
                 MacContentView()
                     .tint(.mint)
                 #else
-                TabView {
-                    NavigationStack {
-                        DashboardView()
-                    }
-                    .tabItem {
-                        Label("Dashboard", systemImage: "chart.bar.fill")
-                    }
-                    NavigationStack {
-                        BacktestView()
-                    }
-                    .tabItem {
-                        Label("Backtest", systemImage: "waveform.path.ecg")
-                    }
-                    NavigationStack {
-                        AuditTrailView()
-                    }
-                    .tabItem {
-                        Label("Audit Trail", systemImage: "list.clipboard.fill")
-                    }
-                    NavigationStack {
-                        PlatformsView()
-                    }
-                    .tabItem {
-                        Label("Platforms", systemImage: "building.2.fill")
-                    }
-                    NavigationStack {
-                        SettingsView()
-                    }
-                    .tabItem {
-                        Label("Settings", systemImage: "gear")
-                    }
-                }
+                tabContent
                 .tint(.mint)
+                .onReceive(NotificationCenter.default.publisher(for: .selectBacktest)) { _ in
+                    selectedTab = 1
+                }
                 #endif
             }
         }
@@ -98,6 +79,49 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.bg.ignoresSafeArea())
     }
+
+    #if os(iOS)
+    @ViewBuilder
+    private var tabContent: some View {
+        if #available(iOS 18.0, *) {
+            TabView(selection: $selectedTab) {
+                Tab("Dashboard", systemImage: "chart.bar.fill", value: 0) {
+                    NavigationStack { DashboardView() }
+                }
+                Tab("Backtest", systemImage: "waveform.path.ecg", value: 1) {
+                    NavigationStack { BacktestView() }
+                }
+                Tab("Audit Trail", systemImage: "list.clipboard.fill", value: 2) {
+                    NavigationStack { AuditTrailView() }
+                }
+                Tab("Platforms", systemImage: "building.2.fill", value: 3) {
+                    NavigationStack { PlatformsView() }
+                }
+                Tab("Settings", systemImage: "gear", value: 4) {
+                    NavigationStack { SettingsView() }
+                }
+            }
+        } else {
+            TabView(selection: $selectedTab) {
+                NavigationStack { DashboardView() }
+                    .tabItem { Label("Dashboard", systemImage: "chart.bar.fill") }
+                    .tag(0)
+                NavigationStack { BacktestView() }
+                    .tabItem { Label("Backtest", systemImage: "waveform.path.ecg") }
+                    .tag(1)
+                NavigationStack { AuditTrailView() }
+                    .tabItem { Label("Audit Trail", systemImage: "list.clipboard.fill") }
+                    .tag(2)
+                NavigationStack { PlatformsView() }
+                    .tabItem { Label("Platforms", systemImage: "building.2.fill") }
+                    .tag(3)
+                NavigationStack { SettingsView() }
+                    .tabItem { Label("Settings", systemImage: "gear") }
+                    .tag(4)
+            }
+        }
+    }
+    #endif
 }
 
 #if os(macOS)
@@ -389,7 +413,7 @@ struct MacContentView: View {
             case .settings:
                 SettingsView()
             case .fund(let id):
-                FundDetailView(fundId: id)
+                FundDetailView(fundId: id).id(id)
             case .platform(let name):
                 PlatformDetailView(platform: name)
             }
