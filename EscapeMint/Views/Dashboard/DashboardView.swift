@@ -174,7 +174,7 @@ struct DashboardView: View {
                 }
                 .toggleStyle(.switch)
                 .tint(.mint)
-                .frame(width: 100)
+                .frame(minWidth: 100)
             }
             if platforms.count > 1 {
                 Picker("Platform", selection: $platformFilter) {
@@ -260,7 +260,7 @@ struct DashboardView: View {
                         Text(p.capitalized).tag(p as String?)
                     }
                 }
-                .frame(width: 150)
+                .frame(minWidth: 150)
             }
 
             // Import
@@ -354,58 +354,19 @@ struct DashboardView: View {
     private var fundCards: some View {
         let grouped = Dictionary(grouping: activeSummaries, by: { $0.fund.platform })
         ForEach(grouped.keys.sorted(), id: \.self) { platform in
-            Section {
-                if !isDashCollapsed(platform, closed: false) {
-                    #if os(macOS)
-                    let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: max(1, min(3, activeSummaries.count)))
-                    LazyVGrid(columns: columns, spacing: 10) {
-                        ForEach(grouped[platform]!, id: \.fund.id) { summary in
-                            FundCardView(summary: summary)
-                                .onTapGesture { navigateToFund(summary.fund.id) }
-                        }
-                    }
-                    #else
-                    ForEach(grouped[platform]!, id: \.fund.id) { summary in
-                        NavigationLink(destination: FundDetailView(fundId: summary.fund.id)) {
-                            FundCardView(summary: summary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    #endif
-                }
-            } header: {
-                HStack {
-                    Image(systemName: isDashCollapsed(platform, closed: false) ? "chevron.right" : "chevron.down")
-                        .font(.caption2).foregroundColor(.textMuted)
-                        .frame(width: 12)
-                    Text(platform.capitalized)
-                        .font(.caption).fontWeight(.semibold)
-                        .foregroundColor(.textSecondary)
-                    Spacer()
-                    Text("\(grouped[platform]!.count) funds")
-                        .font(.caption2).foregroundColor(.textMuted)
-                }
-                .padding(.top, 8)
-                .contentShape(Rectangle())
-                .onTapGesture { toggleDashPlatform(platform, closed: false) }
-            }
-        }
-
-        if !closedSummaries.isEmpty {
-            let closedGrouped = Dictionary(grouping: closedSummaries, by: { $0.fund.platform })
-            ForEach(closedGrouped.keys.sorted(), id: \.self) { platform in
+            if let platformFunds = grouped[platform] {
                 Section {
-                    if !isDashCollapsed(platform, closed: true) {
+                    if !isDashCollapsed(platform, closed: false) {
                         #if os(macOS)
-                        let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: max(1, min(3, closedGrouped[platform]!.count)))
+                        let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: max(1, min(3, activeSummaries.count)))
                         LazyVGrid(columns: columns, spacing: 10) {
-                            ForEach(closedGrouped[platform]!, id: \.fund.id) { summary in
+                            ForEach(platformFunds, id: \.fund.id) { summary in
                                 FundCardView(summary: summary)
                                     .onTapGesture { navigateToFund(summary.fund.id) }
                             }
                         }
                         #else
-                        ForEach(closedGrouped[platform]!, id: \.fund.id) { summary in
+                        ForEach(platformFunds, id: \.fund.id) { summary in
                             NavigationLink(destination: FundDetailView(fundId: summary.fund.id)) {
                                 FundCardView(summary: summary)
                             }
@@ -415,19 +376,62 @@ struct DashboardView: View {
                     }
                 } header: {
                     HStack {
-                        Image(systemName: isDashCollapsed(platform, closed: true) ? "chevron.right" : "chevron.down")
+                        Image(systemName: isDashCollapsed(platform, closed: false) ? "chevron.right" : "chevron.down")
                             .font(.caption2).foregroundColor(.textMuted)
                             .frame(width: 12)
-                        Text("\(platform.capitalized) (Closed)")
+                        Text(platform.capitalized)
                             .font(.caption).fontWeight(.semibold)
-                            .foregroundColor(.textMuted)
+                            .foregroundColor(.textSecondary)
                         Spacer()
-                        Text("\(closedGrouped[platform]!.count) funds")
+                        Text("\(platformFunds.count) funds")
                             .font(.caption2).foregroundColor(.textMuted)
                     }
                     .padding(.top, 8)
                     .contentShape(Rectangle())
-                    .onTapGesture { toggleDashPlatform(platform, closed: true) }
+                    .onTapGesture { toggleDashPlatform(platform, closed: false) }
+                }
+            }
+        }
+
+        if !closedSummaries.isEmpty {
+            let closedGrouped = Dictionary(grouping: closedSummaries, by: { $0.fund.platform })
+            ForEach(closedGrouped.keys.sorted(), id: \.self) { platform in
+                if let platformFunds = closedGrouped[platform] {
+                    Section {
+                        if !isDashCollapsed(platform, closed: true) {
+                            #if os(macOS)
+                            let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: max(1, min(3, platformFunds.count)))
+                            LazyVGrid(columns: columns, spacing: 10) {
+                                ForEach(platformFunds, id: \.fund.id) { summary in
+                                    FundCardView(summary: summary)
+                                        .onTapGesture { navigateToFund(summary.fund.id) }
+                                }
+                            }
+                            #else
+                            ForEach(platformFunds, id: \.fund.id) { summary in
+                                NavigationLink(destination: FundDetailView(fundId: summary.fund.id)) {
+                                    FundCardView(summary: summary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            #endif
+                        }
+                    } header: {
+                        HStack {
+                            Image(systemName: isDashCollapsed(platform, closed: true) ? "chevron.right" : "chevron.down")
+                                .font(.caption2).foregroundColor(.textMuted)
+                                .frame(width: 12)
+                            Text("\(platform.capitalized) (Closed)")
+                                .font(.caption).fontWeight(.semibold)
+                                .foregroundColor(.textMuted)
+                            Spacer()
+                            Text("\(platformFunds.count) funds")
+                                .font(.caption2).foregroundColor(.textMuted)
+                        }
+                        .padding(.top, 8)
+                        .contentShape(Rectangle())
+                        .onTapGesture { toggleDashPlatform(platform, closed: true) }
+                    }
                 }
             }
         }
@@ -515,6 +519,7 @@ struct DashboardView: View {
             VStack(spacing: 12) {
                 Image(systemName: "leaf.fill")
                     .font(.largeTitle).foregroundColor(.mint)
+                    .accessibilityHidden(true)
                 Text("No funds yet")
                     .font(.title2).fontWeight(.semibold).foregroundColor(.textPrimary)
                 Text("Create a fund or import from your web app's data/funds/ directory")
