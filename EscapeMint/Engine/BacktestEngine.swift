@@ -341,10 +341,12 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
         expense_from_fund: false
     )
 
-    // Incremental state for O(n) expected target computation (avoids O(n²))
-    var startInput = 0.0
-    var expectedGain = 0.0
-    var incTotalBuys = 0.0
+    // Incremental expected target using discount-factor accumulator (O(1) per step)
+    // expectedTarget(D) = pow(1+r, daysFromEpoch(D)/365) * discountedSum
+    // where discountedSum += buyAmount * pow(1+r, -daysFromEpoch(buyDate)/365)
+    let epochDate = dates[0]
+    let targetAPY = config.targetAPY
+    var discountedSum = 0.0
 
     for (i, pp) in blendedPrices.enumerated() {
         let price = pp.price
@@ -371,8 +373,9 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
             sumDividends += weeklyDividend
         }
 
-        // Incremental expected target (O(1) per iteration instead of O(n))
-        let expectedTarget = startInput + expectedGain
+        // Expected target: grows naturally as time passes (O(1) per step)
+        let daysFromEpoch = Double(daysBetween(epochDate, pp.date))
+        let expectedTarget = pow(1.0 + targetAPY, daysFromEpoch / 365.0) * discountedSum
         let gainUsd = costBasis > 0 ? equity - costBasis : 0.0
         let rawGainPct = costBasis > 0 ? (equity / costBasis) - 1.0 : 0.0
         let gainPct = rawGainPct.isFinite ? rawGainPct : 0.0
@@ -411,13 +414,9 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
                     equivShares[ticker] = (equivShares[ticker] ?? 0) + (buyAmount * pct) / basePrice
                 }
 
-                // Incremental expected target: add this buy's future expected gain
-                incTotalBuys += buyAmount
-                startInput += buyAmount
-                let tradeDays = daysBetween(pp.date, dates.last ?? pp.date)
-                if tradeDays > 0 {
-                    expectedGain += buyAmount * (pow(1.0 + config.targetAPY, Double(tradeDays) / 365.0) - 1.0)
-                }
+                // Add this buy to the discount-factor accumulator
+                let buyDaysFromEpoch = Double(daysBetween(epochDate, pp.date))
+                discountedSum += buyAmount * pow(1.0 + targetAPY, -buyDaysFromEpoch / 365.0)
 
                 action = .BUY
                 amount = buyAmount
@@ -452,17 +451,14 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
                 if isFullLiquidation {
                     costBasis = 0
                     shares = 0
-                    startInput = 0
-                    expectedGain = 0
-                    incTotalBuys = 0
+                    discountedSum = 0
                     for (ticker, _) in allocations {
                         equivShares[ticker] = 0
                     }
                 } else if !config.accumulate {
                     let sf = sellProportion
                     costBasis = costBasis * (1 - sf)
-                    expectedGain *= (1 - sf)
-                    startInput = max(0, startInput * (1 - sf))
+                    discountedSum *= (1 - sf)
                 }
 
                 action = .SELL
