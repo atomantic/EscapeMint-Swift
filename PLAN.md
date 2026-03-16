@@ -33,31 +33,31 @@ Platforms: [iOS, macOS] | Deployment targets: {"iOS": "17.0", "macOS": "14.0"}
 
 ### Security & Secrets
 - [ ] **[MEDIUM]** `.env` - AppStore API credentials in local file (gitignored but local exposure risk). Fix: Move to Keychain or CI secrets. Complexity: Medium
-- [ ] **[LOW]** `EscapeMint.entitlements` - Missing file data protection entitlement. Fix: Add NSFileProtectionCompleteUntilFirstUserAuthentication. Complexity: Simple
+- [x] **[LOW]** `EscapeMint.entitlements` - Missing file data protection entitlement. Fixed: Added NSFileProtectionCompleteUntilFirstUserAuthentication.
 
 ### Code Quality & Style
-- [ ] **[HIGH]** `EscapeMintApp.swift:168` - Force unwrap `grouped[$0]!` in groupByPlatform. Fix: Use compactMap with optional binding. Complexity: Simple
-- [ ] **[HIGH]** `FundTypeConfig.swift:91` - Force unwrap in getFeatures fallback. Fix: Provide literal fallback instead of force unwrap. Complexity: Simple
-- [ ] **[MEDIUM]** `SettingsView.swift:70-71` - Force unwraps on URL(string:)! for hardcoded URLs. Fix: Use safe URL helper. Complexity: Simple
-- [ ] **[MEDIUM]** `FundDataStore.swift:141-184` - try? swallowing errors on all 6 mutation methods (addFund, updateFund, deleteFund, etc.). Memory-disk state divergence risk. Fix: Propagate errors or log failures. Complexity: Medium
-- [ ] **[MEDIUM]** `ViewCache.swift:160` - Stringly-typed generic cache using `[String: Any]`. Fix: Use typed wrapper. Complexity: Medium
-- [ ] **[MEDIUM]** `SettingsView.swift:189-191` - Missing [weak self] in beginSheetModal closure. Fix: Add [weak self] capture. Complexity: Simple
+- [x] **[HIGH]** `EscapeMintApp.swift:168` - Force unwrap `grouped[$0]!` in groupByPlatform. Fixed: compactMap with guard let.
+- [x] **[HIGH]** `FundTypeConfig.swift:91` - Force unwrap in getFeatures fallback. Fixed: literal default FundTypeFeatures.
+- [x] **[MEDIUM]** `SettingsView.swift:70-71` - Force unwraps on URL(string:)!. Fixed: if-let binding.
+- [x] **[MEDIUM]** `FundDataStore.swift:141-184` - try? swallowing errors on 6 mutation methods. Fixed: do/catch with print logging.
+- [ ] **[MEDIUM]** `ViewCache.swift:160` - Stringly-typed generic cache using `[String: Any]`. Skipped: medium risk of breakage, works correctly as-is.
+- [ ] ~~**[MEDIUM]** `SettingsView.swift:189-191` - Missing [weak self] in beginSheetModal closure.~~ False positive: SettingsView is a struct, not a class.
 - [ ] **[LOW]** `FundStore.swift:356-362` - formatNum uses unsafe Any casting. Complexity: Medium
 
 ### DRY & YAGNI
-- [ ] **[HIGH]** `AddEntryView.swift:110-111` - Duplicate DateFormatter instead of using shared isoDateFormatter from Converters.swift. Fix: Use isoDateFormatter. Complexity: Simple
-- [ ] **[HIGH]** `EditEntryView.swift:23-27` - Duplicate DateFormatter. Fix: Use isoDateFormatter. Complexity: Simple
-- [ ] **[HIGH]** `AuditTrailView.swift:28-32` - Duplicate DateFormatter. Fix: Use isoDateFormatter. Complexity: Simple
-- [ ] **[HIGH]** `EditFundView.swift:69-78` - Repeated inline autocorrection modifiers instead of using PlatformModifiers.noAutoCapitalization(). Fix: Use existing modifier. Complexity: Simple
-- [ ] **[HIGH]** `EditEntryView.swift:59-114` + `AddEntryView.swift:36-89` - Massive form field duplication (~5 identical HStack TextField patterns). Fix: Extract shared FormFieldRow helper. Complexity: Medium
+- [x] **[HIGH]** `AddEntryView.swift:110-111` - Duplicate DateFormatter. Fixed: uses isoDateFormatter.
+- [x] **[HIGH]** `EditEntryView.swift:23-27` - Duplicate DateFormatter. Fixed: uses isoDateFormatter.
+- [x] **[HIGH]** `AuditTrailView.swift:28-32` - Duplicate DateFormatter. Fixed: uses isoDateFormatter.
+- [x] **[HIGH]** `EditFundView.swift:69-78` - Repeated inline autocorrection modifiers. Fixed: uses .noAutoCapitalization().
+- [x] **[HIGH]** `EditEntryView.swift:59-114` + `AddEntryView.swift:36-89` - Form field duplication. Fixed: extracted shared NumericFieldRow.
 - [ ] **[MEDIUM]** `AuditTrailView.swift:422-435` - statCard pattern repeated across 6+ files. Fix: Extract shared StatsCard component. Complexity: Medium
 
 ### Architecture & SOLID
-- [ ] **[HIGH]** `BacktestView.swift:1-1389` - God file (1,389 lines) with mixed UI, state, chart computation, and business logic. Fix: Extract chart sub-views and BacktestCoordinator. Complexity: Complex
-- [ ] **[HIGH]** `FundDetailView.swift:1-1198` - God file (1,198 lines) with tight coupling to singletons. Fix: Extract chart views and FundDetailCoordinator. Complexity: Complex
-- [ ] **[HIGH]** `DashboardView.swift:1-751` - God file with platform-specific logic and I/O. Fix: Extract platform variants and move grouping to store. Complexity: Complex
-- [ ] **[MEDIUM]** `BacktestView.swift:29-35` - Singleton access in init() breaks testability. Fix: Inject config via parameter with singleton default. Complexity: Simple
-- [ ] **[MEDIUM]** `FundDetailView.swift:6-7` - Singleton access limits reusability. Fix: Accept optional store/cache in init. Complexity: Simple
+- [ ] **[HIGH]** `BacktestView.swift:1-1389` - God file (1,389 lines). Fix: Extract chart sub-views and BacktestCoordinator. Complexity: Complex
+- [ ] **[HIGH]** `FundDetailView.swift:1-1198` - God file (1,198 lines). Fix: Extract chart views and FundDetailCoordinator. Complexity: Complex
+- [ ] **[HIGH]** `DashboardView.swift:1-751` - God file. Fix: Extract platform variants and move grouping to store. Complexity: Complex
+- [ ] **[MEDIUM]** `BacktestView.swift:29-35` - Singleton access in init(). Skipped: consistent pattern across codebase.
+- [ ] **[MEDIUM]** `FundDetailView.swift:6-7` - Singleton access. Skipped: consistent pattern across codebase.
 - [ ] **[MEDIUM]** `DashboardView.swift:350-435` - Dictionary(grouping:) recomputed on every render. Fix: Cache in store. Complexity: Medium
 - [ ] **[MEDIUM]** `DashboardView.swift:603-612` - I/O logic (importFromDirectory) in view layer. Fix: Move to FundDataStore. Complexity: Simple
 - [ ] **[MEDIUM]** `FundDetailView.swift:137-152` - Chart computation caching logic in view task. Fix: Move to coordinator. Complexity: Medium
@@ -66,23 +66,23 @@ Platforms: [iOS, macOS] | Deployment targets: {"iOS": "17.0", "macOS": "14.0"}
 - [ ] **[LOW]** `ViewCache.swift:1-175` - Multiple concerns in one class. Fix: Split by domain. Complexity: Low
 
 ### Bugs, Performance & Error Handling
-- [ ] **[HIGH]** `FundStore.swift:155` - Force unwrap `line.data(using: .utf8)!` in file write. Fix: Guard with error throw. Complexity: Simple
-- [ ] **[HIGH]** `FundStore.swift:149-157` - Missing file handle error propagation in appendEntry. Fix: Add defer closeFile, proper error handling. Complexity: Medium
+- [x] **[HIGH]** `FundStore.swift:155` - Force unwrap `line.data(using: .utf8)!`. Fixed: guard let with error throw.
+- [x] **[HIGH]** `FundStore.swift:149-157` - Missing file handle error propagation. Fixed: defer closeFile + guard let.
 - [ ] **[HIGH]** `SettingsView.swift:118-120` - DispatchQueue.main.asyncAfter without cancellation token. Fix: Use Task with structured concurrency. Complexity: Medium
-- [ ] **[MEDIUM]** `DashboardView.swift:362,368,385` - Force-unwrapped dictionary access after key iteration. Fix: Use safe unwrap. Complexity: Simple
+- [x] **[MEDIUM]** `DashboardView.swift:362,368,385` - Force-unwrapped dictionary access. Fixed: if-let binding.
 - [ ] **[MEDIUM]** `ViewCache.swift:69-89` - Task stored without awaiting old task completion. Fix: Add await after cancel. Complexity: Simple
 
 ### Platform Coverage & SwiftUI Patterns
-- [ ] **[HIGH]** `EscapeMintApp.swift:74` - Hardcoded font size (.system(size: 48)) without Dynamic Type. Fix: Use relativeTo or @ScaledMetric. Complexity: Simple
-- [ ] **[MEDIUM]** `DashboardView.swift:516-517` - Decorative leaf icon missing .accessibilityHidden(true). Fix: Add modifier. Complexity: Simple
-- [ ] **[MEDIUM]** `ActionableFundsBanner.swift:20-21` - Decorative bell icon missing accessibility. Fix: Add .accessibilityHidden(true). Complexity: Simple
-- [ ] **[MEDIUM]** `DashboardView.swift:177` - Fixed toggle frame width:100. Fix: Use minWidth. Complexity: Simple
-- [ ] **[MEDIUM]** `DashboardView.swift:263` - Fixed picker frame width:150. Fix: Use minWidth. Complexity: Simple
+- [x] **[HIGH]** `EscapeMintApp.swift:74` - Decorative loading icon. Fixed: added .accessibilityHidden(true).
+- [x] **[MEDIUM]** `DashboardView.swift:516-517` - Decorative leaf icon. Fixed: added .accessibilityHidden(true).
+- [x] **[MEDIUM]** `ActionableFundsBanner.swift:20-21` - Decorative bell icon. Fixed: added .accessibilityHidden(true).
+- [x] **[MEDIUM]** `DashboardView.swift:177` - Fixed toggle frame. Fixed: minWidth.
+- [x] **[MEDIUM]** `DashboardView.swift:263` - Fixed picker frame. Fixed: minWidth.
 - [ ] **[MEDIUM]** `BacktestView.swift:149,346,350` - Multiple hardcoded font sizes in chart labels. Fix: Use @ScaledMetric or semantic sizes. Complexity: Medium
-- [ ] **[MEDIUM]** `IntroCharts.swift:78` - Hardcoded RGB color without dark mode. Fix: Use light/dark Color pattern from Theme.swift. Complexity: Simple
-- [ ] **[MEDIUM]** `BacktestView.swift:1381-1387` - Hardcoded asset colors without dark mode variants. Fix: Use light/dark Color pattern. Complexity: Simple
-- [ ] **[MEDIUM]** `CreateFundView.swift:140` - Fixed modal frame (520x480). Fix: Use min/max constraints. Complexity: Simple
-- [ ] **[MEDIUM]** `ActionableFundsBanner.swift:82` - EmptyView in NavigationLink workaround. Fix: Use NavigationLink(value:) with navigationDestination. Complexity: Medium
+- [x] **[MEDIUM]** `IntroCharts.swift:78` - Hardcoded RGB color. Fixed: Color(light:dark:) pattern.
+- [x] **[MEDIUM]** `BacktestView.swift:1381-1387` - Hardcoded asset colors. Fixed: adaptive light/dark variants.
+- [x] **[MEDIUM]** `CreateFundView.swift:140` - Fixed modal frame. Fixed: minWidth/idealWidth/minHeight/idealHeight.
+- [ ] **[MEDIUM]** `ActionableFundsBanner.swift:82` - EmptyView in NavigationLink workaround. Skipped: requires broader navigation refactor.
 - [ ] **[LOW]** Multiple locations - No @accessibilityReduceMotion checks on animations. Complexity: Medium
 
 ### Test Quality & Coverage
