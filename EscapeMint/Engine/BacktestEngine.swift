@@ -314,8 +314,6 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
     var sumDividends = 0.0
     var entries: [BacktestResult.BacktestEntry] = []
     var trades: [BacktestResult.TradeRecord] = []
-    var engineTrades: [Trade] = []
-    var engineTradesDirty = true
 
     // Equivalent shares for dividend tracking
     var equivShares: [String: Double] = [:]
@@ -343,6 +341,13 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
         expense_from_fund: false
     )
 
+    // Incremental state for O(n) expected target computation (avoids O(n²))
+    var startInput = 0.0
+    var expectedGain = 0.0
+    var incTotalBuys = 0.0
+    var incTotalSells = 0.0
+    var incSumShares = 0.0
+
     for (i, pp) in blendedPrices.enumerated() {
         let price = pp.price
         let equity = shares * price
@@ -368,34 +373,26 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
             sumDividends += weeklyDividend
         }
 
-        // Build engine trades from accumulated trade records (matches web app)
-        // Only build when trades have changed to avoid O(n²) re-mapping
-        if engineTradesDirty {
-            engineTrades = trades.map { Trade(
-                date: $0.date,
-                amountUsd: $0.amount,
-                type: $0.action == .BUY ? .buy : .sell
-            ) }
-            engineTradesDirty = false
-        }
+        // Incremental expected target (O(1) per iteration instead of O(n))
+        let expectedTarget = startInput + expectedGain
+        let gainUsd = costBasis > 0 ? equity - costBasis : 0.0
+        let rawGainPct = costBasis > 0 ? (equity / costBasis) - 1.0 : 0.0
+        let gainPct = rawGainPct.isFinite ? rawGainPct : 0.0
+        let targetDiff = equity - expectedTarget
 
-        // Use computeFundState for proper state calculation
-        // (matches web app which calls computeFundState with full trade history)
-        var state = computeFundState(
-            config: fundConfig,
-            trades: engineTrades,
-            cashflows: [],
-            dividends: [],
-            expenses: [],
-            actualValue: equity,
-            asOfDate: pp.date
+        let cashAvailable = config.reinvest ? cash : max(0, (config.initialCash + cash - totalInvested) - costBasis)
+
+        var state = FundState(
+            cashAvailableUsd: cashAvailable,
+            expectedTargetUsd: expectedTarget,
+            actualValueUsd: equity,
+            startInputUsd: costBasis,
+            gainUsd: gainUsd,
+            gainPct: gainPct,
+            targetDiffUsd: targetDiff,
+            cashInterestUsd: sumCashInterest,
+            realizedGainsUsd: 0
         )
-
-        // When reinvest is enabled, sell proceeds/interest/dividends are available
-        // for new buys. Override the engine's computed cash with manually tracked cash.
-        if config.reinvest {
-            state.cashAvailableUsd = cash
-        }
 
         let rec = computeRecommendation(config: fundConfig, state: state)
         var action: FundAction?
@@ -416,12 +413,19 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
                     equivShares[ticker] = (equivShares[ticker] ?? 0) + (buyAmount * pct) / basePrice
                 }
 
+                // Incremental expected target: add this buy's future expected gain
+                incTotalBuys += buyAmount
+                startInput += buyAmount
+                let tradeDays = daysBetween(pp.date, dates.last ?? pp.date)
+                if tradeDays > 0 {
+                    expectedGain += buyAmount * (pow(1.0 + config.targetAPY, Double(tradeDays) / 365.0) - 1.0)
+                }
+
                 action = .BUY
                 amount = buyAmount
 
                 trades.append(.init(date: pp.date, action: .BUY, amount: buyAmount,
                                     equity: equity, price: price, reason: rec.reasoning))
-                engineTradesDirty = true
             } else if rec.action == .SELL && shares > 0 {
                 let sellAmount: Double
                 if config.accumulate {
@@ -450,11 +454,19 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
                 if isFullLiquidation {
                     costBasis = 0
                     shares = 0
+                    startInput = 0
+                    expectedGain = 0
+                    incTotalBuys = 0
+                    incTotalSells = 0
+                    incSumShares = 0
                     for (ticker, _) in allocations {
                         equivShares[ticker] = 0
                     }
                 } else if !config.accumulate {
-                    costBasis = costBasis * (1 - sellProportion)
+                    let sf = sellProportion
+                    costBasis = costBasis * (1 - sf)
+                    expectedGain *= (1 - sf)
+                    startInput = max(0, startInput * (1 - sf))
                 }
 
                 action = .SELL
@@ -462,7 +474,6 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
 
                 trades.append(.init(date: pp.date, action: .SELL, amount: sellAmount,
                                     equity: equity, price: price, reason: rec.reasoning))
-                engineTradesDirty = true
             }
         }
 
