@@ -11,6 +11,17 @@ final class ModeComparisonPreloader {
     func preload() {
         guard harvestResult == nil, accumulateResult == nil else { return }
 
+        // Wait for ViewCache (already loading on startup) rather than re-reading from disk
+        let cache = ViewCache.shared
+        guard cache.isHistoricalDataLoaded else {
+            // Retry once ViewCache finishes loading
+            Task {
+                while !cache.isHistoricalDataLoaded { try? await Task.sleep(for: .milliseconds(50)) }
+                preload()
+            }
+            return
+        }
+
         var harvestCfg = BacktestConfig()
         harvestCfg.spxlPct = 0; harvestCfg.vtiPct = 0; harvestCfg.brgnxPct = 0
         harvestCfg.tqqqPct = 1.0; harvestCfg.btcPct = 0; harvestCfg.gldPct = 0; harvestCfg.slvPct = 0
@@ -23,10 +34,9 @@ final class ModeComparisonPreloader {
 
         let hCfg = harvestCfg
         let aCfg = accCfg
-        // Load only TQQQ data (not all 7 tickers) for faster startup
+        let hist = cache.historicalData
         Task {
             let (harvest, accumulate) = await Task.detached(priority: .utility) {
-                let hist = loadHistoricalDataForTickers(["tqqq"])
                 let h = runBacktest(config: hCfg, historicalData: hist)
                 let a = runBacktest(config: aCfg, historicalData: hist)
                 return (h, a)
