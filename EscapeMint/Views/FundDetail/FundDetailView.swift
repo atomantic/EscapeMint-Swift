@@ -655,6 +655,18 @@ struct FundDetailView: View {
 
     @ViewBuilder
     private func iosEntriesList(_ fund: FundData) -> some View {
+        // Column headers
+        HStack {
+            Text("Date").frame(width: 80, alignment: .leading)
+            Text("Action").frame(width: 45, alignment: .leading)
+            Spacer()
+            Text("Value").frame(width: 70, alignment: .trailing)
+            Text("Amount").frame(width: 70, alignment: .trailing)
+            Spacer().frame(width: 28) // ellipsis icon space
+        }
+        .font(.caption2).fontWeight(.semibold).foregroundColor(.textMuted)
+        .padding(.horizontal, 6).padding(.bottom, 2)
+
         ForEach(Array(fund.entries.suffix(30).reversed().enumerated()), id: \.offset) { reverseIdx, entry in
             let actualIndex = fund.entries.count - 1 - reverseIdx
             HStack {
