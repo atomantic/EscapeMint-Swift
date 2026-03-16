@@ -210,9 +210,11 @@ struct BacktestDateRange: Equatable {
 // MARK: - Historical Data Loading
 
 func loadHistoricalData() -> [String: HistoricalData] {
-    let tickers = ["btc", "tqqq", "spxl", "vti", "brgnx", "gld", "slv"]
-    var result: [String: HistoricalData] = [:]
+    loadHistoricalDataForTickers(["btc", "tqqq", "spxl", "vti", "brgnx", "gld", "slv"])
+}
 
+func loadHistoricalDataForTickers(_ tickers: [String]) -> [String: HistoricalData] {
+    var result: [String: HistoricalData] = [:]
     for ticker in tickers {
         guard let url = Bundle.main.url(forResource: "\(ticker)-weekly", withExtension: "json"),
               let data = try? Data(contentsOf: url),

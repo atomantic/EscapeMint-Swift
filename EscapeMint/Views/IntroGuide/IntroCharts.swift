@@ -23,10 +23,10 @@ final class ModeComparisonPreloader {
 
         let hCfg = harvestCfg
         let aCfg = accCfg
-        // Run entirely off the main thread — JSON parsing + backtest computation
+        // Load only TQQQ data (not all 7 tickers) for faster startup
         Task {
             let (harvest, accumulate) = await Task.detached(priority: .utility) {
-                let hist = loadHistoricalData()
+                let hist = loadHistoricalDataForTickers(["tqqq"])
                 let h = runBacktest(config: hCfg, historicalData: hist)
                 let a = runBacktest(config: aCfg, historicalData: hist)
                 return (h, a)
@@ -75,9 +75,16 @@ private struct LeveragePoint: Identifiable {
     let spxl: Double
 }
 
+private let yearFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateFormat = "yyyy"
+    f.locale = Locale(identifier: "en_US_POSIX")
+    return f
+}()
+
 private let investedPurple = Color(
-    light: Color(red: 139/255, green: 92/255, blue: 246/255),
-    dark: Color(red: 163/255, green: 120/255, blue: 255/255)
+    light: Color(red: 106/255, green: 58/255, blue: 210/255),
+    dark: Color(red: 120/255, green: 70/255, blue: 220/255)
 )
 
 /// Cached historical data — loaded once from disk, shared across all intro charts
@@ -707,7 +714,16 @@ struct ModeComparisonChart: View {
                 }
             }
             .chartForegroundStyleScale(["Invested": investedPurple, "Cash": Color.green.opacity(0.6)])
-            .chartXAxis { emDateAxisTemporal() }
+            .chartXAxis {
+                AxisMarks(values: .automatic(desiredCount: 3)) { value in
+                    AxisValueLabel {
+                        if let date = value.as(Date.self) {
+                            Text(yearFormatter.string(from: date))
+                                .font(.system(size: 8)).foregroundColor(.textMuted)
+                        }
+                    }
+                }
+            }
             .chartYScale(domain: 0...yMax)
             .chartYAxis {
                 AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in

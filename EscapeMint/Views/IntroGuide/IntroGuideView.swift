@@ -142,13 +142,11 @@ struct IntroGuideView: View {
             .padding(.leading, 16)
 
         case .boldLabel(let label, let color, let text):
-            HStack(alignment: .top, spacing: 0) {
-                Text(label)
-                    .font(.body).fontWeight(.bold)
-                    .foregroundColor(labelColor(color))
-                Text(" " + text)
-                    .font(.body).foregroundColor(.textSecondary)
-            }
+            (Text(label)
+                .font(.body).fontWeight(.bold)
+                .foregroundColor(labelColor(color))
+            + Text(" " + text)
+                .font(.body).foregroundColor(.textSecondary))
             .fixedSize(horizontal: false, vertical: true)
 
         case .warning(let str):
@@ -215,9 +213,9 @@ struct IntroGuideView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Financial Disclaimer")
                     .font(.callout).fontWeight(.semibold).foregroundColor(.orange)
-                Text("EscapeMint provides tools for tracking and simulating investment strategies. It does not provide financial advice. All fund selection, strategy configuration, and verification of system behavior is your responsibility.")
+                Text("EscapeMint provides tools for tracking and simulating investment strategies. It does not provide financial advice. All investment decisions — including fund selection, strategy configuration, and verification of results — are your responsibility.")
                     .font(.caption).foregroundColor(.textSecondary)
-                Text("By using this app, you accept full responsibility for your investment decisions. We are not liable for any loss of funds.")
+                Text("By using this app, you accept full responsibility for your investment decisions. The developers and distributors of EscapeMint accept no liability for any financial losses.")
                     .font(.caption).fontWeight(.medium).foregroundColor(.orange)
             }
         }
