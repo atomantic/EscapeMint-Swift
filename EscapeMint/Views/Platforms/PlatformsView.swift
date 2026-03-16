@@ -225,7 +225,7 @@ struct PlatformsView: View {
                 .font(.largeTitle).foregroundColor(.mint)
             Text("No platforms yet")
                 .font(.title2).fontWeight(.semibold).foregroundColor(.textPrimary)
-            Text("Create a fund to add your first platform.")
+            Text("Platforms are created automatically when you add a fund. Head to the Dashboard to get started.")
                 .font(.subheadline).foregroundColor(.textSecondary)
                 .multilineTextAlignment(.center)
             Button { showCreateFund = true } label: {

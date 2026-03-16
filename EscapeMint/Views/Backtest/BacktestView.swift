@@ -220,7 +220,7 @@ struct BacktestView: View {
             VStack(alignment: .leading, spacing: 8) {
                 introStep(1, "Choose a preset or customize your asset allocation below")
                 introStep(2, "Set your initial cash, weekly DCA amount, and target APY")
-                introStep(3, "Run the backtest to see projected returns")
+                introStep(3, "Run the backtest to see simulated historical returns")
                 introStep(4, "When ready, go to Dashboard and create your first real fund")
             }
 
@@ -245,14 +245,6 @@ struct BacktestView: View {
                 .accessibilityIdentifier("btn-get-started")
                 .accessibilityLabel("Get Started")
 
-                Button {
-                    introCompleted = true
-                } label: {
-                    Text("Skip").font(.callout)
-                }
-                .buttonStyle(.bordered).tint(.textSecondary)
-                .accessibilityIdentifier("btn-skip-intro")
-                .accessibilityLabel("Skip")
             }
         }
         .padding(16)

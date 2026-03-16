@@ -522,7 +522,7 @@ struct DashboardView: View {
                     .accessibilityHidden(true)
                 Text("No funds yet")
                     .font(.title2).fontWeight(.semibold).foregroundColor(.textPrimary)
-                Text("Create a fund or import from your web app's data/funds/ directory")
+                Text("Create your first fund, or import a backup from the EscapeMint web app.")
                     .font(.subheadline).foregroundColor(.textSecondary)
                     .multilineTextAlignment(.center)
                 HStack(spacing: 12) {

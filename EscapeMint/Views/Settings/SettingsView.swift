@@ -100,7 +100,7 @@ struct SettingsView: View {
                 Button("Cancel", role: .cancel) {}
                 Button("Clear", role: .destructive) { clearDataWithBackup() }
             } message: {
-                Text("A backup will be saved automatically before clearing. This cannot be undone.")
+                Text("A backup will be saved automatically before clearing. To restore, you'll need to re-import the backup file.")
             }
             .alert("Load Test Data", isPresented: $showLoadTestConfirm) {
                 Button("Cancel", role: .cancel) {}
@@ -112,7 +112,7 @@ struct SettingsView: View {
                 Button("Cancel", role: .cancel) {}
                 Button("Remove", role: .destructive) { removeTestData() }
             } message: {
-                Text("This will delete all \(testFundCount) test fund(s) (coinbasetest, robinhoodtest platforms). Your real funds will not be affected.")
+                Text("This will delete all \(testFundCount) test \(testFundCount == 1 ? "fund" : "funds") (coinbasetest, robinhoodtest platforms). Your real funds will not be affected.")
             }
     }
 
