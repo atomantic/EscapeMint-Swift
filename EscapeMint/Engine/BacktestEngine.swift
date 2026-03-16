@@ -345,8 +345,6 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
     var startInput = 0.0
     var expectedGain = 0.0
     var incTotalBuys = 0.0
-    var incTotalSells = 0.0
-    var incSumShares = 0.0
 
     for (i, pp) in blendedPrices.enumerated() {
         let price = pp.price
@@ -382,7 +380,7 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
 
         let cashAvailable = config.reinvest ? cash : max(0, (config.initialCash + cash - totalInvested) - costBasis)
 
-        var state = FundState(
+        let state = FundState(
             cashAvailableUsd: cashAvailable,
             expectedTargetUsd: expectedTarget,
             actualValueUsd: equity,
@@ -457,8 +455,6 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
                     startInput = 0
                     expectedGain = 0
                     incTotalBuys = 0
-                    incTotalSells = 0
-                    incSumShares = 0
                     for (ticker, _) in allocations {
                         equivShares[ticker] = 0
                     }
