@@ -13,6 +13,7 @@ struct BacktestTransactions: View {
                     // Header
                     HStack(spacing: 0) {
                         tableHeaderCell("Date", width: 90, sortable: true, leading: true)
+                            .id("dateHeader")
                         tableHeaderCell("Fund Size", width: 85)
                         tableHeaderCell("Equity", width: 85)
                         tableHeaderCell("Cash", width: 85)
@@ -45,6 +46,7 @@ struct BacktestTransactions: View {
                     .frame(maxHeight: 500)
                 }
             }
+            .defaultScrollAnchor(.leading)
 
             // Footer
             HStack {
