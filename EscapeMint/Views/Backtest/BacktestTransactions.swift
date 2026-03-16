@@ -12,7 +12,7 @@ struct BacktestTransactions: View {
                 VStack(spacing: 0) {
                     // Header
                     HStack(spacing: 0) {
-                        tableHeaderCell("Date", width: 90, sortable: true)
+                        tableHeaderCell("Date", width: 90, sortable: true, leading: true)
                         tableHeaderCell("Fund Size", width: 85)
                         tableHeaderCell("Equity", width: 85)
                         tableHeaderCell("Cash", width: 85)
@@ -65,8 +65,9 @@ struct BacktestTransactions: View {
 
     // MARK: - Table Header Cell
 
-    private func tableHeaderCell(_ title: String, width: CGFloat, sortable: Bool = false) -> some View {
-        Group {
+    private func tableHeaderCell(_ title: String, width: CGFloat, sortable: Bool = false, leading: Bool = false) -> some View {
+        let alignment: Alignment = leading ? .leading : .trailing
+        return Group {
             if sortable {
                 Button {
                     sortOrder = sortOrder == .asc ? .desc : .asc
@@ -76,18 +77,15 @@ struct BacktestTransactions: View {
                         Text(sortOrder == .asc ? "\u{25B2}" : "\u{25BC}")
                             .font(.system(size: 8))
                     }
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.textMuted)
-                    .frame(width: width, alignment: .leading)
                 }
                 .buttonStyle(.plain)
             } else {
                 Text(title)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.textMuted)
-                    .frame(width: width, alignment: .trailing)
             }
         }
+        .font(.system(size: 10, weight: .medium))
+        .foregroundColor(.textMuted)
+        .frame(width: width, alignment: alignment)
         .padding(.horizontal, 4)
     }
 

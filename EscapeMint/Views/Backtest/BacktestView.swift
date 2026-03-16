@@ -94,21 +94,23 @@ struct BacktestView: View {
             .buttonStyle(.bordered).tint(.mint)
         }
         #else
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Bet long on the future to build a money tree")
-                .font(.subheadline).foregroundColor(.textSecondary)
-            ScrollView(.horizontal, showsIndicators: false) {
-                dateRangePicker
-            }
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
+                Text("Bet long on the future to build a money tree")
+                    .font(.caption).foregroundColor(.textSecondary)
+                    .lineLimit(1)
                 Spacer()
                 Button {
                     showIntroGuide = true
                 } label: {
                     Label("Guide", systemImage: "book.fill")
-                        .font(.callout)
+                        .font(.caption)
                 }
                 .buttonStyle(.bordered).tint(.mint)
+                .controlSize(.small)
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                dateRangePicker
             }
         }
         #endif
