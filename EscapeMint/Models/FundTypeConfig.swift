@@ -88,5 +88,10 @@ func isCashFund(_ type: FundType?) -> Bool {
 }
 
 func getFeatures(_ type: FundType?) -> FundTypeFeatures {
-    fundTypeFeatures[type ?? .stock] ?? fundTypeFeatures[.stock]!
+    fundTypeFeatures[type ?? .stock] ?? FundTypeFeatures(
+        allowsTrading: true, allowsRecommendations: true,
+        supportsDividends: true, supportsCashInterest: true,
+        supportsShares: true, supportsMargin: false,
+        label: "Unknown", color: .gray
+    )
 }

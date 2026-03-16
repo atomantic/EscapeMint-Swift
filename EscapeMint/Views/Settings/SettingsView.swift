@@ -66,9 +66,12 @@ struct SettingsView: View {
                     LabeledContent("Version", value: "1.0.0")
                 }
 
-                Section("Legal") {
-                    Link("Privacy Policy", destination: URL(string: "https://github.com/atomantic/EscapeMint/blob/main/docs/PRIVACY.md")!)
-                    Link("Terms of Use", destination: URL(string: "https://github.com/atomantic/EscapeMint/blob/main/docs/TERMS.md")!)
+                if let privacyURL = URL(string: "https://github.com/atomantic/EscapeMint/blob/main/docs/PRIVACY.md"),
+                   let termsURL = URL(string: "https://github.com/atomantic/EscapeMint/blob/main/docs/TERMS.md") {
+                    Section("Legal") {
+                        Link("Privacy Policy", destination: privacyURL)
+                        Link("Terms of Use", destination: termsURL)
+                    }
                 }
             }
             .navigationTitle("Settings")

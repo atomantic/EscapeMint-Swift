@@ -19,6 +19,7 @@ struct ActionableFundsBanner: View {
                 HStack {
                     Image(systemName: "bell.badge.fill")
                         .foregroundColor(.orange)
+                        .accessibilityHidden(true)
                     Text("\(actionableFunds.count) fund\(actionableFunds.count == 1 ? "" : "s") need\(actionableFunds.count == 1 ? "s" : "") attention")
                         .font(.headline).foregroundColor(.textPrimary)
                     Spacer()

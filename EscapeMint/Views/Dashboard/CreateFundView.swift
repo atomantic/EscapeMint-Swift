@@ -137,7 +137,7 @@ struct CreateFundView: View {
             }
             .padding(16)
         }
-        .frame(width: 520, height: 480)
+        .frame(minWidth: 520, idealWidth: 520, minHeight: 480, idealHeight: 480)
         .background(Color.bg)
     }
 

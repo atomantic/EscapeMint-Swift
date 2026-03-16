@@ -75,7 +75,10 @@ private struct LeveragePoint: Identifiable {
     let spxl: Double
 }
 
-private let investedPurple = Color(red: 139/255, green: 92/255, blue: 246/255)
+private let investedPurple = Color(
+    light: Color(red: 139/255, green: 92/255, blue: 246/255),
+    dark: Color(red: 163/255, green: 120/255, blue: 255/255)
+)
 
 /// Cached historical data — loaded once from disk, shared across all intro charts
 

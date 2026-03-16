@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Adaptive Colors (light + dark mode)
 
-private extension Color {
+extension Color {
     init(light: Color, dark: Color) {
         #if os(macOS)
         self.init(nsColor: NSColor(name: nil) { appearance in

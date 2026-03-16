@@ -73,6 +73,7 @@ struct ContentView: View {
             Image(systemName: "leaf.fill")
                 .font(.system(size: 48))
                 .foregroundColor(.mint)
+                .accessibilityHidden(true)
             ProgressView()
                 .controlSize(.large)
         }
@@ -165,7 +166,10 @@ struct MacContentView: View {
 
     private func groupByPlatform(_ funds: [FundData]) -> [(String, [FundData])] {
         let grouped = Dictionary(grouping: funds, by: { $0.platform })
-        return grouped.keys.sorted().map { ($0, grouped[$0]!) }
+        return grouped.keys.sorted().compactMap { key in
+            guard let funds = grouped[key] else { return nil }
+            return (key, funds)
+        }
     }
 
     @State private var collapsedPlatforms: Set<String> = []

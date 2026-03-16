@@ -1378,12 +1378,33 @@ private extension View {
 // MARK: - Asset Colors
 
 extension Color {
-    static let assetSPXL = Color(red: 59/255, green: 130/255, blue: 246/255)   // blue
-    static let assetVTI = Color(red: 139/255, green: 92/255, blue: 246/255)    // purple
-    static let assetBRGNX = Color(red: 6/255, green: 182/255, blue: 212/255)   // cyan
-    static let assetTQQQ = Color(red: 34/255, green: 197/255, blue: 94/255)    // green
-    static let assetBTC = Color(red: 249/255, green: 115/255, blue: 22/255)    // orange
-    static let assetGLD = Color(red: 234/255, green: 179/255, blue: 8/255)     // yellow
-    static let assetSLV = Color(red: 148/255, green: 163/255, blue: 184/255)   // gray
+    static let assetSPXL = Color(
+        light: Color(red: 59/255, green: 130/255, blue: 246/255),    // blue
+        dark: Color(red: 96/255, green: 165/255, blue: 250/255)      // blue-400
+    )
+    static let assetVTI = Color(
+        light: Color(red: 139/255, green: 92/255, blue: 246/255),    // purple
+        dark: Color(red: 167/255, green: 139/255, blue: 250/255)     // purple-400
+    )
+    static let assetBRGNX = Color(
+        light: Color(red: 6/255, green: 182/255, blue: 212/255),     // cyan
+        dark: Color(red: 34/255, green: 211/255, blue: 238/255)      // cyan-400
+    )
+    static let assetTQQQ = Color(
+        light: Color(red: 34/255, green: 197/255, blue: 94/255),     // green
+        dark: Color(red: 74/255, green: 222/255, blue: 128/255)      // green-400
+    )
+    static let assetBTC = Color(
+        light: Color(red: 249/255, green: 115/255, blue: 22/255),    // orange
+        dark: Color(red: 251/255, green: 146/255, blue: 60/255)      // orange-400
+    )
+    static let assetGLD = Color(
+        light: Color(red: 234/255, green: 179/255, blue: 8/255),     // yellow
+        dark: Color(red: 250/255, green: 204/255, blue: 21/255)      // yellow-400
+    )
+    static let assetSLV = Color(
+        light: Color(red: 148/255, green: 163/255, blue: 184/255),   // gray
+        dark: Color(red: 203/255, green: 213/255, blue: 225/255)     // slate-300
+    )
 }
 

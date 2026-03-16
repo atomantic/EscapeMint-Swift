@@ -150,10 +150,13 @@ actor FundStore {
         let tsvURL = fundsDirectory.appendingPathComponent("\(fundId).tsv")
         guard fileManager.fileExists(atPath: tsvURL.path) else { return }
         let line = serializeEntry(entry) + "\n"
+        guard let lineData = line.data(using: .utf8) else {
+            throw NSError(domain: "FundStore", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to encode entry as UTF-8"])
+        }
         let handle = try FileHandle(forWritingTo: tsvURL)
+        defer { handle.closeFile() }
         handle.seekToEndOfFile()
-        handle.write(line.data(using: .utf8)!)
-        handle.closeFile()
+        handle.write(lineData)
     }
 
     func replaceEntries(fundId: String, entries: [FundEntry]) throws {
