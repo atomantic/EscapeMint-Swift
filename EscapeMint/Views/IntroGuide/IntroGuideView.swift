@@ -213,11 +213,11 @@ struct IntroGuideView: View {
             Text("!")
                 .font(.title3).fontWeight(.bold).foregroundColor(.orange)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Not Investment Advice")
+                Text("Financial Disclaimer")
                     .font(.callout).fontWeight(.semibold).foregroundColor(.orange)
-                Text("This is an open-source tool created by an individual investor to track their personal fund strategy. The sample funds (TQQQ, SPXL, BTC) are examples and not financial advice.")
+                Text("EscapeMint provides tools for tracking and simulating investment strategies. It does not provide financial advice. All fund selection, strategy configuration, and verification of system behavior is your responsibility.")
                     .font(.caption).foregroundColor(.textSecondary)
-                Text("Do your own research. Choice of platforms, assets, timeline, and risk tolerance is entirely up to you.")
+                Text("By using this app, you accept full responsibility for your investment decisions. We are not liable for any loss of funds.")
                     .font(.caption).fontWeight(.medium).foregroundColor(.orange)
             }
         }
@@ -285,7 +285,7 @@ struct IntroGuideView: View {
             .padding(.horizontal, 20).padding(.vertical, 10)
 
             // Footer disclaimer
-            Text("Not investment advice. Do your own research.")
+            Text("Not financial advice. Use at your own risk.")
                 .font(.caption2).foregroundColor(.textMuted)
                 .padding(.bottom, 8)
         }

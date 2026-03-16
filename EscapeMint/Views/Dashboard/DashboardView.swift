@@ -38,6 +38,7 @@ struct DashboardView: View {
         #else
         iosDashboard
             .navigationTitle("EscapeMint")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 Button { showCreateFund = true } label: {
                     Image(systemName: "plus.circle.fill")

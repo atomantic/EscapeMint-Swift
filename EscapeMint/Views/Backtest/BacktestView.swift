@@ -51,7 +51,7 @@ struct BacktestView: View {
         .background(Color.bg.ignoresSafeArea())
         #if os(iOS)
         .navigationTitle("Backtest")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         #endif
         .task {
             cache.updateBacktestConfig(config)

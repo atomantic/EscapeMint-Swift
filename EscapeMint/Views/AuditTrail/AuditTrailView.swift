@@ -127,6 +127,7 @@ struct AuditTrailView: View {
         .background(Color.bg)
         #if os(iOS)
         .navigationTitle("Audit Trail")
+        .navigationBarTitleDisplayMode(.inline)
         #endif
     }
 

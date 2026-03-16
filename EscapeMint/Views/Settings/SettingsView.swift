@@ -65,8 +65,16 @@ struct SettingsView: View {
                     LabeledContent("App", value: "EscapeMint")
                     LabeledContent("Version", value: "1.0.0")
                 }
+
+                Section("Legal") {
+                    Link("Privacy Policy", destination: URL(string: "https://github.com/atomantic/EscapeMint/blob/main/docs/PRIVACY.md")!)
+                    Link("Terms of Use", destination: URL(string: "https://github.com/atomantic/EscapeMint/blob/main/docs/TERMS.md")!)
+                }
             }
             .navigationTitle("Settings")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
             .task { await refreshStats() }
             .overlay(alignment: .bottom) {
                 if showStatus {
@@ -116,7 +124,7 @@ struct SettingsView: View {
         let stats = await FundStore.shared.dataStats()
         fundCount = stats.fundCount
         dataSize = stats.formattedSize
-        storageLocation = await FundStore.shared.isICloud ? "iCloud Drive" : "Local"
+        storageLocation = FundStore.shared.isICloud ? "iCloud Drive" : "Local"
         testFundCount = await FundStore.shared.testFundCount()
     }
 

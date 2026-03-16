@@ -141,7 +141,7 @@ let introSteps: [IntroStepData] = [
         id: 10,
         title: "Leveraged ETFs = More Volatility",
         content: [
-            .text("Example assets used by the creator (not financial advice):"),
+            .text("Example assets used in this guide:"),
             .text("TQQQ is a 3x leveraged long on the Nasdaq-100."),
             .text("SPXL is a 3x leveraged long on the Russell 1000 Large Cap Index."),
             .text("More volatility = more opportunities to buy low and sell high."),

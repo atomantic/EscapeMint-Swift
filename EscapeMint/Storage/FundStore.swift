@@ -6,7 +6,7 @@ actor FundStore {
     private let fileManager = FileManager.default
 
     let fundsDirectory: URL
-    let isICloud: Bool
+    nonisolated let isICloud: Bool
 
     private init() {
         let fm = FileManager.default

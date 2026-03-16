@@ -49,6 +49,7 @@ struct PlatformsView: View {
         .background(Color.bg.ignoresSafeArea())
         #if os(iOS)
         .navigationTitle("Platforms")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             Button { showCreateFund = true } label: {
                 Image(systemName: "plus.circle.fill")
