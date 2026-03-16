@@ -45,8 +45,7 @@ struct ActionableFundsBanner: View {
                 }
             }
             .padding(12)
-            .background(Color.bgCard)
-            .cornerRadius(12)
+            .cardStyle()
         }
     }
 }

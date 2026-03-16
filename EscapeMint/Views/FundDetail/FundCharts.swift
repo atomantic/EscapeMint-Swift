@@ -221,16 +221,20 @@ struct ValueChartView: View {
                 Chart {
                     ForEach(points) { pt in
                         let d = isoDateFormatter.date(from: pt.date) ?? Date()
-                        AreaMark(x: .value("Date", d), y: .value("Value", pt.value))
-                            .foregroundStyle(Color.mint.opacity(0.1))
-                            .interpolationMethod(.linear)
+                        AreaMark(x: .value("Date", d), y: .value("Invested", pt.invested))
+                            .foregroundStyle(
+                                .linearGradient(
+                                    colors: [Color.purple.opacity(0.2), Color.purple.opacity(0.0)],
+                                    startPoint: .top, endPoint: .bottom
+                                )
+                            )
+                            .interpolationMethod(.monotone)
                         LineMark(x: .value("Date", d), y: .value("Value", pt.value))
                             .foregroundStyle(by: .value("Type", "Value"))
                             .interpolationMethod(.monotone)
                         LineMark(x: .value("Date", d), y: .value("Invested", pt.invested))
                             .foregroundStyle(by: .value("Type", "Invested"))
                             .interpolationMethod(.monotone)
-                            .lineStyle(StrokeStyle(dash: [4, 4]))
                         LineMark(x: .value("Date", d), y: .value("Target", pt.target))
                             .foregroundStyle(by: .value("Type", "Target"))
                             .interpolationMethod(.monotone)
@@ -243,14 +247,18 @@ struct ValueChartView: View {
                 .chartLegend(.hidden)
                 .frame(height: 160)
             } else {
-                ProgressView().frame(height: 160)
+                ProgressView().frame(maxWidth: .infinity).frame(height: 160)
             }
         }
         .task(id: "\(fundId)-\(entries.count)") {
             if let cached = ViewCache.shared.cachedChartPoints(type: ValuePoint.self, fundId: fundId, entryCount: entries.count) {
                 points = cached
             } else {
-                let computed = computeValuePoints(entries: entries, config: config)
+                let e = entries, c = config
+                let computed = await Task.detached(priority: .utility) {
+                    computeValuePoints(entries: e, config: c)
+                }.value
+                guard !Task.isCancelled else { return }
                 ViewCache.shared.cacheChartPoints(computed, type: ValuePoint.self, fundId: fundId, entryCount: entries.count)
                 points = computed
             }
@@ -279,7 +287,7 @@ struct PLChartView: View {
                         let d = isoDateFormatter.date(from: pt.date) ?? Date()
                         AreaMark(x: .value("Date", d), y: .value("Liquid", pt.liquid))
                             .foregroundStyle(Color.blue.opacity(0.1))
-                            .interpolationMethod(.linear)
+                            .interpolationMethod(.monotone)
                         LineMark(x: .value("Date", d), y: .value("Realized", pt.realized))
                             .foregroundStyle(by: .value("Type", "Realized"))
                             .interpolationMethod(.monotone)
@@ -295,14 +303,18 @@ struct PLChartView: View {
                 .chartLegend(.hidden)
                 .frame(height: 160)
             } else {
-                ProgressView().frame(height: 160)
+                ProgressView().frame(maxWidth: .infinity).frame(height: 160)
             }
         }
         .task(id: "\(fundId)-\(entries.count)") {
             if let cached = ViewCache.shared.cachedChartPoints(type: PLPoint.self, fundId: fundId, entryCount: entries.count) {
                 points = cached
             } else {
-                let computed = computePLPoints(entries: entries, config: config)
+                let e = entries, c = config
+                let computed = await Task.detached(priority: .utility) {
+                    computePLPoints(entries: e, config: c)
+                }.value
+                guard !Task.isCancelled else { return }
                 ViewCache.shared.cacheChartPoints(computed, type: PLPoint.self, fundId: fundId, entryCount: entries.count)
                 points = computed
             }
@@ -331,7 +343,7 @@ struct APYChartView: View {
                         let d = isoDateFormatter.date(from: pt.date) ?? Date()
                         AreaMark(x: .value("Date", d), y: .value("L.APY", pt.liquidAPY))
                             .foregroundStyle(Color.blue.opacity(0.1))
-                            .interpolationMethod(.linear)
+                            .interpolationMethod(.monotone)
                         LineMark(x: .value("Date", d), y: .value("R.APY", pt.realizedAPY))
                             .foregroundStyle(by: .value("Type", "Realized"))
                             .interpolationMethod(.monotone)
@@ -347,14 +359,18 @@ struct APYChartView: View {
                 .chartLegend(.hidden)
                 .frame(height: 160)
             } else {
-                ProgressView().frame(height: 160)
+                ProgressView().frame(maxWidth: .infinity).frame(height: 160)
             }
         }
         .task(id: "\(fundId)-\(entries.count)") {
             if let cached = ViewCache.shared.cachedChartPoints(type: APYPoint.self, fundId: fundId, entryCount: entries.count) {
                 points = cached
             } else {
-                let computed = computeAPYPoints(entries: entries, config: config)
+                let e = entries, c = config
+                let computed = await Task.detached(priority: .utility) {
+                    computeAPYPoints(entries: e, config: c)
+                }.value
+                guard !Task.isCancelled else { return }
                 ViewCache.shared.cacheChartPoints(computed, type: APYPoint.self, fundId: fundId, entryCount: entries.count)
                 points = computed
             }
@@ -394,7 +410,7 @@ struct CapturedProfitChartView: View {
                     let d = isoDateFormatter.date(from: pt.date) ?? Date()
                     AreaMark(x: .value("Date", d), y: .value("Total", pt.total))
                         .foregroundStyle(Color.mint.opacity(0.15))
-                        .interpolationMethod(.linear)
+                        .interpolationMethod(.monotone)
                     if hasExtracted {
                         LineMark(x: .value("Date", d), y: .value("Extracted", pt.cumExtracted))
                             .foregroundStyle(by: .value("Type", "Extracted"))
@@ -417,14 +433,18 @@ struct CapturedProfitChartView: View {
                 .chartLegend(.hidden)
                 .frame(height: 160)
             } else {
-                ProgressView().frame(height: 160)
+                ProgressView().frame(maxWidth: .infinity).frame(height: 160)
             }
         }
         .task(id: "\(fundId)-\(entries.count)") {
             if let cached = ViewCache.shared.cachedChartPoints(type: ProfitPoint.self, fundId: fundId, entryCount: entries.count) {
                 points = cached
             } else {
-                let computed = computeProfitPoints(entries: entries, config: config)
+                let e = entries, c = config
+                let computed = await Task.detached(priority: .utility) {
+                    computeProfitPoints(entries: e, config: c)
+                }.value
+                guard !Task.isCancelled else { return }
                 ViewCache.shared.cacheChartPoints(computed, type: ProfitPoint.self, fundId: fundId, entryCount: entries.count)
                 points = computed
             }

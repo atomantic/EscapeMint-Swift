@@ -143,6 +143,7 @@ struct EditFundView: View {
                     }
                 }
             }
+            .formStyle(.grouped)
             .navigationTitle("Edit \(fund.ticker.uppercased())")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

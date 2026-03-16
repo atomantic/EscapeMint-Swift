@@ -36,6 +36,12 @@ extension Color {
     static let mint = Color(red: 16/255, green: 185/255, blue: 129/255)     // emerald-500
     static let mintDark = Color(red: 5/255, green: 150/255, blue: 105/255)  // emerald-600
 
+    // Card border — visible in light mode, subtle in dark
+    static let cardBorder = Color(
+        light: Color(red: 226/255, green: 232/255, blue: 240/255),  // slate-200
+        dark: Color(red: 51/255, green: 65/255, blue: 85/255).opacity(0.5) // slate-600 faint
+    )
+
     // Text
     static let textPrimary = Color(
         light: Color(red: 15/255, green: 23/255, blue: 42/255),     // slate-900
@@ -49,6 +55,26 @@ extension Color {
         light: Color(red: 148/255, green: 163/255, blue: 184/255),  // slate-400
         dark: Color(red: 100/255, green: 116/255, blue: 139/255)    // slate-500
     )
+}
+
+// MARK: - Card Style Modifier
+
+struct CardStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(Color.bgCard)
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.cardBorder, lineWidth: 1)
+            )
+    }
+}
+
+extension View {
+    func cardStyle() -> some View {
+        modifier(CardStyle())
+    }
 }
 
 extension Color {

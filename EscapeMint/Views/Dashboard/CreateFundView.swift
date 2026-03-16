@@ -200,6 +200,7 @@ struct CreateFundView: View {
                 }
             }
         }
+        .formStyle(.grouped)
         .navigationTitle("Create Fund")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {

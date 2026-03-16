@@ -7,6 +7,8 @@ struct EditEntryView: View {
     let entryIndex: Int
     let fundId: String
     let fundType: FundType
+    let fundConfig: FundConfig
+    var existingEntries: [FundEntry] = []
     let onSaved: () -> Void
 
     @State private var date: Date
@@ -19,12 +21,15 @@ struct EditEntryView: View {
     @State private var expense: String
     @State private var notes: String
     @State private var showDeleteConfirm = false
+    @State private var showOptional = true
 
-    init(entry: FundEntry, entryIndex: Int, fundId: String, fundType: FundType, onSaved: @escaping () -> Void) {
+    init(entry: FundEntry, entryIndex: Int, fundId: String, fundType: FundType, fundConfig: FundConfig, existingEntries: [FundEntry] = [], onSaved: @escaping () -> Void) {
         self.entry = entry
         self.entryIndex = entryIndex
         self.fundId = fundId
         self.fundType = fundType
+        self.fundConfig = fundConfig
+        self.existingEntries = existingEntries
         self.onSaved = onSaved
         _date = State(initialValue: isoDateFormatter.date(from: entry.date) ?? Date())
         _action = State(initialValue: entry.action ?? .HOLD)
@@ -37,38 +42,54 @@ struct EditEntryView: View {
         _notes = State(initialValue: entry.notes ?? "")
     }
 
-    private var actions: [FundAction] { allowedActions[fundType] ?? [.BUY, .SELL, .HOLD] }
     private var features: FundTypeFeatures { getFeatures(fundType) }
+
+    private var totalSharesHint: String? {
+        formatSharesHint(getTotalShares(entries: existingEntries))
+    }
 
     var body: some View {
         NavigationStack {
             Form {
+                // MARK: - Action section
                 Section {
                     DatePicker("Date", selection: $date, displayedComponents: .date)
                     Picker("Action", selection: $action) {
-                        ForEach(actions, id: \.self) { a in Text(a.rawValue).tag(a) }
+                        Text("BUY").tag(FundAction.BUY)
+                        Text("SELL").tag(FundAction.SELL)
+                        Text("HOLD").tag(FundAction.HOLD)
                     }
                 }
+
+                // MARK: - Values section
                 Section {
-                    NumericFieldRow(label: "Portfolio Value", text: $value)
-                    if action == .BUY || action == .SELL || action == .DEPOSIT || action == .WITHDRAW {
-                        NumericFieldRow(label: "Amount", text: $amount)
-                    }
-                    if features.supportsShares && (action == .BUY || action == .SELL) {
-                        NumericFieldRow(label: "Shares", placeholder: "0", text: $shares)
-                        NumericFieldRow(label: "Price per Share", text: $price)
+                    NumericFieldRow(label: "Equity ($)", placeholder: "Portfolio value", text: $value)
+                    NumericFieldRow(label: "Amount ($)", placeholder: action == .HOLD ? "N/A" : "Buy/sell amount", text: $amount)
+                        .disabled(action == .HOLD)
+                        .opacity(action == .HOLD ? 0.5 : 1)
+                } header: {
+                    Text("Action")
+                }
+
+                // MARK: - Optional section
+                Section(isExpanded: $showOptional) {
+                    if features.supportsShares {
+                        NumericFieldRow(label: "Shares/Units", text: $shares, hint: totalSharesHint)
+                        NumericFieldRow(label: "Price ($)", placeholder: "Per unit", text: $price)
+                        Button("Calc Price/Equity") { calcPriceEquity() }
+                            .font(.callout)
+                            .foregroundColor(.mint)
                     }
                     if features.supportsDividends {
-                        NumericFieldRow(label: "Dividend", text: $dividend)
+                        NumericFieldRow(label: "Dividend ($)", text: $dividend)
                     }
+                    NumericFieldRow(label: "Expense ($)", text: $expense)
+                    TextField("Notes", text: $notes)
                 } header: {
-                    Text("Values")
+                    Text("Optional")
                 }
-                Section {
-                    TextField("Optional notes", text: $notes)
-                } header: {
-                    Text("Notes")
-                }
+
+                // MARK: - Delete
                 Section {
                     Button(role: .destructive) {
                         showDeleteConfirm = true
@@ -80,7 +101,7 @@ struct EditEntryView: View {
             .formStyle(.grouped)
             .navigationTitle("Edit Entry")
             #if os(macOS)
-            .frame(minWidth: 420, minHeight: 350)
+            .frame(minWidth: 420, minHeight: 400)
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -97,6 +118,21 @@ struct EditEntryView: View {
         }
     }
 
+    private func calcPriceEquity() {
+        guard let amountVal = Double(amount), amountVal > 0,
+              let sharesVal = Double(shares), sharesVal > 0 else { return }
+
+        let selectedDate = isoDateFormatter.string(from: date)
+        let calculatedPrice = amountVal / abs(sharesVal)
+        price = String(format: "%.8f", calculatedPrice)
+
+        let prior = getCumulativeShares(entries: existingEntries, beforeDate: selectedDate)
+        if prior > 0 {
+            let equity = prior * calculatedPrice
+            value = String(format: "%.2f", equity)
+        }
+    }
+
     private func save() {
         var updated = entry
         updated.date = isoDateFormatter.string(from: date)
@@ -108,6 +144,10 @@ struct EditEntryView: View {
         updated.dividend = Double(dividend)
         updated.expense = Double(expense)
         updated.notes = notes.isEmpty ? nil : notes
+
+        // Compute fund_size — use other entries excluding this one being edited
+        let otherEntries = existingEntries.enumerated().compactMap { $0.offset != entryIndex ? $0.element : nil }
+        updated.fund_size = computeFundSizeForEntry(updated, existingEntries: otherEntries, config: fundConfig)
 
         Task {
             guard var fund = store.fund(byId: fundId) else { return }

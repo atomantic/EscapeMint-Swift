@@ -312,7 +312,7 @@ struct BacktestView: View {
                 MetricCard(label: "Total Extracted",
                            value: formatCurrency(result.totalExtracted),
                            sub: "\(result.totalSells) sells",
-                           color: .purple)
+                           color: .mint)
             }
         } else if isRunning {
             metricsPlaceholder

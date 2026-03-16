@@ -1,6 +1,12 @@
 import SwiftUI
 import Charts
 
+private struct EditTarget: Identifiable {
+    let id = UUID()
+    let entry: FundEntry
+    let index: Int
+}
+
 struct FundDetailView: View {
     let fundId: String
     var autoShowAddEntry: Bool = false
@@ -8,10 +14,9 @@ struct FundDetailView: View {
     private var cache: ViewCache { .shared }
     @State private var showAddEntry = false
     @State private var showEditFund = false
-    @State private var showEditEntry = false
-    @State private var selectedEntry: FundEntry?
-    @State private var selectedEntryIndex: Int?
+    @State private var editTarget: EditTarget?
     @State private var visibleColumns: Set<String> = []
+    @State private var columnOrder: [String] = []
     @State private var showColumnConfig = false
     @State private var showStats = true
 
@@ -55,7 +60,7 @@ struct FundDetailView: View {
         }
         .sheet(isPresented: $showAddEntry) {
             if let fund {
-                AddEntryView(fundId: fund.id, fundType: fund.config.fund_type ?? .stock) {
+                AddEntryView(fundId: fund.id, fundType: fund.config.fund_type ?? .stock, fundConfig: fund.config, existingEntries: fund.entries) {
                     Task { await store.reload() }
                 }
             }
@@ -69,11 +74,9 @@ struct FundDetailView: View {
                 })
             }
         }
-        .sheet(isPresented: $showEditEntry) {
-            if let fund, let entry = selectedEntry, let entryIndex = selectedEntryIndex {
-                EditEntryView(entry: entry, entryIndex: entryIndex, fundId: fund.id, fundType: fund.config.fund_type ?? .stock) {
-                    Task { await store.reload() }
-                }
+        .sheet(item: $editTarget) { target in
+            EditEntryView(entry: target.entry, entryIndex: target.index, fundId: fundId, fundType: fund?.config.fund_type ?? .stock, fundConfig: fund?.config ?? FundConfig(), existingEntries: fund?.entries ?? []) {
+                Task { await store.reload() }
             }
         }
     }
@@ -138,18 +141,27 @@ struct FundDetailView: View {
                 .tint(.textSecondary)
                 .task(id: "\(fund.id)-\(fund.entries.count)") {
                     let ec = fund.entries.count
-                    // Use cached results if available
-                    if cache.cachedRows(fundId: fund.id, entryCount: ec) == nil {
-                        let rows = computeEntryRows(entries: fund.entries, config: fund.config)
-                        cache.cacheRows(rows, fundId: fund.id, entryCount: ec)
+                    let entries = fund.entries
+                    let config = fund.config
+                    let fid = fund.id
+                    // Compute entry rows off main thread
+                    if cache.cachedRows(fundId: fid, entryCount: ec) == nil {
+                        let rows = await Task.detached(priority: .userInitiated) {
+                            computeEntryRows(entries: entries, config: config)
+                        }.value
+                        guard !Task.isCancelled else { return }
+                        cache.cacheRows(rows, fundId: fid, entryCount: ec)
                     }
-                    if fund.config.fund_type == .derivatives {
-                        if cache.cachedDerivPoints(fundId: fund.id, entryCount: ec) == nil {
-                            let pts = computeDerivativesChartData(entries: fund.entries, config: fund.config)
-                            cache.cacheDerivPoints(pts, fundId: fund.id, entryCount: ec)
+                    if config.fund_type == .derivatives {
+                        if cache.cachedDerivPoints(fundId: fid, entryCount: ec) == nil {
+                            let pts = await Task.detached(priority: .userInitiated) {
+                                computeDerivativesChartData(entries: entries, config: config)
+                            }.value
+                            guard !Task.isCancelled else { return }
+                            cache.cacheDerivPoints(pts, fundId: fid, entryCount: ec)
                         }
                     } else {
-                        cache.cacheDerivPoints(nil, fundId: fund.id, entryCount: ec)
+                        cache.cacheDerivPoints(nil, fundId: fid, entryCount: ec)
                     }
                 }
 
@@ -271,7 +283,7 @@ struct FundDetailView: View {
             DerivativesMarginChart(points: pts)
             DerivativesCapturedProfitChart(points: pts)
         } else {
-            ProgressView().frame(height: 160)
+            ProgressView().frame(maxWidth: .infinity).frame(height: 160)
         }
     }
 
@@ -337,30 +349,38 @@ struct FundDetailView: View {
 
     private static let allEntryColumns: [(id: String, label: String, defaultVisible: Bool, excludeFrom: Set<FundType>)] = [
         ("date", "Date", true, []),
-        ("value", "Equity", true, []),
-        ("action", "Action", true, []),
+        ("value", "Equity", true, [.derivatives]),
+        ("cash", "Cash", false, [.cash]),
+        ("action", "Action", true, [.cash]),
         ("amount", "Amount", true, []),
-        ("extracted", "Extracted", true, [.cash, .derivatives]),
-        ("realized", "Realized", true, [.derivatives]),
-        ("liquid_pnl", "Liquid P&L", true, [.cash, .derivatives]),
-        ("realized_apy", "Realized APY", true, [.derivatives]),
-        ("liquid_apy", "Liq APY", true, [.cash, .derivatives]),
         ("shares", "Shares", false, [.cash, .derivatives]),
+        ("sum_shares", "\u{03A3} Shares", false, [.cash, .derivatives]),
         ("price", "Price", false, [.cash]),
-        ("dividend", "Dividend", false, [.crypto, .derivatives, .cash]),
-        ("expense", "Expense", false, []),
-        ("cash_interest", "Interest", false, []),
-        ("fund_size", "Fund Size", true, []),
-        ("cash", "Cash", false, []),
-        ("margin_available", "Margin Avail", false, [.crypto]),
-        ("margin_borrowed", "Margin Borrowed", false, [.crypto]),
+        ("invested", "Invested", true, [.cash, .derivatives]),
+        ("dividend", "Dividend", true, [.cash, .crypto, .derivatives]),
+        ("expense", "Expense", false, [.derivatives]),
+        ("fund_size", "Fund Size", true, [.derivatives]),
+        ("extracted", "Extracted", true, [.cash, .derivatives]),
+        ("cash_interest", "Cash Int", false, [.derivatives]),
+        ("unrealized", "Unrealized", false, [.cash]),
+        ("realized", "Realized", true, []),
+        ("liquid_pnl", "Liquid P&L", true, [.cash]),
+        ("realized_apy", "Realized APY", true, []),
+        ("liquid_apy", "Liq APY", true, [.cash]),
+        ("sum_expense", "\u{03A3} Exp", false, [.derivatives]),
+        ("sum_dividends", "\u{03A3} Div", true, [.cash, .crypto, .derivatives]),
+        ("sum_extracted", "\u{03A3} Extracted", true, [.cash, .derivatives]),
+        ("sum_cash_int", "\u{03A3} Int", false, [.derivatives]),
+        ("margin_available", "Margin Avail", false, []),
+        ("margin_borrowed", "Margin Borrowed", false, []),
         ("notes", "Notes", true, []),
+        // Derivatives-specific
         ("contracts", "Contracts", false, [.cash, .stock, .crypto]),
         ("entry_price", "Avg Entry", false, [.cash, .stock, .crypto]),
         ("fee", "Fee", false, [.cash, .stock, .crypto]),
         ("margin_locked", "Margin Locked", false, [.cash, .stock, .crypto]),
         ("liquidation_price", "Liq Price", false, [.cash, .stock, .crypto]),
-        ("unrealized_pnl", "Unrealized", false, [.cash, .stock, .crypto]),
+        ("unrealized_pnl", "Unrealized P&L", false, [.cash, .stock, .crypto]),
     ]
 
     private func availableColumns(for fundType: FundType?) -> [(id: String, label: String)] {
@@ -381,10 +401,47 @@ struct FundDetailView: View {
         return cols
     }
 
+    private func columnPrefsKey(_ suffix: String) -> String {
+        "columns_\(fundId)_\(suffix)"
+    }
+
+    private func saveColumnPrefs() {
+        let defaults = UserDefaults.standard
+        defaults.set(Array(visibleColumns), forKey: columnPrefsKey("visible"))
+        defaults.set(columnOrder, forKey: columnPrefsKey("order"))
+    }
+
     private func initVisibleColumnsIfNeeded(for fund: FundData) {
         if visibleColumns.isEmpty {
-            visibleColumns = defaultVisibleColumns(for: fund.config.fund_type)
+            let defaults = UserDefaults.standard
+            if let saved = defaults.stringArray(forKey: columnPrefsKey("visible")) {
+                visibleColumns = Set(saved)
+            } else {
+                visibleColumns = defaultVisibleColumns(for: fund.config.fund_type)
+            }
+            if let savedOrder = defaults.stringArray(forKey: columnPrefsKey("order")) {
+                columnOrder = savedOrder
+            } else {
+                columnOrder = availableColumns(for: fund.config.fund_type).map(\.id)
+            }
         }
+    }
+
+    /// Columns in user-defined order, filtered to visible + available
+    private func orderedVisibleColumns(for fundType: FundType?) -> [(id: String, label: String)] {
+        let available = availableColumns(for: fundType)
+        let availableMap = Dictionary(uniqueKeysWithValues: available.map { ($0.id, $0.label) })
+        // Start with ordered columns that are visible and available
+        var result: [(id: String, label: String)] = columnOrder.compactMap { id in
+            guard visibleColumns.contains(id), let label = availableMap[id] else { return nil }
+            return (id: id, label: label)
+        }
+        // Append any visible columns not yet in the order
+        let orderedSet = Set(result.map(\.id))
+        for col in available where visibleColumns.contains(col.id) && !orderedSet.contains(col.id) {
+            result.append(col)
+        }
+        return result
     }
 
     @ViewBuilder
@@ -430,27 +487,70 @@ struct FundDetailView: View {
         .onAppear { initVisibleColumnsIfNeeded(for: fund) }
     }
 
+    /// All available columns in user-defined order (for the config UI)
+    private func orderedAllColumns(for fundType: FundType?) -> [(id: String, label: String)] {
+        let available = availableColumns(for: fundType)
+        let availableMap = Dictionary(uniqueKeysWithValues: available.map { ($0.id, $0.label) })
+        var result: [(id: String, label: String)] = columnOrder.compactMap { id in
+            guard let label = availableMap[id] else { return nil }
+            return (id: id, label: label)
+        }
+        let orderedSet = Set(result.map(\.id))
+        for col in available where !orderedSet.contains(col.id) {
+            result.append(col)
+        }
+        return result
+    }
+
+    private func toggleColumn(_ id: String, on: Bool) {
+        if on { visibleColumns.insert(id) }
+        else { visibleColumns.remove(id) }
+        saveColumnPrefs()
+    }
+
+    private func moveColumns(from source: IndexSet, to destination: Int, fundType: FundType?) {
+        var ordered = orderedAllColumns(for: fundType).map(\.id)
+        ordered.move(fromOffsets: source, toOffset: destination)
+        columnOrder = ordered
+        saveColumnPrefs()
+    }
+
+    @ViewBuilder
+    private func columnRow(_ col: (id: String, label: String)) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "line.3.horizontal")
+                .foregroundColor(.textMuted)
+                .font(.caption)
+            Toggle(col.label, isOn: Binding(
+                get: { visibleColumns.contains(col.id) },
+                set: { toggleColumn(col.id, on: $0) }
+            ))
+            #if os(macOS)
+            .toggleStyle(.checkbox)
+            .font(.caption)
+            #endif
+        }
+    }
+
     #if os(macOS)
     @ViewBuilder
     private func columnConfigPopover(_ fund: FundData) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Columns")
+            Text("Columns (drag to reorder)")
                 .font(.caption).fontWeight(.semibold).foregroundColor(.textMuted)
                 .padding(.bottom, 4)
-            ForEach(availableColumns(for: fund.config.fund_type), id: \.id) { col in
-                Toggle(col.label, isOn: Binding(
-                    get: { visibleColumns.contains(col.id) },
-                    set: { on in
-                        if on { visibleColumns.insert(col.id) }
-                        else { visibleColumns.remove(col.id) }
-                    }
-                ))
-                .font(.caption)
-                .toggleStyle(.checkbox)
+            List {
+                ForEach(orderedAllColumns(for: fund.config.fund_type), id: \.id) { col in
+                    columnRow(col)
+                }
+                .onMove { source, dest in
+                    moveColumns(from: source, to: dest, fundType: fund.config.fund_type)
+                }
             }
+            .listStyle(.plain)
         }
         .padding(12)
-        .frame(minWidth: 180)
+        .frame(minWidth: 220, minHeight: 300, maxHeight: 500)
     }
     #endif
 
@@ -458,16 +558,16 @@ struct FundDetailView: View {
     private func columnConfigSheet(_ fund: FundData) -> some View {
         NavigationStack {
             List {
-                ForEach(availableColumns(for: fund.config.fund_type), id: \.id) { col in
-                    Toggle(col.label, isOn: Binding(
-                        get: { visibleColumns.contains(col.id) },
-                        set: { on in
-                            if on { visibleColumns.insert(col.id) }
-                            else { visibleColumns.remove(col.id) }
-                        }
-                    ))
+                ForEach(orderedAllColumns(for: fund.config.fund_type), id: \.id) { col in
+                    columnRow(col)
+                }
+                .onMove { source, dest in
+                    moveColumns(from: source, to: dest, fundType: fund.config.fund_type)
                 }
             }
+            #if os(iOS)
+            .environment(\.editMode, .constant(.active))
+            #endif
             .navigationTitle("Columns")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -485,6 +585,9 @@ struct FundDetailView: View {
         case "realized_apy": return 90
         case "liquid_apy": return 80
         case "liquid_pnl": return 85
+        case "sum_shares": return 80
+        case "sum_extracted", "sum_dividends": return 90
+        case "margin_available", "margin_borrowed": return 95
         default: return 80
         }
     }
@@ -498,30 +601,36 @@ struct FundDetailView: View {
 
     @ViewBuilder
     private func macEntriesTable(_ fund: FundData) -> some View {
-        let cols = availableColumns(for: fund.config.fund_type).filter { visibleColumns.contains($0.id) }
+        let cols = orderedVisibleColumns(for: fund.config.fund_type)
 
-        // Header
-        HStack(spacing: 6) {
-            ForEach(cols, id: \.id) { col in
-                Text(col.label)
-                    .frame(width: columnWidth(col.id), alignment: columnAlignment(col.id))
+        ScrollView(.horizontal, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 0) {
+                // Header
+                HStack(spacing: 6) {
+                    ForEach(cols, id: \.id) { col in
+                        Text(col.label)
+                            .frame(width: columnWidth(col.id), alignment: columnAlignment(col.id))
+                    }
+                    Text("").frame(width: 30) // Edit column
+                }
+                .font(.caption2).fontWeight(.semibold)
+                .foregroundColor(.textMuted)
+                .padding(.vertical, 4)
+
+                Divider().background(Color.bgInput)
+
+                let count = fund.entries.count
+
+                ForEach(Array(fund.entries.reversed().enumerated()), id: \.offset) { reverseIdx, entry in
+                    let actualIndex = count - 1 - reverseIdx
+                    let computed = actualIndex < computedRows.count ? computedRows[actualIndex] : nil
+                    entryRow(entry, entryIndex: actualIndex, columns: cols, config: fund.config, isEven: reverseIdx.isMultiple(of: 2), computed: computed)
+                }
             }
-            Text("").frame(width: 30) // Edit column
-        }
-        .font(.caption2).fontWeight(.semibold)
-        .foregroundColor(.textMuted)
-        .padding(.vertical, 4)
-
-        Divider().background(Color.bgInput)
-
-        let count = fund.entries.count
-
-        ForEach(Array(fund.entries.reversed().enumerated()), id: \.offset) { reverseIdx, entry in
-            let actualIndex = count - 1 - reverseIdx
-            let computed = actualIndex < computedRows.count ? computedRows[actualIndex] : nil
-            entryRow(entry, entryIndex: actualIndex, columns: cols, config: fund.config, isEven: reverseIdx.isMultiple(of: 2), computed: computed)
         }
     }
+
+    private static let dash = Text("-").foregroundColor(.textMuted)
 
     @ViewBuilder
     private func entryCell(_ entry: FundEntry, columnId: String, computed: ComputedEntryRow?) -> some View {
@@ -538,93 +647,109 @@ struct FundDetailView: View {
         case "value":
             Text(formatCurrency(entry.value))
         case "amount":
-            Text(entry.amount.map { formatCurrency($0) } ?? "")
-                .foregroundColor(.textSecondary)
+            if let amt = entry.amount { Text(formatCurrency(amt)).foregroundColor(.textSecondary) }
+            else { Self.dash }
         case "extracted":
             if let c = computed, c.extracted > 0 {
                 Text(formatCurrency(c.extracted)).foregroundColor(.mint)
-            } else {
-                Text("-").foregroundColor(.textMuted)
-            }
+            } else { Self.dash }
         case "realized":
             if let c = computed {
                 Text(formatCurrency(c.realized)).foregroundColor(c.realized >= 0 ? .mint : .red)
-            } else {
-                Text("")
-            }
+            } else { Self.dash }
         case "liquid_pnl":
             if let c = computed {
                 Text(formatCurrency(c.liquidPnl)).foregroundColor(c.liquidPnl >= 0 ? .mint : .red)
-            } else {
-                Text("")
-            }
+            } else { Self.dash }
         case "realized_apy":
             if let c = computed {
                 Text(formatPercentSigned(c.realizedApy)).foregroundColor(c.realizedApy >= 0 ? .mint : .red)
-            } else {
-                Text("")
-            }
+            } else { Self.dash }
         case "liquid_apy":
             if let c = computed {
                 Text(formatPercentSigned(c.liquidApy)).foregroundColor(c.liquidApy >= 0 ? .mint : .red)
-            } else {
-                Text("")
-            }
+            } else { Self.dash }
         case "shares":
-            Text(entry.shares.map { String(format: "%.4f", $0) } ?? "")
-                .foregroundColor(.textSecondary)
+            if let s = entry.shares { Text(String(format: "%.4f", s)).foregroundColor(.textSecondary) }
+            else { Self.dash }
         case "price":
-            Text(entry.price.map { formatCurrency($0) } ?? "")
-                .foregroundColor(.textSecondary)
+            if let p = entry.price { Text(formatCurrency(p)).foregroundColor(.textSecondary) }
+            else { Self.dash }
         case "dividend":
-            Text(entry.dividend.map { formatCurrency($0) } ?? "")
-                .foregroundColor(.mint)
+            if let d = entry.dividend { Text(formatCurrency(d)).foregroundColor(.mint) }
+            else { Self.dash }
         case "expense":
-            Text(entry.expense.map { formatCurrency($0) } ?? "")
-                .foregroundColor(.red)
+            if let e = entry.expense { Text(formatCurrency(e)).foregroundColor(.red) }
+            else { Self.dash }
         case "cash_interest":
-            Text(entry.cash_interest.map { formatCurrency($0) } ?? "")
-                .foregroundColor(.mint)
+            if let ci = entry.cash_interest { Text(formatCurrency(ci)).foregroundColor(.mint) }
+            else { Self.dash }
         case "fund_size":
             if computed?.isClosingEntry == true {
                 Text("closed").italic().foregroundColor(.textMuted)
-            } else {
-                Text(entry.fund_size.map { formatCurrency($0) } ?? "")
-                    .foregroundColor(.textSecondary)
-            }
+            } else if let fs = entry.fund_size {
+                Text(formatCurrency(fs)).foregroundColor(.textSecondary)
+            } else { Self.dash }
         case "cash":
-            Text(entry.cash.map { formatCurrency($0) } ?? "")
-                .foregroundColor(.textSecondary)
+            if let c = entry.cash { Text(formatCurrency(c)).foregroundColor(.textSecondary) }
+            else { Self.dash }
         case "margin_available":
-            Text(entry.margin_available.map { formatCurrency($0) } ?? "")
-                .foregroundColor(.textSecondary)
+            if let ma = entry.margin_available { Text(formatCurrency(ma)).foregroundColor(.textSecondary) }
+            else { Self.dash }
         case "margin_borrowed":
-            Text(entry.margin_borrowed.map { formatCurrency($0) } ?? "")
-                .foregroundColor(.orange)
+            if let mb = entry.margin_borrowed { Text(formatCurrency(mb)).foregroundColor(.orange) }
+            else { Self.dash }
         case "notes":
-            Text(entry.notes ?? "")
-                .foregroundColor(.textMuted)
-                .lineLimit(1)
+            if let n = entry.notes, !n.isEmpty { Text(n).foregroundColor(.textMuted).lineLimit(1) }
+            else { Self.dash }
         case "contracts":
-            Text(entry.contracts.map { String(format: "%.2f", $0) } ?? "")
-                .foregroundColor(.textSecondary)
+            if let c = entry.contracts { Text(String(format: "%.2f", c)).foregroundColor(.textSecondary) }
+            else { Self.dash }
         case "entry_price":
-            Text(entry.entry_price.map { formatCurrency($0) } ?? "")
-                .foregroundColor(.textSecondary)
+            if let ep = entry.entry_price { Text(formatCurrency(ep)).foregroundColor(.textSecondary) }
+            else { Self.dash }
         case "fee":
-            Text(entry.fee.map { formatCurrency($0) } ?? "")
-                .foregroundColor(.red)
+            if let f = entry.fee { Text(formatCurrency(f)).foregroundColor(.red) }
+            else { Self.dash }
         case "margin_locked":
-            Text(entry.margin_locked.map { formatCurrency($0) } ?? "")
-                .foregroundColor(.orange)
+            if let ml = entry.margin_locked { Text(formatCurrency(ml)).foregroundColor(.orange) }
+            else { Self.dash }
         case "liquidation_price":
-            Text(entry.liquidation_price.map { formatCurrency($0) } ?? "")
-                .foregroundColor(.textSecondary)
+            if let lp = entry.liquidation_price { Text(formatCurrency(lp)).foregroundColor(.textSecondary) }
+            else { Self.dash }
         case "unrealized_pnl":
-            Text(entry.unrealized_pnl.map { formatCurrency($0) } ?? "")
-                .foregroundColor((entry.unrealized_pnl ?? 0) >= 0 ? .mint : .red)
+            if let up = entry.unrealized_pnl { Text(formatCurrency(up)).foregroundColor(up >= 0 ? .mint : .red) }
+            else { Self.dash }
+        case "invested":
+            if let c = computed {
+                Text(formatCurrency(c.invested)).foregroundColor(.textSecondary)
+            } else { Self.dash }
+        case "unrealized":
+            if let c = computed {
+                Text(formatCurrency(c.unrealized)).foregroundColor(c.unrealized >= 0 ? .mint : .red)
+            } else { Self.dash }
+        case "sum_shares":
+            if let c = computed, c.sumShares != 0 {
+                Text(String(format: "%.1f", c.sumShares)).foregroundColor(.textSecondary)
+            } else { Self.dash }
+        case "sum_expense":
+            if let c = computed, c.sumExpenses > 0 {
+                Text(formatCurrency(c.sumExpenses)).foregroundColor(.red)
+            } else { Self.dash }
+        case "sum_extracted":
+            if let c = computed, c.sumExtracted > 0 {
+                Text(formatCurrency(c.sumExtracted)).foregroundColor(.mint)
+            } else { Self.dash }
+        case "sum_cash_int":
+            if let c = computed, c.sumCashInterest > 0 {
+                Text(formatCurrency(c.sumCashInterest)).foregroundColor(.mint)
+            } else { Self.dash }
+        case "sum_dividends":
+            if let c = computed, c.sumDividends > 0 {
+                Text(formatCurrency(c.sumDividends)).foregroundColor(.mint)
+            } else { Self.dash }
         default:
-            Text("")
+            Self.dash
         }
     }
 
@@ -636,9 +761,7 @@ struct FundDetailView: View {
                     .frame(width: columnWidth(col.id), alignment: columnAlignment(col.id))
             }
             Button {
-                selectedEntry = entry
-                selectedEntryIndex = entryIndex
-                showEditEntry = true
+                editTarget = EditTarget(entry: entry, index: entryIndex)
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.caption).foregroundColor(.secondary)
@@ -687,9 +810,7 @@ struct FundDetailView: View {
             .cornerRadius(6)
             .contentShape(Rectangle())
             .onTapGesture {
-                selectedEntry = entry
-                selectedEntryIndex = actualIndex
-                showEditEntry = true
+                editTarget = EditTarget(entry: entry, index: actualIndex)
             }
         }
 

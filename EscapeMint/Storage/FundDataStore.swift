@@ -251,6 +251,9 @@ final class FundDataStore {
 
         revision += 1
         updateDockBadge(actionableFunds.count)
+
+        // Pre-compute chart data in background so fund detail pages load instantly
+        ViewCache.shared.precomputeFundCharts(fundsSnapshot)
     }
 
     static func buildAuditEntries(from funds: [FundData]) -> [AuditEntry] {

@@ -123,7 +123,7 @@ struct PlatformAllocationChart: View {
 struct PortfolioAllocationChart: View {
     let summaries: [FundSummary]
 
-    private var slices: [(label: String, value: Double, color: Color)] {
+    private var categories: [(label: String, value: Double, color: Color)] {
         let grouped = Dictionary(grouping: summaries.filter { !$0.isCash }, by: { $0.fund.config.category ?? .volatility })
         return grouped.map { cat, sums in
             let info = categoryConfig[cat]
@@ -137,8 +137,38 @@ struct PortfolioAllocationChart: View {
         .sorted { $0.value > $1.value }
     }
 
+    private var total: Double { categories.reduce(0) { $0 + $1.value } }
+
     var body: some View {
-        AllocationPieChart(title: "Portfolio Allocation", slices: slices)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Portfolio Allocation")
+                .font(.headline).foregroundColor(.textPrimary)
+
+            ForEach(categories.indices, id: \.self) { i in
+                let cat = categories[i]
+                let pct = total > 0 ? cat.value / total : 0
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack {
+                        Text(cat.label)
+                            .font(.caption).foregroundColor(.textSecondary)
+                        Spacer()
+                        Text(formatCurrency(cat.value))
+                            .font(.caption).fontWeight(.medium).foregroundColor(.textPrimary)
+                        Text(formatPercent(pct))
+                            .font(.caption2).foregroundColor(.textMuted)
+                            .frame(width: 44, alignment: .trailing)
+                    }
+                    GeometryReader { geo in
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(cat.color)
+                            .frame(width: geo.size.width * pct, height: 6)
+                    }
+                    .frame(height: 6)
+                }
+            }
+        }
+        .padding(12)
+        .cardStyle()
     }
 }
 
@@ -165,21 +195,25 @@ private struct AllocationPieChart: View {
                 }
                 .frame(width: 100, height: 100)
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 5) {
                     ForEach(slices.prefix(6).indices, id: \.self) { i in
                         let slice = slices[i]
                         let pct = total > 0 ? slice.value / total : 0
-                        HStack(spacing: 6) {
-                            Circle().fill(slice.color).frame(width: 6, height: 6)
-                            Text(slice.label)
-                                .font(.caption).foregroundColor(.textSecondary)
-                                .lineLimit(1)
-                            Spacer()
-                            Text(formatCurrency(slice.value))
-                                .font(.caption).foregroundColor(.textPrimary)
-                            Text(formatPercent(pct))
-                                .font(.caption2).foregroundColor(.textMuted)
-                                .frame(width: 40, alignment: .trailing)
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 4) {
+                                Text(slice.label)
+                                    .font(.caption).foregroundColor(.textSecondary)
+                                    .lineLimit(1)
+                                Spacer()
+                                Text(formatCurrency(slice.value))
+                                    .font(.caption).fontWeight(.medium).foregroundColor(.textPrimary)
+                            }
+                            GeometryReader { geo in
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(slice.color)
+                                    .frame(width: geo.size.width * pct, height: 4)
+                            }
+                            .frame(height: 4)
                         }
                     }
                     if slices.count > 6 {
@@ -190,8 +224,7 @@ private struct AllocationPieChart: View {
             }
         }
         .padding(12)
-        .background(Color.bgCard)
-        .cornerRadius(12)
+        .cardStyle()
     }
 }
 
@@ -216,7 +249,7 @@ struct DashboardAPYChart: View {
                         let d = pt.parsedDate
                         AreaMark(x: .value("Date", d), y: .value("L.APY", pt.liquidAPY))
                             .foregroundStyle(Color.blue.opacity(0.1))
-                            .interpolationMethod(.linear)
+                            .interpolationMethod(.monotone)
                         LineMark(x: .value("Date", d), y: .value("R.APY", pt.realizedAPY))
                             .foregroundStyle(by: .value("Type", "Realized"))
                             .interpolationMethod(.monotone)
@@ -258,7 +291,7 @@ struct DashboardGainChart: View {
                         let d = pt.parsedDate
                         AreaMark(x: .value("Date", d), y: .value("Liquid", pt.liquid))
                             .foregroundStyle(Color.blue.opacity(0.1))
-                            .interpolationMethod(.linear)
+                            .interpolationMethod(.monotone)
                         LineMark(x: .value("Date", d), y: .value("Realized", pt.realized))
                             .foregroundStyle(by: .value("Type", "Realized"))
                             .interpolationMethod(.monotone)
@@ -299,8 +332,13 @@ struct DashboardValueChart: View {
                 Chart(data) { pt in
                     let d = pt.parsedDate
                     AreaMark(x: .value("Date", d), y: .value("Invested", pt.totalInvested))
-                        .foregroundStyle(Color.purple.opacity(0.15))
-                        .interpolationMethod(.linear)
+                        .foregroundStyle(
+                            .linearGradient(
+                                colors: [Color.purple.opacity(0.2), Color.purple.opacity(0.0)],
+                                startPoint: .top, endPoint: .bottom
+                            )
+                        )
+                        .interpolationMethod(.monotone)
                     LineMark(x: .value("Date", d), y: .value("Value", pt.totalValue))
                         .foregroundStyle(Color.orange)
                         .lineStyle(StrokeStyle(lineWidth: 2))
@@ -425,10 +463,10 @@ struct DashboardMarginChart: View {
                         let d = pt.parsedDate
                         AreaMark(x: .value("Date", d), y: .value("Access", pt.marginAccess))
                             .foregroundStyle(Color.green.opacity(0.1))
-                            .interpolationMethod(.linear)
+                            .interpolationMethod(.monotone)
                         AreaMark(x: .value("Date", d), y: .value("Borrowed", pt.marginBorrowed))
                             .foregroundStyle(Color.red.opacity(0.1))
-                            .interpolationMethod(.linear)
+                            .interpolationMethod(.monotone)
                         LineMark(x: .value("Date", d), y: .value("Access", pt.marginAccess))
                             .foregroundStyle(Color.green)
                             .lineStyle(StrokeStyle(lineWidth: 2))
@@ -444,6 +482,54 @@ struct DashboardMarginChart: View {
                 } else {
                     emChartPlaceholder
                 }
+            }
+        }
+    }
+}
+
+struct DashboardCashVsAssetChart: View {
+    let points: [PortfolioTimeSeriesPoint]
+
+    var body: some View {
+        let data = points
+
+        EMChartCard(title: "Cash vs Asset") {
+            if let last = data.last {
+                let total = last.cashBalance + last.assetValue
+                let cashPct = total > 0 ? last.cashBalance / total : 0
+                let assetPct = total > 0 ? last.assetValue / total : 0
+                LegendDot(color: .mint, label: "Cash \(formatPercent(cashPct))")
+                LegendDot(color: .purple, label: "Asset \(formatPercent(assetPct))")
+            }
+        } chart: {
+            if data.count >= 2 {
+                Chart(data) { pt in
+                    let d = pt.parsedDate
+                    let total = pt.cashBalance + pt.assetValue
+                    let cashPct = total > 0 ? pt.cashBalance / total : 0
+                    let assetPct = total > 0 ? pt.assetValue / total : 0
+                    AreaMark(
+                        x: .value("Date", d),
+                        y: .value("Pct", cashPct),
+                        stacking: .standard
+                    )
+                    .foregroundStyle(by: .value("Type", "Cash"))
+                    .interpolationMethod(.monotone)
+                    AreaMark(
+                        x: .value("Date", d),
+                        y: .value("Pct", assetPct),
+                        stacking: .standard
+                    )
+                    .foregroundStyle(by: .value("Type", "Asset"))
+                    .interpolationMethod(.monotone)
+                }
+                .chartForegroundStyleScale(["Cash": Color.mint.opacity(0.6), "Asset": Color.purple.opacity(0.6)])
+                .chartXAxis { emDateAxisTemporal() }
+                .chartYAxis { emPercentAxis() }
+                .chartLegend(.hidden)
+                .frame(height: 180)
+            } else {
+                emChartPlaceholder
             }
         }
     }
@@ -467,8 +553,7 @@ struct EMChartCard<Legend: View, ChartContent: View>: View {
             chart()
         }
         .padding(12)
-        .background(Color.bgCard)
-        .cornerRadius(12)
+        .cardStyle()
     }
 }
 

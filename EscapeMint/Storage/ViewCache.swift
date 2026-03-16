@@ -192,4 +192,62 @@ final class ViewCache {
         for key in fundDerivCache.keys where key.hasPrefix(fundId) { fundDerivCache.removeValue(forKey: key) }
         for key in chartPointsCache.keys where key.contains(fundId) { chartPointsCache.removeValue(forKey: key) }
     }
+
+    // MARK: - Background Pre-computation
+
+    private var precomputeTask: Task<Void, Never>?
+
+    /// Pre-compute chart data and entry rows for all funds in the background.
+    /// Call after funds are loaded so data is ready when user navigates to fund detail.
+    func precomputeFundCharts(_ funds: [FundData]) {
+        precomputeTask?.cancel()
+        precomputeTask = Task {
+            for fund in funds {
+                guard !Task.isCancelled else { return }
+                let fid = fund.id
+                let ec = fund.entries.count
+                guard ec >= 3 else { continue }
+                let entries = fund.entries
+                let config = fund.config
+
+                if cachedRows(fundId: fid, entryCount: ec) == nil {
+                    let rows = await bgCompute { computeEntryRows(entries: entries, config: config) }
+                    guard !Task.isCancelled else { return }
+                    cacheRows(rows, fundId: fid, entryCount: ec)
+                }
+
+                if config.fund_type == .derivatives, cachedDerivPoints(fundId: fid, entryCount: ec) == nil {
+                    let pts = await bgCompute { computeDerivativesChartData(entries: entries, config: config) }
+                    guard !Task.isCancelled else { return }
+                    cacheDerivPoints(pts, fundId: fid, entryCount: ec)
+                }
+
+                if cachedChartPoints(type: ValuePoint.self, fundId: fid, entryCount: ec) == nil {
+                    let pts = await bgCompute { computeValuePoints(entries: entries, config: config) }
+                    guard !Task.isCancelled else { return }
+                    cacheChartPoints(pts, type: ValuePoint.self, fundId: fid, entryCount: ec)
+                }
+                if cachedChartPoints(type: PLPoint.self, fundId: fid, entryCount: ec) == nil {
+                    let pts = await bgCompute { computePLPoints(entries: entries, config: config) }
+                    guard !Task.isCancelled else { return }
+                    cacheChartPoints(pts, type: PLPoint.self, fundId: fid, entryCount: ec)
+                }
+                if cachedChartPoints(type: APYPoint.self, fundId: fid, entryCount: ec) == nil {
+                    let pts = await bgCompute { computeAPYPoints(entries: entries, config: config) }
+                    guard !Task.isCancelled else { return }
+                    cacheChartPoints(pts, type: APYPoint.self, fundId: fid, entryCount: ec)
+                }
+                if cachedChartPoints(type: ProfitPoint.self, fundId: fid, entryCount: ec) == nil {
+                    let pts = await bgCompute { computeProfitPoints(entries: entries, config: config) }
+                    guard !Task.isCancelled else { return }
+                    cacheChartPoints(pts, type: ProfitPoint.self, fundId: fid, entryCount: ec)
+                }
+            }
+        }
+    }
+
+    /// Run a computation on a background thread
+    private func bgCompute<T: Sendable>(_ work: @escaping @Sendable () -> T) async -> T {
+        await Task.detached(priority: .background) { work() }.value
+    }
 }

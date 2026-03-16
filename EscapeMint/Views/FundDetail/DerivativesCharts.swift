@@ -182,8 +182,7 @@ private struct StateCardContainer<Content: View>: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(12)
-        .background(Color.bgCard)
-        .cornerRadius(12)
+        .cardStyle()
     }
 }
 
@@ -195,20 +194,20 @@ struct ClosedFundStateCard: View {
         StateCardContainer {
             Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 8) {
                 GridRow {
-                    StatBox(label: "Total Invested", value: formatCurrency(cm.totalInvestedUsd), showCard: false)
-                    StatBox(label: "Total Returned", value: formatCurrency(cm.totalReturnedUsd), showCard: false)
+                    StatBox(label: "Total Invested", value: formatCurrencyFull(cm.totalInvestedUsd), showCard: false)
+                    StatBox(label: "Total Returned", value: formatCurrencyFull(cm.totalReturnedUsd), showCard: false)
                 }
                 GridRow {
-                    StatBox(label: "Net Gain/Loss", value: "\(formatCurrency(cm.netGainUsd)) (\(formatPercent(cm.returnPct)))", color: cm.netGainUsd >= 0 ? .mint : .red, showCard: false)
+                    StatBox(label: "Net Gain/Loss", value: "\(formatCurrencyFull(cm.netGainUsd)) (\(formatPercent(cm.returnPct)))", color: cm.netGainUsd >= 0 ? .mint : .red, showCard: false)
                     StatBox(label: "Annualized Return", value: formatPercent(cm.apy), color: cm.apy > 0 ? .mint : .red, showCard: false)
                 }
                 GridRow {
-                    StatBox(label: "Dividends", value: formatCurrency(cm.totalDividendsUsd), showCard: false)
-                    StatBox(label: "Cash Interest", value: formatCurrency(cm.totalCashInterestUsd), showCard: false)
+                    StatBox(label: "Dividends", value: formatCurrencyFull(cm.totalDividendsUsd), showCard: false)
+                    StatBox(label: "Cash Interest", value: formatCurrencyFull(cm.totalCashInterestUsd), showCard: false)
                 }
                 GridRow {
                     StatBox(label: "Duration", value: "\(cm.durationDays) days", showCard: false)
-                    StatBox(label: "Expenses", value: formatCurrency(-cm.totalExpensesUsd), color: cm.totalExpensesUsd > 0 ? .red : .white, showCard: false)
+                    StatBox(label: "Expenses", value: formatCurrencyFull(-cm.totalExpensesUsd), color: cm.totalExpensesUsd > 0 ? .red : .white, showCard: false)
                 }
             }
         }
@@ -223,19 +222,19 @@ struct ActiveFundStateCard: View {
         StateCardContainer {
             Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 8) {
                 GridRow {
-                    StatBox(label: "Invested", value: formatCurrency(state.startInputUsd), showCard: false)
-                    StatBox(label: "Asset Value", value: formatCurrency(summary.currentValue), color: summary.currentValue >= state.startInputUsd ? .mint : .red, showCard: false)
+                    StatBox(label: "Invested", value: formatCurrencyFull(state.startInputUsd), showCard: false)
+                    StatBox(label: "Asset Value", value: formatCurrencyFull(summary.currentValue), showCard: false)
                 }
                 GridRow {
-                    StatBox(label: "Unrealized", value: "\(state.gainUsd >= 0 ? "+" : "")\(formatCurrency(state.gainUsd))", color: state.gainUsd >= 0 ? .mint : .red, showCard: false)
-                    StatBox(label: "Cash", value: formatCurrency(state.cashAvailableUsd), showCard: false)
+                    StatBox(label: "Unrealized", value: "\(summary.unrealizedGains >= 0 ? "+" : "")\(formatCurrencyFull(summary.unrealizedGains))", color: summary.unrealizedGains >= 0 ? .mint : .red, showCard: false)
+                    StatBox(label: "Cash", value: formatCurrencyFull(state.cashAvailableUsd), showCard: false)
                 }
                 GridRow {
-                    StatBox(label: "Realized", value: formatCurrency(state.realizedGainsUsd), color: state.realizedGainsUsd > 0 ? .mint : .textPrimary, showCard: false)
+                    StatBox(label: "Realized", value: formatCurrencyFull(state.realizedGainsUsd), color: state.realizedGainsUsd > 0 ? .mint : .textPrimary, showCard: false)
                     StatBox(label: "Realized APY", value: formatPercent(summary.realizedAPY), color: summary.realizedAPY > 0 ? .mint : .red, showCard: false)
                 }
                 GridRow {
-                    StatBox(label: "Liquid P&L", value: formatCurrency(summary.liquidGain), color: summary.liquidGain >= 0 ? .mint : .red, showCard: false)
+                    StatBox(label: "Liquid P&L", value: formatCurrencyFull(summary.liquidGain), color: summary.liquidGain >= 0 ? .mint : .red, showCard: false)
                     StatBox(label: "Liquid APY", value: formatPercent(summary.liquidAPY), color: summary.liquidAPY > 0 ? .mint : .red, showCard: false)
                 }
             }
@@ -368,7 +367,7 @@ struct DerivativesPLChart: View {
                 .chartLegend(.hidden)
                 .frame(height: 160)
             } else {
-                ProgressView().frame(height: 160)
+                ProgressView().frame(maxWidth: .infinity).frame(height: 160)
             }
         }
     }
@@ -408,7 +407,7 @@ struct DerivativesAPYChart: View {
                 .chartLegend(.hidden)
                 .frame(height: 160)
             } else {
-                ProgressView().frame(height: 160)
+                ProgressView().frame(maxWidth: .infinity).frame(height: 160)
             }
         }
     }
@@ -431,7 +430,7 @@ struct DerivativesValueChart: View {
                         let d = isoDateFormatter.date(from: pt.date) ?? Date()
                         AreaMark(x: .value("Date", d), y: .value("Notional", pt.costBasis))
                             .foregroundStyle(Color.purple.opacity(0.15))
-                            .interpolationMethod(.linear)
+                            .interpolationMethod(.monotone)
                         LineMark(x: .value("Date", d), y: .value("Notional", pt.costBasis))
                             .foregroundStyle(by: .value("Series", "Notional"))
                             .interpolationMethod(.monotone)
@@ -450,7 +449,7 @@ struct DerivativesValueChart: View {
                 .chartLegend(.hidden)
                 .frame(height: 160)
             } else {
-                ProgressView().frame(height: 160)
+                ProgressView().frame(maxWidth: .infinity).frame(height: 160)
             }
         }
     }
@@ -566,7 +565,7 @@ struct DerivativesMarginChart: View {
                 }
                 .frame(height: 160)
             } else {
-                ProgressView().frame(height: 160)
+                ProgressView().frame(maxWidth: .infinity).frame(height: 160)
             }
         }
     }
@@ -617,7 +616,7 @@ struct DerivativesCapturedProfitChart: View {
                 .chartLegend(.hidden)
                 .frame(height: 160)
             } else {
-                ProgressView().frame(height: 160)
+                ProgressView().frame(maxWidth: .infinity).frame(height: 160)
             }
         }
     }

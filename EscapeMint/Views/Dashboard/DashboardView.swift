@@ -217,13 +217,14 @@ struct DashboardView: View {
             FundAllocationChart(summaries: activeSummaries)
             PortfolioAllocationChart(summaries: activeSummaries)
             PlatformAllocationChart(summaries: activeSummaries)
-            // Time series
+            // Time series (matches web app order)
             DashboardAPYChart(points: cache.dashboardTimeSeries)
             DashboardGainChart(points: cache.dashboardTimeSeries)
-            DashboardValueChart(points: cache.dashboardTimeSeries)
             DashboardFundSizeChart(points: cache.dashboardTimeSeries)
             DashboardLiquidValueChart(points: cache.dashboardTimeSeries)
+            DashboardValueChart(points: cache.dashboardTimeSeries)
             DashboardMarginChart(points: cache.dashboardTimeSeries)
+            DashboardCashVsAssetChart(points: cache.dashboardTimeSeries)
         }
         .padding(.horizontal)
     }
@@ -288,16 +289,23 @@ struct DashboardView: View {
     @ViewBuilder
     private var metricsGrid: some View {
         let p = store.portfolio
-        LazyVGrid(columns: Array(repeating: .init(.flexible(), spacing: 10), count: 5), spacing: 10) {
+        let avgDays = p.activeFunds > 0 ? p.totalDaysActive / p.activeFunds : 0
+        let unrealizedPct = p.totalStartInput > 0 ? p.totalUnrealizedGains / p.totalStartInput : 0
+        let liquidPct = p.totalStartInput > 0 ? p.totalGainUsd / p.totalStartInput : 0
+        let hasCash = p.cashBalance > 0.01
+        let colCount = hasCash ? 9 : 8
+        LazyVGrid(columns: Array(repeating: .init(.flexible(), spacing: 10), count: colCount), spacing: 10) {
             MetricCard(label: "Total Fund Size", value: formatCurrency(p.totalFundSize), sub: "\(store.funds.count) funds")
             MetricCard(label: "Current Value", value: formatCurrency(p.totalValue), sub: "\(p.activeFunds) active")
-            MetricCard(label: "Realized Gain", value: formatCurrency(p.totalRealizedGains), color: p.totalRealizedGains > 0 ? .mint : .red)
-            MetricCard(label: "Realized APY", value: formatPercent(p.realizedAPY), color: p.realizedAPY > 0 ? .mint : .red)
-            MetricCard(label: "Unrealized Gain", value: formatCurrency(p.totalUnrealizedGains), color: p.totalUnrealizedGains >= 0 ? .mint : .red)
-            MetricCard(label: "Liquid Gain", value: formatCurrency(p.totalGainUsd), color: p.totalGainUsd >= 0 ? .mint : .red)
-            MetricCard(label: "Liquid APY", value: formatPercent(p.liquidAPY), color: p.liquidAPY > 0 ? .mint : .red)
-            MetricCard(label: "Projected Annual", value: formatCurrency(p.projectedAnnualReturn), color: p.projectedAnnualReturn > 0 ? .mint : .red)
-            MetricCard(label: "Cash Balance", value: formatCurrency(p.cashBalance), sub: "Int: \(formatCurrency(p.totalInterest))")
+            MetricCard(label: "Realized Gain", value: formatCurrency(p.totalRealizedGains), sub: "Divs + Interest + Sells", color: p.totalRealizedGains > 0 ? .mint : .red)
+            MetricCard(label: "Realized APY", value: formatPercentSigned(p.realizedAPY), sub: "\(avgDays) avg days", color: p.realizedAPY > 0 ? .mint : .red)
+            MetricCard(label: "Unrealized Gain", value: formatCurrency(p.totalUnrealizedGains), sub: formatPercentSigned(unrealizedPct), color: p.totalUnrealizedGains >= 0 ? .mint : .red)
+            MetricCard(label: "Liquid Gain", value: formatCurrency(p.totalGainUsd), sub: formatPercentSigned(liquidPct), color: p.totalGainUsd >= 0 ? .mint : .red)
+            MetricCard(label: "Liquid APY", value: formatPercentSigned(p.liquidAPY), sub: "If liquidated now", color: p.liquidAPY > 0 ? .mint : .red)
+            MetricCard(label: "Projected Annual", value: formatCurrency(p.projectedAnnualReturn), sub: "Based on realized APY", color: p.projectedAnnualReturn > 0 ? .mint : .red)
+            if hasCash {
+                MetricCard(label: "Cash Balance", value: formatCurrency(p.cashBalance), sub: "Interest: \(formatCurrency(p.totalInterest))")
+            }
         }
     }
 
@@ -312,14 +320,15 @@ struct DashboardView: View {
             PlatformAllocationChart(summaries: activeSummaries)
         }
 
-        // Time series charts — 2-column grid
+        // Time series charts — 2-column grid (matches web app order)
         LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
             DashboardAPYChart(points: cache.dashboardTimeSeries)
             DashboardGainChart(points: cache.dashboardTimeSeries)
-            DashboardValueChart(points: cache.dashboardTimeSeries)
             DashboardFundSizeChart(points: cache.dashboardTimeSeries)
             DashboardLiquidValueChart(points: cache.dashboardTimeSeries)
+            DashboardValueChart(points: cache.dashboardTimeSeries)
             DashboardMarginChart(points: cache.dashboardTimeSeries)
+            DashboardCashVsAssetChart(points: cache.dashboardTimeSeries)
         }
     }
 

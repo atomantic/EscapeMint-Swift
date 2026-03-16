@@ -86,8 +86,7 @@ struct FundCardView: View {
             }
         }
         .padding(12)
-        .background(Color.bgCard)
-        .cornerRadius(12)
+        .cardStyle()
         #if os(iOS)
         .padding(.horizontal)
         #endif

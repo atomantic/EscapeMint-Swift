@@ -900,6 +900,13 @@ struct ComputedEntryRow {
     let realizedApy: Double
     let liquidApy: Double
     let isClosingEntry: Bool
+    let invested: Double
+    let unrealized: Double
+    let sumShares: Double
+    let sumExtracted: Double
+    let sumExpenses: Double
+    let sumCashInterest: Double
+    let sumDividends: Double
 }
 
 func computeEntryRows(entries: [FundEntry], config: FundConfig) -> [ComputedEntryRow] {
@@ -957,22 +964,26 @@ func computeEntryRows(entries: [FundEntry], config: FundConfig) -> [ComputedEntr
                 sumExtracted += entryExtracted
                 totalSells = 0
             } else {
-                let hasShareTracking = entry.shares != nil && (entry.shares ?? 0) != 0
-                if hasShareTracking && totalBuys > 0 {
-                    let sharesBeforeSell = sumShares + abs(entry.shares ?? 0)
-                    let sellFraction = sharesBeforeSell > 0 ? abs(entry.shares ?? 0) / sharesBeforeSell : 1.0
-                    let costBasisReturned = costBasis * sellFraction
-                    entryExtracted = max(0, amt - costBasisReturned)
-                    sumExtracted += entryExtracted
-                    costBasis -= costBasisReturned
-                    totalBuys -= costBasisReturned
-                    totalSells = 0
-                }
+                // Harvest mode: proportional cost basis (value-based, matches web app)
+                let sellProportion = (entry.value + amt) > 0 ? amt / (entry.value + amt) : 1.0
+                let costBasisReturned = costBasis * sellProportion
+                entryExtracted = max(0, amt - costBasisReturned)
+                sumExtracted += entryExtracted
+                costBasis -= costBasisReturned
+                totalSells = 0
             }
         }
 
         let realized = sumExtracted + sumDividends + sumCashInterest - sumExpenses
-        let unrealized = entry.value - costBasis
+
+        // Post-action equity value (entry.value is pre-action, matches web app FundDetail.tsx)
+        var postActionValue = entry.value
+        if entry.action == .BUY, let amt = entry.amount {
+            postActionValue = entry.value + amt
+        } else if entry.action == .SELL, let amt = entry.amount {
+            postActionValue = max(0, entry.value - amt)
+        }
+        let unrealized = postActionValue - costBasis
         let liquidPnl = unrealized + realized
 
         // Compound APY (matches web app per-entry formula)
@@ -997,7 +1008,14 @@ func computeEntryRows(entries: [FundEntry], config: FundConfig) -> [ComputedEntr
             liquidPnl: liquidPnl,
             realizedApy: realizedApy,
             liquidApy: liquidApy,
-            isClosingEntry: isClosing
+            isClosingEntry: isClosing,
+            invested: costBasis,
+            unrealized: unrealized,
+            sumShares: sumShares,
+            sumExtracted: sumExtracted,
+            sumExpenses: sumExpenses,
+            sumCashInterest: sumCashInterest,
+            sumDividends: sumDividends
         )
     }
 }
@@ -1022,6 +1040,20 @@ private let percentFormatter: NumberFormatter = {
 func formatCurrency(_ value: Double) -> String {
     currencyFormatter.maximumFractionDigits = abs(value) >= 1000 ? 0 : 2
     return currencyFormatter.string(from: NSNumber(value: value)) ?? "$0"
+}
+
+private let currencyFullFormatter: NumberFormatter = {
+    let f = NumberFormatter()
+    f.numberStyle = .currency
+    f.currencyCode = "USD"
+    f.minimumFractionDigits = 2
+    f.maximumFractionDigits = 2
+    return f
+}()
+
+/// Always show cents (2 decimal places) regardless of magnitude
+func formatCurrencyFull(_ value: Double) -> String {
+    currencyFullFormatter.string(from: NSNumber(value: value)) ?? "$0.00"
 }
 
 func formatPercent(_ value: Double) -> String {

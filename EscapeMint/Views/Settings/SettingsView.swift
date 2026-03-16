@@ -24,15 +24,6 @@ struct SettingsView: View {
     @ViewBuilder
     private var settingsContent: some View {
         List {
-                Section("Appearance") {
-                    Picker("Theme", selection: $appearance.mode) {
-                        ForEach(AppearanceMode.allCases, id: \.self) { mode in
-                            Text(mode.rawValue).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
-
                 Section("Intro Guide") {
                     Toggle("Show intro on launch", isOn: $showIntroOnLaunch)
                     Button("Show Intro Guide") {

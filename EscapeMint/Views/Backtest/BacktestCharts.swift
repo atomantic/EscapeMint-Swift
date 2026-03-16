@@ -142,7 +142,7 @@ struct BacktestChartsGrid: View {
             Chart(entries) { entry in
                 AreaMark(x: .value("Date", entry.dateValue), y: .value("Extracted", entry.totalExtracted))
                     .foregroundStyle(Color.blue.opacity(0.15))
-                    .interpolationMethod(.linear)
+                    .interpolationMethod(.monotone)
                 LineMark(x: .value("Date", entry.dateValue), y: .value("Extracted", entry.totalExtracted))
                     .foregroundStyle(Color.blue)
                     .interpolationMethod(.monotone)

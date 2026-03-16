@@ -53,7 +53,7 @@ struct ContentView: View {
                 #endif
             }
         }
-        .preferredColorScheme(appearance.mode.colorScheme)
+        .preferredColorScheme(.dark)
         .sheet(isPresented: $showIntroGuide) {
             IntroGuideView(isPresented: $showIntroGuide)
         }
@@ -175,7 +175,7 @@ struct MacContentView: View {
         let grouped = Dictionary(grouping: funds, by: { $0.platform })
         return grouped.keys.sorted().compactMap { key in
             guard let funds = grouped[key] else { return nil }
-            return (key, funds)
+            return (key, funds.sorted { $0.ticker.lowercased() < $1.ticker.lowercased() })
         }
     }
 
@@ -244,6 +244,9 @@ struct MacContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .selectDashboard)) { _ in
             selectedNav = .dashboard
         }
+        .onReceive(NotificationCenter.default.publisher(for: .selectBacktest)) { _ in
+            selectedNav = .backtest
+        }
         .onReceive(NotificationCenter.default.publisher(for: .selectPlatform)) { note in
             if let name = note.object as? String {
                 selectedNav = .platform(name)
@@ -301,28 +304,25 @@ struct MacContentView: View {
             // Active funds grouped by platform
             Section("Active Funds") {
                 ForEach(groupedActive, id: \.0) { platform, platformFunds in
-                    // Platform header — chevron collapses, name navigates to platform
+                    // Platform header — tap navigates AND toggles collapse
                     HStack {
-                        Button { toggleSidebarPlatform(platform, closed: false) } label: {
-                            Image(systemName: isSidebarCollapsed(platform, closed: false) ? "chevron.right" : "chevron.down")
-                                .font(.caption2).foregroundColor(.textMuted)
-                                .frame(width: 12)
-                        }
-                        .buttonStyle(.plain)
-
-                        HStack {
-                            Image(systemName: "building.2")
-                                .font(.caption).foregroundColor(.textMuted)
-                            Text(platform.capitalized)
-                                .font(.callout).fontWeight(.medium)
-                                .foregroundColor(selectedNav == .platform(platform) ? .mint : .textPrimary)
-                            Spacer()
-                            Text("\(platformFunds.count)")
-                                .font(.caption2)
-                                .foregroundColor(.textMuted)
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture { selectedNav = .platform(platform) }
+                        Image(systemName: isSidebarCollapsed(platform, closed: false) ? "chevron.right" : "chevron.down")
+                            .font(.caption2).foregroundColor(.textMuted)
+                            .frame(width: 12)
+                        Image(systemName: "building.2")
+                            .font(.caption).foregroundColor(.textMuted)
+                        Text(platform.capitalized)
+                            .font(.callout).fontWeight(.medium)
+                            .foregroundColor(selectedNav == .platform(platform) ? .mint : .textPrimary)
+                        Spacer()
+                        Text("\(platformFunds.count)")
+                            .font(.caption2)
+                            .foregroundColor(.textMuted)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        selectedNav = .platform(platform)
+                        toggleSidebarPlatform(platform, closed: false)
                     }
 
                     // Individual funds (collapsible)
@@ -345,9 +345,11 @@ struct MacContentView: View {
                                         .cornerRadius(3)
                                 }
                             }
-                            .padding(.leading, 12)
+                            .padding(.leading, 20)
+                            .padding(.vertical, 1)
                             .tag(NavItem.fund(fund.id))
                         }
+                        .listRowBackground(Color.white.opacity(0.03))
                     }
                 }
             }
@@ -356,26 +358,23 @@ struct MacContentView: View {
                 Section("Closed Funds") {
                     ForEach(groupedClosed, id: \.0) { platform, platformFunds in
                         HStack {
-                            Button { toggleSidebarPlatform(platform, closed: true) } label: {
-                                Image(systemName: isSidebarCollapsed(platform, closed: true) ? "chevron.right" : "chevron.down")
-                                    .font(.caption2).foregroundColor(.textMuted)
-                                    .frame(width: 12)
-                            }
-                            .buttonStyle(.plain)
-
-                            HStack {
-                                Image(systemName: "building.2")
-                                    .font(.caption).foregroundColor(.textMuted)
-                                Text(platform.capitalized)
-                                    .font(.callout).fontWeight(.medium)
-                                    .foregroundColor(selectedNav == .platform(platform) ? .mint : .textMuted)
-                                Spacer()
-                                Text("\(platformFunds.count)")
-                                    .font(.caption2)
-                                    .foregroundColor(.textMuted)
-                            }
-                            .contentShape(Rectangle())
-                            .onTapGesture { selectedNav = .platform(platform) }
+                            Image(systemName: isSidebarCollapsed(platform, closed: true) ? "chevron.right" : "chevron.down")
+                                .font(.caption2).foregroundColor(.textMuted)
+                                .frame(width: 12)
+                            Image(systemName: "building.2")
+                                .font(.caption).foregroundColor(.textMuted)
+                            Text(platform.capitalized)
+                                .font(.callout).fontWeight(.medium)
+                                .foregroundColor(selectedNav == .platform(platform) ? .mint : .textMuted)
+                            Spacer()
+                            Text("\(platformFunds.count)")
+                                .font(.caption2)
+                                .foregroundColor(.textMuted)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            selectedNav = .platform(platform)
+                            toggleSidebarPlatform(platform, closed: true)
                         }
 
                         if !isSidebarCollapsed(platform, closed: true) {
@@ -388,9 +387,11 @@ struct MacContentView: View {
                                         .font(.callout)
                                         .foregroundColor(.textMuted)
                                 }
-                                .padding(.leading, 12)
+                                .padding(.leading, 20)
+                                .padding(.vertical, 1)
                                 .tag(NavItem.fund(fund.id))
                             }
+                            .listRowBackground(Color.white.opacity(0.03))
                         }
                     }
                 }
