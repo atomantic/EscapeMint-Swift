@@ -1,5 +1,24 @@
 import SwiftUI
 
+struct NumericFieldRow: View {
+    let label: String
+    var placeholder: String = "0.00"
+    @Binding var text: String
+
+    var body: some View {
+        HStack {
+            Text(label)
+            Spacer()
+            TextField(placeholder, text: $text)
+                .numericKeyboard()
+                .multilineTextAlignment(.trailing)
+                #if os(macOS)
+                .frame(maxWidth: 200)
+                #endif
+        }
+    }
+}
+
 struct AddEntryView: View {
     @Environment(\.dismiss) private var dismiss
     let fundId: String
@@ -34,49 +53,13 @@ struct AddEntryView: View {
                     }
                 }
                 Section {
-                    HStack {
-                        Text("Portfolio Value")
-                        Spacer()
-                        TextField("0.00", text: $value)
-                            .numericKeyboard()
-                            .multilineTextAlignment(.trailing)
-                            #if os(macOS)
-                            .frame(maxWidth: 200)
-                            #endif
-                    }
+                    NumericFieldRow(label: "Portfolio Value", text: $value)
                     if action == .BUY || action == .SELL || action == .DEPOSIT || action == .WITHDRAW {
-                        HStack {
-                            Text("Amount")
-                            Spacer()
-                            TextField("0.00", text: $amount)
-                                .numericKeyboard()
-                                .multilineTextAlignment(.trailing)
-                                #if os(macOS)
-                                .frame(maxWidth: 200)
-                                #endif
-                        }
+                        NumericFieldRow(label: "Amount", text: $amount)
                     }
                     if features.supportsShares && (action == .BUY || action == .SELL) {
-                        HStack {
-                            Text("Shares")
-                            Spacer()
-                            TextField("0", text: $shares)
-                                .numericKeyboard()
-                                .multilineTextAlignment(.trailing)
-                                #if os(macOS)
-                                .frame(maxWidth: 200)
-                                #endif
-                        }
-                        HStack {
-                            Text("Price per Share")
-                            Spacer()
-                            TextField("0.00", text: $price)
-                                .numericKeyboard()
-                                .multilineTextAlignment(.trailing)
-                                #if os(macOS)
-                                .frame(maxWidth: 200)
-                                #endif
-                        }
+                        NumericFieldRow(label: "Shares", placeholder: "0", text: $shares)
+                        NumericFieldRow(label: "Price per Share", text: $price)
                     }
                 } header: {
                     Text("Values")
@@ -107,11 +90,8 @@ struct AddEntryView: View {
     }
 
     private func save() {
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM-dd"
-
         var entry = FundEntry(
-            date: fmt.string(from: date),
+            date: isoDateFormatter.string(from: date),
             value: Double(value) ?? 0,
             action: action
         )

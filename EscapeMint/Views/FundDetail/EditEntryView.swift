@@ -20,19 +20,13 @@ struct EditEntryView: View {
     @State private var notes: String
     @State private var showDeleteConfirm = false
 
-    private static let dateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-
     init(entry: FundEntry, entryIndex: Int, fundId: String, fundType: FundType, onSaved: @escaping () -> Void) {
         self.entry = entry
         self.entryIndex = entryIndex
         self.fundId = fundId
         self.fundType = fundType
         self.onSaved = onSaved
-        _date = State(initialValue: Self.dateFormatter.date(from: entry.date) ?? Date())
+        _date = State(initialValue: isoDateFormatter.date(from: entry.date) ?? Date())
         _action = State(initialValue: entry.action ?? .HOLD)
         _value = State(initialValue: String(entry.value))
         _amount = State(initialValue: entry.amount.map { String($0) } ?? "")
@@ -56,61 +50,16 @@ struct EditEntryView: View {
                     }
                 }
                 Section {
-                    HStack {
-                        Text("Portfolio Value")
-                        Spacer()
-                        TextField("0.00", text: $value)
-                            .numericKeyboard()
-                            .multilineTextAlignment(.trailing)
-                            #if os(macOS)
-                            .frame(maxWidth: 200)
-                            #endif
-                    }
+                    NumericFieldRow(label: "Portfolio Value", text: $value)
                     if action == .BUY || action == .SELL || action == .DEPOSIT || action == .WITHDRAW {
-                        HStack {
-                            Text("Amount")
-                            Spacer()
-                            TextField("0.00", text: $amount)
-                                .numericKeyboard()
-                                .multilineTextAlignment(.trailing)
-                                #if os(macOS)
-                                .frame(maxWidth: 200)
-                                #endif
-                        }
+                        NumericFieldRow(label: "Amount", text: $amount)
                     }
                     if features.supportsShares && (action == .BUY || action == .SELL) {
-                        HStack {
-                            Text("Shares")
-                            Spacer()
-                            TextField("0", text: $shares)
-                                .numericKeyboard()
-                                .multilineTextAlignment(.trailing)
-                                #if os(macOS)
-                                .frame(maxWidth: 200)
-                                #endif
-                        }
-                        HStack {
-                            Text("Price per Share")
-                            Spacer()
-                            TextField("0.00", text: $price)
-                                .numericKeyboard()
-                                .multilineTextAlignment(.trailing)
-                                #if os(macOS)
-                                .frame(maxWidth: 200)
-                                #endif
-                        }
+                        NumericFieldRow(label: "Shares", placeholder: "0", text: $shares)
+                        NumericFieldRow(label: "Price per Share", text: $price)
                     }
                     if features.supportsDividends {
-                        HStack {
-                            Text("Dividend")
-                            Spacer()
-                            TextField("0.00", text: $dividend)
-                                .numericKeyboard()
-                                .multilineTextAlignment(.trailing)
-                                #if os(macOS)
-                                .frame(maxWidth: 200)
-                                #endif
-                        }
+                        NumericFieldRow(label: "Dividend", text: $dividend)
                     }
                 } header: {
                     Text("Values")
@@ -149,9 +98,8 @@ struct EditEntryView: View {
     }
 
     private func save() {
-        let fmt = Self.dateFormatter
         var updated = entry
-        updated.date = fmt.string(from: date)
+        updated.date = isoDateFormatter.string(from: date)
         updated.value = Double(value) ?? 0
         updated.action = action
         updated.amount = Double(amount)

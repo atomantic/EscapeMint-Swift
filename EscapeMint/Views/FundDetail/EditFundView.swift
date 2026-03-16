@@ -68,14 +68,10 @@ struct EditFundView: View {
                 Section("Identity") {
                     TextField("Platform", text: $platform)
                         .autocorrectionDisabled()
-                        #if os(iOS)
-                        .textInputAutocapitalization(.never)
-                        #endif
+                        .noAutoCapitalization()
                     TextField("Ticker", text: $ticker)
                         .autocorrectionDisabled()
-                        #if os(iOS)
-                        .textInputAutocapitalization(.never)
-                        #endif
+                        .noAutoCapitalization()
                         .onChange(of: ticker) { _, newValue in
                             ticker = newValue.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "-" }
                         }

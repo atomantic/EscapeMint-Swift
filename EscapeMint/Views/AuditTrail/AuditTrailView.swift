@@ -25,12 +25,6 @@ struct AuditTrailView: View {
     private var allEntries: [AuditEntry] { store.auditEntries }
     private var platforms: [String] { store.platforms }
 
-    private static let dateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-
     private var filteredEntries: [AuditEntry] {
         var result = allEntries
         if let pf = platformFilter {
@@ -44,11 +38,11 @@ struct AuditTrailView: View {
             result = result.filter { $0.ticker.lowercased().contains(query) }
         }
         if let from = dateFrom {
-            let fromStr = Self.dateFormatter.string(from: from)
+            let fromStr = isoDateFormatter.string(from: from)
             result = result.filter { $0.date >= fromStr }
         }
         if let to = dateTo {
-            let toStr = Self.dateFormatter.string(from: to)
+            let toStr = isoDateFormatter.string(from: to)
             result = result.filter { $0.date <= toStr }
         }
         return Array(result.prefix(500))
@@ -171,7 +165,7 @@ struct AuditTrailView: View {
                 Text("From:").font(.caption).foregroundColor(.textMuted)
                 if let from = dateFrom {
                     HStack(spacing: 2) {
-                        Text(Self.dateFormatter.string(from: from))
+                        Text(isoDateFormatter.string(from: from))
                             .font(.caption).foregroundColor(.textSecondary)
                         Button { dateFrom = nil } label: {
                             Image(systemName: "xmark.circle.fill")
@@ -192,7 +186,7 @@ struct AuditTrailView: View {
                 Text("To:").font(.caption).foregroundColor(.textMuted)
                 if let to = dateTo {
                     HStack(spacing: 2) {
-                        Text(Self.dateFormatter.string(from: to))
+                        Text(isoDateFormatter.string(from: to))
                             .font(.caption).foregroundColor(.textSecondary)
                         Button { dateTo = nil } label: {
                             Image(systemName: "xmark.circle.fill")
