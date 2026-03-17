@@ -14,7 +14,8 @@ Native SwiftUI app for iOS, iPadOS, and macOS. Same bundle ID as the App Store C
 - [ ] iOS 26 liquid glass TabView — using traditional `tabItem` API instead, but appearance still not ideal
 - [ ] DRY: identical `calcPriceEquity()` in AddEntryView + EditEntryView (deferred: extract to Engine)
 - [ ] Architecture: DashboardView:622 direct FundStore access for import (needs FundDataStore wrapper)
-- [ ] Dashboard metric values differ slightly from webapp (~$134K in Total Fund Size) — webapp server uses `calendarDays` for daysActive vs Swift engine's cycle-based daysActive
+- [x] ~~Dashboard metric values differ from webapp~~ — fixed: derivatives fund metrics, portfolioDays, endDate, fundSize
+- [ ] DRY: derivatives entry-processing switch duplicated 3x (FundEngine metrics, FundEngine entry rows, DerivativesCharts) — extract shared accumulator
 
 ### Deferred Test Quality Findings
 

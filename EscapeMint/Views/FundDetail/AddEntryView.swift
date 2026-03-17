@@ -9,12 +9,14 @@ struct NumericFieldRow: View {
     var body: some View {
         HStack {
             Text(label)
+                .foregroundColor(.textPrimary)
             Spacer()
-            TextField(placeholder, text: $text)
+            TextField("", text: $text, prompt: Text(placeholder).foregroundColor(.textMuted.opacity(0.5)))
                 .numericKeyboard()
                 .multilineTextAlignment(.trailing)
                 #if os(macOS)
                 .frame(maxWidth: 200)
+                .textFieldStyle(.roundedBorder)
                 #endif
             if let hint {
                 Text(hint)

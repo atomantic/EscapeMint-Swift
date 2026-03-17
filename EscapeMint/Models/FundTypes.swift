@@ -5,6 +5,9 @@ enum FundType: String, Codable, CaseIterable {
     case stock
     case crypto
     case derivatives
+
+    /// Fund types available for user creation (derivatives is hidden/internal)
+    static let creatableCases = allCases.filter { $0 != .derivatives }
 }
 
 enum FundStatus: String, Codable {

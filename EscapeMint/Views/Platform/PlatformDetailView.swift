@@ -188,6 +188,14 @@ struct PlatformDetailView: View {
                     .padding(.horizontal, 12).padding(.vertical, 6)
                     .background(Color.bgCard)
                     .contentShape(Rectangle())
+                    .onTapGesture {
+                        NotificationCenter.default.post(name: .selectFund, object: s.fund.id)
+                    }
+                    .onHover { hovering in
+                        #if os(macOS)
+                        if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                        #endif
+                    }
 
                     Divider().background(Color.bgInput)
                 }

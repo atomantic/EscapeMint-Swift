@@ -67,7 +67,7 @@ struct CreateFundView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Fund Type").font(.caption).foregroundColor(.textMuted)
                                 Picker("", selection: $fundType) {
-                                    ForEach(FundType.allCases, id: \.self) { type in
+                                    ForEach(FundType.creatableCases, id: \.self) { type in
                                         Text(getFeatures(type).label).tag(type)
                                     }
                                 }
@@ -157,7 +157,7 @@ struct CreateFundView: View {
 
             Section("Type & Category") {
                 Picker("Fund Type", selection: $fundType) {
-                    ForEach(FundType.allCases, id: \.self) { type in
+                    ForEach(FundType.creatableCases, id: \.self) { type in
                         Text(getFeatures(type).label).tag(type)
                     }
                 }

@@ -349,13 +349,13 @@ struct FundDetailView: View {
 
     private static let allEntryColumns: [(id: String, label: String, defaultVisible: Bool, excludeFrom: Set<FundType>)] = [
         ("date", "Date", true, []),
-        ("value", "Equity", true, [.derivatives]),
-        ("cash", "Cash", false, [.cash]),
         ("action", "Action", true, [.cash]),
-        ("amount", "Amount", true, []),
         ("shares", "Shares", false, [.cash, .derivatives]),
         ("sum_shares", "\u{03A3} Shares", false, [.cash, .derivatives]),
         ("price", "Price", false, [.cash]),
+        ("amount", "Amount", true, []),
+        ("value", "Equity", true, [.derivatives]),
+        ("cash", "Cash", false, [.cash]),
         ("invested", "Invested", true, [.cash, .derivatives]),
         ("dividend", "Dividend", true, [.cash, .crypto, .derivatives]),
         ("expense", "Expense", false, [.derivatives]),
@@ -374,13 +374,16 @@ struct FundDetailView: View {
         ("margin_available", "Margin Avail", false, []),
         ("margin_borrowed", "Margin Borrowed", false, []),
         ("notes", "Notes", true, []),
-        // Derivatives-specific
+        // Derivatives-specific (ordered to match web app)
         ("contracts", "Contracts", false, [.cash, .stock, .crypto]),
-        ("entry_price", "Avg Entry", false, [.cash, .stock, .crypto]),
         ("fee", "Fee", false, [.cash, .stock, .crypto]),
+        ("position", "Position", false, [.cash, .stock, .crypto]),
+        ("entry_price", "Avg Entry", false, [.cash, .stock, .crypto]),
+        ("deriv_cash", "Cash", false, [.cash, .stock, .crypto]),
         ("margin_locked", "Margin Locked", false, [.cash, .stock, .crypto]),
         ("liquidation_price", "Liq Price", false, [.cash, .stock, .crypto]),
-        ("unrealized_pnl", "Unrealized P&L", false, [.cash, .stock, .crypto]),
+        ("deriv_equity", "Equity", false, [.cash, .stock, .crypto]),
+        ("unrealized_pnl", "Unrealized", false, [.cash, .stock, .crypto]),
     ]
 
     private func availableColumns(for fundType: FundType?) -> [(id: String, label: String)] {
@@ -396,7 +399,7 @@ struct FundDetailView: View {
             .filter { $0.defaultVisible && !$0.excludeFrom.contains(ft) }
             .map(\.id))
         if ft == .derivatives {
-            cols.formUnion(["contracts", "price", "entry_price", "fee", "cash", "margin_locked", "liquidation_price", "unrealized_pnl"])
+            cols.formUnion(["contracts", "price", "fee", "position", "entry_price", "deriv_cash", "margin_locked", "liquidation_price", "deriv_equity", "unrealized_pnl"])
         }
         return cols
     }
@@ -720,6 +723,17 @@ struct FundDetailView: View {
         case "unrealized_pnl":
             if let up = entry.unrealized_pnl { Text(formatCurrency(up)).foregroundColor(up >= 0 ? .mint : .red) }
             else { Self.dash }
+        case "position":
+            if let c = computed { Text(String(format: "%.0f", c.sumShares)).foregroundColor(.textSecondary) }
+            else { Self.dash }
+        case "deriv_cash":
+            if let cash = entry.cash { Text(formatCurrency(cash)).foregroundColor(.textSecondary) }
+            else { Self.dash }
+        case "deriv_equity":
+            if let cash = entry.cash, let c = computed {
+                let equity = cash + c.unrealized
+                Text(formatCurrency(equity)).foregroundColor(.textSecondary)
+            } else { Self.dash }
         case "invested":
             if let c = computed {
                 Text(formatCurrency(c.invested)).foregroundColor(.textSecondary)

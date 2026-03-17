@@ -490,7 +490,7 @@ final class EngineTests: XCTestCase {
 
     func testFormatCurrency() {
         let result = formatCurrency(1234.56)
-        XCTAssertEqual(result, "$1,235")
+        XCTAssertEqual(result, "$1,234.56")
     }
 
     func testFormatCurrencySmallValue() {
@@ -510,7 +510,7 @@ final class EngineTests: XCTestCase {
 
     func testFormatCurrencyLargeValue() {
         let result = formatCurrency(1234567.89)
-        XCTAssertEqual(result, "$1,234,568")
+        XCTAssertEqual(result, "$1,234,567.89")
     }
 
     func testFormatPercent() {

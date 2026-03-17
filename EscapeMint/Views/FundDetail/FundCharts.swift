@@ -195,6 +195,26 @@ func computeValuePoints(entries: [FundEntry], config: FundConfig) -> [ValuePoint
     }
 }
 
+// MARK: - APY Auto-Range
+
+/// Auto-clamp APY charts when outliers would make the chart unreadable.
+/// If most values fit within -100%...+100% but outliers push beyond, clamp to that range.
+private func apyAutoBounds(_ values: [Double]) -> ChartBounds? {
+    guard !values.isEmpty else { return nil }
+    let sorted = values.sorted()
+    // Use 5th/95th percentile to detect outliers
+    let p5 = sorted[max(0, Int(Double(sorted.count) * 0.05))]
+    let p95 = sorted[min(sorted.count - 1, Int(Double(sorted.count) * 0.95))]
+    let dataMin = sorted.first!
+    let dataMax = sorted.last!
+    // If the full range is within -1...1 (-100%...+100%), no clamping needed
+    guard dataMin < -1.0 || dataMax > 1.0 else { return nil }
+    // Clamp with 10% padding in the correct direction (toward more extreme, not toward zero)
+    let clampMin = max(p5 - abs(p5) * 0.1, -1.0)
+    let clampMax = min(p95 + abs(p95) * 0.1, 1.0)
+    return ChartBounds(yMin: min(clampMin, -0.1), yMax: max(clampMax, 0.1))
+}
+
 // MARK: - Chart Views
 
 struct ValueChartView: View {
@@ -267,15 +287,19 @@ struct PLChartView: View {
     let fundId: String
     @State private var points: [PLPoint]?
 
+    private var bounds: ChartBounds? { config.chart_bounds?["pnl"] }
+
     var body: some View {
         EMChartCard(title: "P&L Over Time") {
             if let last = points?.last {
                 LegendDot(color: .mint, label: "R: \(formatCurrency(last.realized))")
                 LegendDot(color: .blue, label: "L: \(formatCurrency(last.liquid))")
             }
+            ChartBoundsButton(fundId: fundId, boundsKey: "pnl", isPercent: false, bounds: bounds)
         } chart: {
             if let points {
                 let hasNegative = points.contains { $0.realized < 0 || $0.liquid < 0 }
+                let allValues = points.flatMap { [$0.realized, $0.liquid] }
                 Chart {
                     ForEach(points) { pt in
                         let d = isoDateFormatter.date(from: pt.date) ?? Date()
@@ -294,6 +318,7 @@ struct PLChartView: View {
                 .chartForegroundStyleScale(["Realized": Color.mint, "Liquid": Color.blue])
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emCurrencyAxis() }
+                .chartYScale(domain: chartYDomain(bounds, points: allValues))
                 .chartLegend(.hidden)
                 .frame(height: Layout.chartFrameHeight)
             } else {
@@ -323,15 +348,20 @@ struct APYChartView: View {
     let fundId: String
     @State private var points: [APYPoint]?
 
+    private var bounds: ChartBounds? { config.chart_bounds?["apy"] }
+
     var body: some View {
         EMChartCard(title: "APY Over Time") {
             if let last = points?.last {
                 LegendDot(color: .mint, label: "R: \(formatPercent(last.realizedAPY))")
                 LegendDot(color: .blue, label: "L: \(formatPercent(last.liquidAPY))")
             }
+            ChartBoundsButton(fundId: fundId, boundsKey: "apy", isPercent: true, bounds: bounds)
         } chart: {
             if let points {
                 let hasNegative = points.contains { $0.realizedAPY < 0 || $0.liquidAPY < 0 }
+                let allValues = points.flatMap { [$0.realizedAPY, $0.liquidAPY] }
+                let effectiveBounds = bounds ?? apyAutoBounds(allValues)
                 Chart {
                     ForEach(points) { pt in
                         let d = isoDateFormatter.date(from: pt.date) ?? Date()
@@ -350,6 +380,7 @@ struct APYChartView: View {
                 .chartForegroundStyleScale(["Realized": Color.mint, "Liquid": Color.blue])
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emPercentAxis() }
+                .chartYScale(domain: chartYDomain(effectiveBounds, points: allValues))
                 .chartLegend(.hidden)
                 .frame(height: Layout.chartFrameHeight)
             } else {

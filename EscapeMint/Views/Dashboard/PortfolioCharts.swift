@@ -35,8 +35,13 @@ func computePortfolioTimeSeries(_ funds: [FundData]) -> [PortfolioTimeSeriesPoin
     let sampled = sampleArray(sortedDates)
 
     return sampled.map { date in
-        // Reuse computePortfolioMetrics for APY/gains (consistent calculation)
-        let pm = computePortfolioMetrics(funds, asOfDate: date)
+        // Filter entries to only those on or before this date — gives correct historical state
+        let filteredFunds = funds.map { fund -> FundData in
+            var f = fund
+            f.entries = fund.entries.filter { $0.date <= date }
+            return f
+        }
+        let pm = computePortfolioMetrics(filteredFunds, asOfDate: date)
 
         // Collect per-fund values and margin data (not in PortfolioMetrics)
         var marginAccess = 0.0
@@ -44,10 +49,15 @@ func computePortfolioTimeSeries(_ funds: [FundData]) -> [PortfolioTimeSeriesPoin
         var perFund: [String: Double] = [:]
 
         for fund in activeFunds {
-            guard let lastEntry = fund.entries.last(where: { $0.date <= date }) else { continue }
+            let priorEntries = fund.entries.filter { $0.date <= date }
+            guard let lastEntry = priorEntries.last else { continue }
             perFund[fund.ticker.uppercased()] = lastEntry.value
-            marginAccess += lastEntry.margin_available ?? 0
-            marginBorrowed += lastEntry.margin_borrowed ?? 0
+            // Only aggregate margin from funds that manage their own cash —
+            // non-manage_cash funds' margin is already tracked by their platform's cash fund
+            if fund.config.manage_cash != false {
+                marginAccess += priorEntries.last(where: { $0.margin_available != nil })?.margin_available ?? 0
+                marginBorrowed += priorEntries.last(where: { $0.margin_borrowed != nil })?.margin_borrowed ?? 0
+            }
         }
 
         let tickers = perFund.sorted { $0.value > $1.value }.map(\.key)
