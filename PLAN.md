@@ -2,6 +2,95 @@
 
 Native SwiftUI app for iOS, iPadOS, and macOS. Same bundle ID as the App Store Connect listing (`net.shadowpuppet.EscapeMint`).
 
+## Better Swift Audit - 2026-03-16
+
+Summary: 34 deduplicated findings across 19 files. 1 shared utility to extract (chart height constant).
+Platforms: [iOS, macOS] | Deployment targets: {"iOS": "17.0", "macOS": "14.0"}
+
+### Foundation — Shared Utilities
+- `chartFrameHeight` constant (160) in Theme.swift — replaces 21+ hardcoded instances across FundCharts.swift, DerivativesCharts.swift, FundDetailView.swift
+
+### File Ownership Map
+| File | Primary Category | Reason |
+|------|-----------------|--------|
+| FundStore.swift | Bugs & Perf | CRITICAL: unsafe array access [0] |
+| FundDetailView.swift | Bugs & Perf | HIGH: unstable ForEach ID using .offset |
+| AddEntryView.swift | Bugs & Perf | HIGH: autoSyncCashFund silent failure |
+| SettingsView.swift | Code Quality | HIGH×2: unguarded array access + print in error path |
+| FundDataStore.swift | Code Quality | MEDIUM: raw print() in production |
+| FundCharts.swift | DRY | MEDIUM: duplicated sampling logic |
+| DerivativesCharts.swift | DRY | HIGH: magic number 160 for chart height |
+| DashboardView.swift | Architecture | HIGH: direct FundStore access bypassing FundDataStore |
+| PlatformsView.swift | Architecture | HIGH: direct FundStore access + unhandled errors |
+| EditFundView.swift | Architecture | HIGH: direct FundStore access |
+| EditEntryView.swift | Platform & SwiftUI | HIGH: .onAppear for async instead of .task |
+| EscapeMintApp.swift | Platform & SwiftUI | HIGH: deprecated onChange single-parameter |
+| BacktestView.swift | Platform & SwiftUI | HIGH: .navigationBarTitleDisplayMode outside #if |
+| BacktestConfigPanel.swift | Platform & SwiftUI | MEDIUM: hardcoded .white + small fonts |
+| BacktestTransactions.swift | Platform & SwiftUI | MEDIUM: hardcoded .white + font sizes |
+| IntroGuideView.swift | Platform & SwiftUI | MEDIUM: .task without cancel + animation reduceMotion |
+| IntroCharts.swift | Platform & SwiftUI | MEDIUM: .onAppear withAnimation pattern |
+| FundCardView.swift | Platform & SwiftUI | MEDIUM: hardcoded .white colors |
+| EngineTests.swift | Tests | CRITICAL: weak assertions + missing coverage |
+
+### Security & Secrets
+(No files exclusively owned — security findings folded into file owners)
+- [x] **[MEDIUM]** `FundStore.swift:280-357` — Path traversal in import. Fixed: regex validation on fund IDs.
+- [x] **[MEDIUM]** `FundStore.swift:458-461` — Temp backup files. Fixed: dedicated export subdirectory with cleanup.
+- [x] **[MEDIUM]** `FundStore.swift:141-142` — Missing NSFileProtectionComplete. Fixed: set on iOS after write.
+- [x] **[MEDIUM]** `SettingsView.swift:165,227,241,256` — Error messages expose raw errors. Fixed: generic user-facing messages.
+
+### Code Quality & Style
+- [x] **[HIGH]** `SettingsView.swift:281` — Unguarded array access. Fixed: `.first` with guard.
+- [x] **[HIGH]** `SettingsView.swift:293` — print() in catch. Fixed: showToast.
+- [x] **[MEDIUM]** `FundDataStore.swift:144-204` — Raw print(). Fixed: os.Logger.
+- [x] **[MEDIUM]** `SettingsView.swift:165,227,241,256` — Error messages. Fixed: generic messages.
+- [ ] ~~**[HIGH]** `SettingsView.swift:70-72` — .navigationBarTitleDisplayMode outside #if.~~ False positive: already wrapped.
+
+### DRY & YAGNI
+- [x] **[HIGH]** `FundCharts.swift, DerivativesCharts.swift, FundDetailView.swift` — Magic 160. Fixed: Layout.chartFrameHeight.
+- [x] **[MEDIUM]** `FundCharts.swift:151,189` — Duplicated sampling. Fixed: uses sampleArray().
+- [ ] **[MEDIUM]** `AddEntryView.swift, EditEntryView.swift` — Identical calcPriceEquity(). Deferred: requires cross-file refactor to Engine.
+
+### Architecture & SOLID
+- [ ] **[HIGH]** `DashboardView.swift:622` — Direct FundStore access for import. Skipped: FundDataStore lacks import wrapper.
+- [x] **[HIGH]** `PlatformsView.swift:259-269` — Direct FundStore + silent try?. Fixed: routes through FundDataStore.
+- [x] **[HIGH]** `EditFundView.swift:196` — Direct FundStore access. Fixed: routes through FundDataStore.
+- [x] **[MEDIUM]** `DashboardView.swift:364-365` — Dictionary(grouping:) every render. Fixed: computed property.
+
+### Bugs, Performance & Error Handling
+- [x] **[CRITICAL]** `FundStore.swift:32,39,54` — Unsafe array access. Fixed: `.first` with guard + temp fallback.
+- [x] **[HIGH]** `FundDetailView.swift:624,793` — Unstable ForEach ID. Fixed: `id: \.element.id`.
+- [x] **[HIGH]** `AddEntryView.swift:127-151` — autoSyncCashFund silent failure. Fixed: logging on guard exits.
+- [x] **[MEDIUM]** `FundStore.swift:280-357` — Path traversal. Fixed: regex validation.
+- [x] **[MEDIUM]** `FundStore.swift:141-142` — NSFileProtectionComplete. Fixed.
+- [x] **[MEDIUM]** `FundDetailView.swift:780-793` — Intermediate arrays. Fixed: local `let recentEntries`.
+- [x] **[MEDIUM]** `FundStore.swift:458-461` — Temp backup cleanup. Fixed: dedicated export dir.
+
+### Platform Coverage & SwiftUI Patterns
+- [ ] ~~**[HIGH]** `EscapeMintApp.swift:255` — Deprecated onChange.~~ False positive: already uses two-parameter form.
+- [ ] ~~**[HIGH]** `EditEntryView.swift` — .onAppear for async.~~ False positive: Task{} is in button handlers, not .onAppear.
+- [ ] ~~**[HIGH]** `BacktestView.swift:57-58` — .navigationBarTitleDisplayMode outside #if.~~ False positive: already wrapped.
+- [x] **[MEDIUM]** `FundCardView.swift:58` — Hardcoded .white. Fixed: .textMuted.
+- [ ] ~~**[MEDIUM]** `BacktestConfigPanel.swift:80,82` — .white on colored segments.~~ False positive: white on colored background correct.
+- [ ] ~~**[MEDIUM]** `BacktestTransactions.swift:220` — .white shimmer.~~ False positive: white for shimmer correct.
+- [x] **[MEDIUM]** `IntroCharts.swift:329,398,462,523` — .onAppear withAnimation. Fixed: .task.
+- [x] **[MEDIUM]** `IntroGuideView.swift:87` — Animation without reduceMotion. Fixed: added guard.
+
+### Test Quality & Coverage
+- [ ] **[CRITICAL][WEAK]** `EngineTests.swift:79-148` — XCTAssertNotNil + force unwrap pattern in 12+ tests. Fix: Remove XCTAssertNotNil, use optional chaining. Complexity: Simple
+- [ ] **[CRITICAL][WEAK]** `EngineTests.swift:985` — Vacuous XCTAssertNotNil without meaningful assertions. Fix: Assert specific properties unconditionally. Complexity: Simple
+- [ ] **[HIGH][WEAK]** `EngineTests.swift:784-830` — `try!` in Codable tests masks errors. Fix: Use XCTAssertNoThrow or do/catch. Complexity: Simple
+- [ ] **[HIGH][WEAK]** `EngineTests.swift:956-995` — Backtest test asserts existence not correctness. Fix: Assert entry order, action types, value bounds. Complexity: Simple
+- [ ] **[HIGH][WEAK]** `EngineTests.swift:1096-1116` — Test re-implements computation. Fix: Use independent expected values. Complexity: Simple
+- [ ] **[MEDIUM][WEAK]** `EngineTests.swift:1130-1146` — High accuracy tolerance (±5) on financial calc. Fix: Reduce to ±0.1. Complexity: Simple
+- [ ] **[CRITICAL][MISSING]** No tests for FundStore, FundDataStore, Views, Models Codable round-trips
+- [ ] **[HIGH][MISSING]** No computeFundSizeForEntry tests, no path traversal tests, no FundEntry full-field Codable tests
+- [ ] **[HIGH][MISSING]** BacktestEngine edge cases: negative prices, zero dividends, allocations != 1.0
+- [ ] **[HIGH][MISSING]** FundEngine margin/derivatives coverage gaps
+
+---
+
 ## Better Swift Audit - 2026-03-15
 
 Summary: 52 findings across 20 files. 0 shared utilities to extract (existing isoDateFormatter and PlatformModifiers cover needs).
