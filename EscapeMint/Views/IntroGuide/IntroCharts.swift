@@ -326,7 +326,7 @@ struct MarketGrowthChart: View {
             }
         }
         .padding(12).background(Color.bgCard).cornerRadius(12)
-        .onAppear { withAnimation(.easeInOut(duration: 2.0)) { animationProgress = 1.0 } }
+        .task { withAnimation(.easeInOut(duration: 2.0)) { animationProgress = 1.0 } }
     }
 }
 
@@ -395,7 +395,7 @@ struct VolatilityComparisonChart: View {
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .padding(12).background(Color.bgCard).cornerRadius(12)
-        .onAppear { withAnimation(.easeInOut(duration: 2.5)) { animationProgress = 1.0 } }
+        .task { withAnimation(.easeInOut(duration: 2.5)) { animationProgress = 1.0 } }
     }
 }
 
@@ -459,7 +459,7 @@ struct TraditionalDCAChart: View {
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .padding(12).background(Color.bgCard).cornerRadius(12)
-        .onAppear { withAnimation(.easeInOut(duration: 2.5)) { animationProgress = 1.0 } }
+        .task { withAnimation(.easeInOut(duration: 2.5)) { animationProgress = 1.0 } }
     }
 }
 
@@ -520,7 +520,7 @@ struct BuySellZonesChart: View {
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .padding(12).background(Color.bgCard).cornerRadius(12)
-        .onAppear { withAnimation(.easeInOut(duration: 2.5)) { animationProgress = 1.0 } }
+        .task { withAnimation(.easeInOut(duration: 2.5)) { animationProgress = 1.0 } }
     }
 }
 

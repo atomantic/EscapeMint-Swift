@@ -28,16 +28,26 @@ actor FundStore {
             if iCloudWorks {
                 resolvedDir = funds
                 resolvedICloud = true
-            } else {
-                let docs = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            } else if let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first {
                 let local = docs.appendingPathComponent("funds")
                 try? fm.createDirectory(at: local, withIntermediateDirectories: true)
                 resolvedDir = local
                 resolvedICloud = false
+            } else {
+                print("[FundStore] documentDirectory unavailable, using temp directory")
+                let local = fm.temporaryDirectory.appendingPathComponent("funds")
+                try? fm.createDirectory(at: local, withIntermediateDirectories: true)
+                resolvedDir = local
+                resolvedICloud = false
             }
-        } else {
-            let docs = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        } else if let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first {
             let funds = docs.appendingPathComponent("funds")
+            try? fm.createDirectory(at: funds, withIntermediateDirectories: true)
+            resolvedDir = funds
+            resolvedICloud = false
+        } else {
+            print("[FundStore] documentDirectory unavailable, using temp directory")
+            let funds = fm.temporaryDirectory.appendingPathComponent("funds")
             try? fm.createDirectory(at: funds, withIntermediateDirectories: true)
             resolvedDir = funds
             resolvedICloud = false
@@ -51,7 +61,7 @@ actor FundStore {
     func migrateToICloudIfNeeded() {
         guard isICloud else { return }
         let fm = fileManager
-        let localDocs = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        guard let localDocs = fm.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
         let localFunds = localDocs.appendingPathComponent("funds")
         guard fm.fileExists(atPath: localFunds.path) else { return }
 
@@ -144,6 +154,11 @@ actor FundStore {
         // Write entries
         let tsv = buildTSV(fund.entries)
         try tsv.write(to: tsvURL, atomically: true, encoding: .utf8)
+
+        #if os(iOS)
+        try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: configURL.path)
+        try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: tsvURL.path)
+        #endif
     }
 
     func appendEntry(fundId: String, entry: FundEntry) throws {
@@ -287,6 +302,7 @@ actor FundStore {
             throw NSError(domain: "FundStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid backup format: missing 'funds' array"])
         }
 
+        let safeFundIdPattern = /^[a-zA-Z0-9._-]+$/
         var imported = 0
         for fundDict in fundsArray {
             guard let id = fundDict["id"] as? String,
@@ -294,6 +310,12 @@ actor FundStore {
                   let ticker = fundDict["ticker"] as? String,
                   let configDict = fundDict["config"] as? [String: Any],
                   let entriesArray = fundDict["entries"] as? [[String: Any]] else {
+                continue
+            }
+
+            // Validate fund ID contains only safe characters for file paths
+            guard id.wholeMatch(of: safeFundIdPattern) != nil else {
+                print("[FundStore] skipping fund with unsafe id: \(id)")
                 continue
             }
 
@@ -455,8 +477,13 @@ actor FundStore {
         df.dateFormat = "yyyy-MM-dd-HHmmss"
         let filename = "escapemint-backup-\(df.string(from: Date())).json"
 
-        let tempDir = FileManager.default.temporaryDirectory
-        let backupURL = tempDir.appendingPathComponent(filename)
+        let exportDir = FileManager.default.temporaryDirectory.appendingPathComponent("escapemint-export")
+        try? FileManager.default.createDirectory(at: exportDir, withIntermediateDirectories: true)
+        // Clean up any previous export files
+        if let oldFiles = try? FileManager.default.contentsOfDirectory(at: exportDir, includingPropertiesForKeys: nil) {
+            for f in oldFiles { try? FileManager.default.removeItem(at: f) }
+        }
+        let backupURL = exportDir.appendingPathComponent(filename)
         try data.write(to: backupURL)
         return backupURL
     }

@@ -283,7 +283,7 @@ struct FundDetailView: View {
             DerivativesMarginChart(points: pts)
             DerivativesCapturedProfitChart(points: pts)
         } else {
-            ProgressView().frame(maxWidth: .infinity).frame(height: 160)
+            ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
         }
     }
 
@@ -621,7 +621,7 @@ struct FundDetailView: View {
 
                 let count = fund.entries.count
 
-                ForEach(Array(fund.entries.reversed().enumerated()), id: \.offset) { reverseIdx, entry in
+                ForEach(Array(fund.entries.reversed().enumerated()), id: \.element.id) { reverseIdx, entry in
                     let actualIndex = count - 1 - reverseIdx
                     let computed = actualIndex < computedRows.count ? computedRows[actualIndex] : nil
                     entryRow(entry, entryIndex: actualIndex, columns: cols, config: fund.config, isEven: reverseIdx.isMultiple(of: 2), computed: computed)
@@ -790,7 +790,8 @@ struct FundDetailView: View {
         .font(.caption2).fontWeight(.semibold).foregroundColor(.textMuted)
         .padding(.horizontal, 6).padding(.bottom, 2)
 
-        ForEach(Array(fund.entries.suffix(30).reversed().enumerated()), id: \.offset) { reverseIdx, entry in
+        let recentEntries = Array(fund.entries.suffix(30).reversed().enumerated())
+        ForEach(recentEntries, id: \.element.id) { reverseIdx, entry in
             let actualIndex = fund.entries.count - 1 - reverseIdx
             HStack {
                 Text(entry.date).font(.caption).foregroundColor(.textSecondary)

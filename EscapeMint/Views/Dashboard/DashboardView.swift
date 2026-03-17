@@ -29,6 +29,10 @@ struct DashboardView: View {
         return closed.filter { $0.fund.platform == filter }
     }
 
+    var activeSummariesByPlatform: [String: [FundSummary]] {
+        Dictionary(grouping: activeSummaries, by: { $0.fund.platform })
+    }
+
     var platforms: [String] { store.platforms }
 
     var body: some View {
@@ -361,7 +365,7 @@ struct DashboardView: View {
 
     @ViewBuilder
     private var fundCards: some View {
-        let grouped = Dictionary(grouping: activeSummaries, by: { $0.fund.platform })
+        let grouped = activeSummariesByPlatform
         ForEach(grouped.keys.sorted(), id: \.self) { platform in
             if let platformFunds = grouped[platform] {
                 Section {

@@ -148,10 +148,7 @@ func computeProfitPoints(entries: [FundEntry], config: FundConfig) -> [ProfitPoi
         }
         return ProfitPoint(id: entry.date, date: entry.date, cumDividend: cumD, cumInterest: cumI, cumExtracted: cumE)
     }
-    let step = max(1, all.count / 60)
-    return all.enumerated()
-        .filter { $0.offset % step == 0 || $0.offset == all.count - 1 }
-        .map(\.element)
+    return sampleArray(all)
 }
 
 func computeValuePoints(entries: [FundEntry], config: FundConfig) -> [ValuePoint] {
@@ -186,10 +183,7 @@ func computeValuePoints(entries: [FundEntry], config: FundConfig) -> [ValuePoint
     }
 
     // Sample, then compute target per sampled point
-    let step = max(1, allWithInvested.count / 60)
-    let sampled = allWithInvested.enumerated()
-        .filter { $0.offset % step == 0 || $0.offset == allWithInvested.count - 1 }
-        .map(\.element)
+    let sampled = sampleArray(allWithInvested)
 
     let cc = chartConfig(config)
 
@@ -245,9 +239,9 @@ struct ValueChartView: View {
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
-                .frame(height: 160)
+                .frame(height: Layout.chartFrameHeight)
             } else {
-                ProgressView().frame(maxWidth: .infinity).frame(height: 160)
+                ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
             }
         }
         .task(id: "\(fundId)-\(entries.count)") {
@@ -301,9 +295,9 @@ struct PLChartView: View {
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
-                .frame(height: 160)
+                .frame(height: Layout.chartFrameHeight)
             } else {
-                ProgressView().frame(maxWidth: .infinity).frame(height: 160)
+                ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
             }
         }
         .task(id: "\(fundId)-\(entries.count)") {
@@ -357,9 +351,9 @@ struct APYChartView: View {
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emPercentAxis() }
                 .chartLegend(.hidden)
-                .frame(height: 160)
+                .frame(height: Layout.chartFrameHeight)
             } else {
-                ProgressView().frame(maxWidth: .infinity).frame(height: 160)
+                ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
             }
         }
         .task(id: "\(fundId)-\(entries.count)") {
@@ -431,9 +425,9 @@ struct CapturedProfitChartView: View {
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
-                .frame(height: 160)
+                .frame(height: Layout.chartFrameHeight)
             } else {
-                ProgressView().frame(maxWidth: .infinity).frame(height: 160)
+                ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
             }
         }
         .task(id: "\(fundId)-\(entries.count)") {

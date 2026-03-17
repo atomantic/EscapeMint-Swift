@@ -55,7 +55,7 @@ struct FundCardView: View {
                     }
                     VStack(alignment: .leading) {
                         Text("APY").font(.caption2).foregroundColor(.textMuted)
-                        Text(formatPercent(realizedAPY)).font(.caption).foregroundColor(realizedAPY > 0 ? .mint : .white)
+                        Text(formatPercent(realizedAPY)).font(.caption).foregroundColor(realizedAPY > 0 ? .mint : .textMuted)
                     }
                 } else {
                     VStack(alignment: .leading) {

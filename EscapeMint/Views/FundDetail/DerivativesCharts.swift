@@ -365,9 +365,9 @@ struct DerivativesPLChart: View {
                 .chartYAxis { emCurrencyAxis() }
                 .chartYScale(domain: chartYDomain(bounds, points: points.flatMap { [$0.liquidPL, $0.capturedProfit] }))
                 .chartLegend(.hidden)
-                .frame(height: 160)
+                .frame(height: Layout.chartFrameHeight)
             } else {
-                ProgressView().frame(maxWidth: .infinity).frame(height: 160)
+                ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
             }
         }
     }
@@ -405,9 +405,9 @@ struct DerivativesAPYChart: View {
                 .chartYAxis { emPercentAxis() }
                 .chartYScale(domain: chartYDomain(bounds, points: points.flatMap { [$0.liquidAPY, $0.realizedAPY] }))
                 .chartLegend(.hidden)
-                .frame(height: 160)
+                .frame(height: Layout.chartFrameHeight)
             } else {
-                ProgressView().frame(maxWidth: .infinity).frame(height: 160)
+                ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
             }
         }
     }
@@ -447,9 +447,9 @@ struct DerivativesValueChart: View {
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
-                .frame(height: 160)
+                .frame(height: Layout.chartFrameHeight)
             } else {
-                ProgressView().frame(maxWidth: .infinity).frame(height: 160)
+                ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
             }
         }
     }
@@ -493,11 +493,11 @@ struct DerivativesPriceChart: View {
                 .chartYAxis { emCurrencyAxis() }
                 .chartYScale(domain: chartYDomain(bounds, points: clampedPoints.flatMap { [$0.avgEntry, $0.liqPrice] }))
                 .chartLegend(.hidden)
-                .frame(height: 160)
+                .frame(height: Layout.chartFrameHeight)
             } else {
                 Text("Not enough position data")
                     .font(.caption).foregroundColor(.textMuted)
-                    .frame(height: 160)
+                    .frame(height: Layout.chartFrameHeight)
             }
         }
     }
@@ -563,9 +563,9 @@ struct DerivativesMarginChart: View {
                     .chartYScale(domain: 0...maxLev)
                     .chartLegend(.hidden)
                 }
-                .frame(height: 160)
+                .frame(height: Layout.chartFrameHeight)
             } else {
-                ProgressView().frame(maxWidth: .infinity).frame(height: 160)
+                ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
             }
         }
     }
@@ -614,9 +614,9 @@ struct DerivativesCapturedProfitChart: View {
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
-                .frame(height: 160)
+                .frame(height: Layout.chartFrameHeight)
             } else {
-                ProgressView().frame(maxWidth: .infinity).frame(height: 160)
+                ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
             }
         }
     }

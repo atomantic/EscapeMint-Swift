@@ -4,6 +4,7 @@ struct IntroGuideView: View {
     @Binding var isPresented: Bool
     @State private var currentStep = 1
     @AppStorage("escapemint-intro-completed") private var introCompleted = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var modePreloader: ModeComparisonPreloader { .shared }
 
     private let totalSteps = introSteps.count
@@ -84,8 +85,12 @@ struct IntroGuideView: View {
         HStack(spacing: 4) {
             ForEach(1...totalSteps, id: \.self) { step in
                 Button {
-                    withAnimation(.easeInOut(duration: 0.3)) {
+                    if reduceMotion {
                         currentStep = step
+                    } else {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            currentStep = step
+                        }
                     }
                 } label: {
                     Capsule()
@@ -234,8 +239,12 @@ struct IntroGuideView: View {
                 // Previous
                 if currentStep > 1 {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.3)) {
+                        if reduceMotion {
                             currentStep -= 1
+                        } else {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                currentStep -= 1
+                            }
                         }
                     } label: {
                         Text("\u{2190} Previous")
@@ -260,8 +269,12 @@ struct IntroGuideView: View {
                 // Next / Launch
                 if currentStep < totalSteps {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.3)) {
+                        if reduceMotion {
                             currentStep += 1
+                        } else {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                currentStep += 1
+                            }
                         }
                     } label: {
                         Text("Next \u{2192}")

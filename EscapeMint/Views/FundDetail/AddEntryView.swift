@@ -127,12 +127,18 @@ func computeFundSizeForEntry(_ newEntry: FundEntry, existingEntries: [FundEntry]
 func autoSyncCashFund(fundId: String, entry: FundEntry, config: FundConfig) async {
     let manageCash = config.manage_cash != false
     guard !manageCash, let amt = entry.amount, amt > 0,
-          (entry.action == .BUY || entry.action == .SELL) else { return }
+          (entry.action == .BUY || entry.action == .SELL) else {
+        print("[autoSyncCashFund] skipped for \(fundId): manageCash=\(config.manage_cash != false), amount=\(entry.amount ?? 0), action=\(entry.action?.rawValue ?? "nil")")
+        return
+    }
 
     let platform = fundId.components(separatedBy: "-").first ?? ""
     let cashFundId = "\(platform)-cash"
     let store = FundDataStore.shared
-    guard let cashFund = store.funds.first(where: { $0.id == cashFundId }) else { return }
+    guard let cashFund = store.funds.first(where: { $0.id == cashFundId }) else {
+        print("[autoSyncCashFund] no cash fund found for platform '\(platform)' (expected \(cashFundId))")
+        return
+    }
 
     let ticker = fundId.replacingOccurrences(of: "\(platform)-", with: "").uppercased()
     let isBuy = entry.action == .BUY

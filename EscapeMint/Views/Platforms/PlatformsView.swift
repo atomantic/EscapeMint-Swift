@@ -259,14 +259,13 @@ struct PlatformsView: View {
         Task {
             let platformFunds = store.funds.filter { $0.platform == oldName }
             for fund in platformFunds {
-                let newId = "\(cleanName)-\(fund.ticker)"
-                try? await FundStore.shared.writeFund(FundData(platform: cleanName, ticker: fund.ticker, config: fund.config, entries: fund.entries))
-                if newId != fund.id {
-                    try? await FundStore.shared.deleteFund(id: fund.id)
+                let renamedFund = FundData(platform: cleanName, ticker: fund.ticker, config: fund.config, entries: fund.entries)
+                await store.addFund(renamedFund)
+                if renamedFund.id != fund.id {
+                    await store.deleteFund(id: fund.id)
                 }
             }
             editingPlatform = nil
-            await store.reload()
         }
     }
 }

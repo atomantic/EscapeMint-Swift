@@ -162,7 +162,7 @@ struct SettingsView: View {
                 let count = try await FundStore.shared.importFromBackupJSON(url)
                 showToast("Restored \(count) fund(s) from backup")
             } catch {
-                showToast("Import failed: \(error.localizedDescription)")
+                showToast("Import failed. Please check the file format.")
             }
             await refreshStats()
             await FundDataStore.shared.reload()
@@ -224,7 +224,7 @@ struct SettingsView: View {
                 let count = try await FundStore.shared.exportToDirectory(url)
                 showToast("Exported \(count) fund(s)")
             } catch {
-                showToast("Export failed: \(error.localizedDescription)")
+                showToast("Export failed. Please check folder permissions.")
             }
         }
     }
@@ -238,7 +238,7 @@ struct SettingsView: View {
                 let count = try await FundStore.shared.importFromDirectory(url)
                 showToast("Imported \(count) fund(s)")
             } catch {
-                showToast("Import failed: \(error.localizedDescription)")
+                showToast("Import failed. Please check the folder contents.")
             }
             await refreshStats()
             await FundDataStore.shared.reload()
@@ -253,7 +253,7 @@ struct SettingsView: View {
                 await refreshStats()
                 showToast("Created \(count) test funds with simulated DCA history")
             } catch {
-                showToast("Failed to load test data: \(error.localizedDescription)")
+                showToast("Failed to load test data")
             }
         }
     }
@@ -266,7 +266,7 @@ struct SettingsView: View {
                 await refreshStats()
                 showToast("Deleted \(count) test fund(s)")
             } catch {
-                showToast("Failed to remove test data: \(error.localizedDescription)")
+                showToast("Failed to remove test data")
             }
         }
     }
@@ -278,7 +278,10 @@ struct SettingsView: View {
                 do {
                     let backupURL = try await FundStore.shared.exportToBackupJSON()
                     // Move backup to Documents for persistence
-                    let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                    guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+                        showToast("Could not access Documents directory")
+                        return
+                    }
                     let dest = docs.appendingPathComponent(backupURL.lastPathComponent)
                     try? FileManager.default.removeItem(at: dest)
                     try FileManager.default.moveItem(at: backupURL, to: dest)
@@ -287,10 +290,10 @@ struct SettingsView: View {
                     await FundDataStore.shared.reload()
                     showToast("Backed up \(stats.fundCount) fund(s), then cleared")
                 } catch {
-                    showToast("Backup failed: \(error.localizedDescription)")
+                    showToast("Backup failed. Data was not cleared.")
                 }
             } else {
-                do { try await FundStore.shared.deleteAllFunds() } catch { print("Delete failed: \(error)") }
+                do { try await FundStore.shared.deleteAllFunds() } catch { showToast("Failed to clear data") }
                 await FundDataStore.shared.reload()
                 await refreshStats()
                 showToast("All data cleared")

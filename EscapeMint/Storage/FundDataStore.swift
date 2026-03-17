@@ -1,4 +1,5 @@
 import Foundation
+import os
 import SwiftUI
 
 /// Shared in-memory cache for all fund data. Progressive loading: configs first (instant nav),
@@ -39,6 +40,8 @@ final class FundDataStore {
         _auditEntries = entries
         return entries
     }
+
+    private static let logger = Logger(subsystem: "net.shadowpuppet.EscapeMint", category: "FundDataStore")
 
     private init() {}
 
@@ -141,7 +144,7 @@ final class FundDataStore {
         do {
             try await FundStore.shared.writeFund(fund)
         } catch {
-            print("[FundDataStore] addFund disk write failed: \(error)")
+            Self.logger.error("addFund disk write failed: \(error)")
         }
         funds.append(fund)
         loadedFundCount = funds.count
@@ -152,7 +155,7 @@ final class FundDataStore {
         do {
             try await FundStore.shared.writeFund(fund)
         } catch {
-            print("[FundDataStore] updateFund disk write failed: \(error)")
+            Self.logger.error("updateFund disk write failed: \(error)")
         }
         if let idx = funds.firstIndex(where: { $0.id == fund.id }) {
             funds[idx] = fund
@@ -164,7 +167,7 @@ final class FundDataStore {
         do {
             try await FundStore.shared.deleteFund(id: id)
         } catch {
-            print("[FundDataStore] deleteFund disk delete failed: \(error)")
+            Self.logger.error("deleteFund disk delete failed: \(error)")
         }
         funds.removeAll { $0.id == id }
         loadedFundCount = funds.count
@@ -175,7 +178,7 @@ final class FundDataStore {
         do {
             try await FundStore.shared.appendEntry(fundId: fundId, entry: entry)
         } catch {
-            print("[FundDataStore] appendEntry disk write failed: \(error)")
+            Self.logger.error("appendEntry disk write failed: \(error)")
         }
         if let idx = funds.firstIndex(where: { $0.id == fundId }) {
             funds[idx].entries.append(entry)
@@ -188,7 +191,7 @@ final class FundDataStore {
         do {
             try await FundStore.shared.replaceEntries(fundId: fundId, entries: entries)
         } catch {
-            print("[FundDataStore] replaceEntries disk write failed: \(error)")
+            Self.logger.error("replaceEntries disk write failed: \(error)")
         }
         if let idx = funds.firstIndex(where: { $0.id == fundId }) {
             funds[idx].entries = entries
@@ -201,7 +204,7 @@ final class FundDataStore {
         do {
             try await FundStore.shared.updateConfig(fundId: fundId, config: config)
         } catch {
-            print("[FundDataStore] updateConfig disk write failed: \(error)")
+            Self.logger.error("updateConfig disk write failed: \(error)")
         }
         if let idx = funds.firstIndex(where: { $0.id == fundId }) {
             funds[idx].config = config
