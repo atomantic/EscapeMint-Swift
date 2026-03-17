@@ -355,7 +355,7 @@ func computeRecommendation(config: FundConfig, state: FundState) -> Recommendati
     if state.startInputUsd == 0 && state.actualValueUsd == 0 {
         let buyAmount = hasCashPool ? min(limit, state.cashAvailableUsd) : limit
         return Recommendation(action: .BUY, amount: buyAmount,
-                              reasoning: "Initial DCA purchase of \(formatCurrency(buyAmount)).")
+                              reasoning: "No position yet. System calculates initial DCA of \(formatCurrency(buyAmount)).")
     }
 
     // SELL: above target by more than min_profit AND in profit
@@ -363,9 +363,10 @@ func computeRecommendation(config: FundConfig, state: FundState) -> Recommendati
     if state.targetDiffUsd > minProfit && state.gainUsd > 0 {
         let accumulate = config.accumulate == true
         let sellAmount = accumulate ? limit : state.actualValueUsd
+        let prefix = "Above target by \(formatCurrency(state.targetDiffUsd)) (> \(formatCurrency(minProfit)) threshold)."
         let reasoning = accumulate
-            ? "Above target by \(formatCurrency(state.targetDiffUsd)) (> \(formatCurrency(minProfit)) threshold). Sell \(formatCurrency(sellAmount))."
-            : "Above target by \(formatCurrency(state.targetDiffUsd)) (> \(formatCurrency(minProfit)) threshold). Harvest entire position of \(formatCurrency(state.actualValueUsd))."
+            ? "\(prefix) Rules calculate sell of \(formatCurrency(sellAmount))."
+            : "\(prefix) Rules calculate full harvest of \(formatCurrency(state.actualValueUsd))."
         return Recommendation(action: .SELL, amount: sellAmount, reasoning: reasoning)
     }
 
@@ -379,11 +380,11 @@ func computeRecommendation(config: FundConfig, state: FundState) -> Recommendati
 
     let reasoning: String
     if state.gainUsd < 0 && state.gainPct < (config.max_at_pct ?? -0.25) {
-        reasoning = "Significant loss (\(formatPercent(state.gainPct))). DCA max amount: \(formatCurrency(limit))."
+        reasoning = "Significant loss (\(formatPercent(state.gainPct))). Rules calculate max DCA of \(formatCurrency(limit))."
     } else if state.gainUsd < 0 {
-        reasoning = "Below cost basis (\(formatPercent(state.gainPct)) loss). DCA mid amount: \(formatCurrency(limit))."
+        reasoning = "Below cost basis (\(formatPercent(state.gainPct)) loss). Rules calculate mid DCA of \(formatCurrency(limit))."
     } else {
-        reasoning = "On track or above cost. DCA min amount: \(formatCurrency(limit))."
+        reasoning = "On track or above cost. Rules calculate min DCA of \(formatCurrency(limit))."
     }
 
     return Recommendation(action: .BUY, amount: buyAmount, reasoning: reasoning)

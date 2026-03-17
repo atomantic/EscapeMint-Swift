@@ -21,8 +21,6 @@ struct EditFundView: View {
     @State private var accumulate: Bool
     @State private var manageCash: Bool
     @State private var marginEnabled: Bool
-    @State private var marginApr: String
-    @State private var marginAccessUsd: String
     @State private var dividendReinvest: Bool
     @State private var interestReinvest: Bool
     @State private var expenseFromFund: Bool
@@ -47,8 +45,6 @@ struct EditFundView: View {
         _accumulate = State(initialValue: fund.config.accumulate ?? true)
         _manageCash = State(initialValue: fund.config.manage_cash ?? false)
         _marginEnabled = State(initialValue: fund.config.margin_enabled ?? false)
-        _marginApr = State(initialValue: String((fund.config.margin_apr ?? 0) * 100))
-        _marginAccessUsd = State(initialValue: String(fund.config.margin_access_usd ?? 0))
         _dividendReinvest = State(initialValue: fund.config.dividend_reinvest ?? false)
         _interestReinvest = State(initialValue: fund.config.interest_reinvest ?? false)
         _expenseFromFund = State(initialValue: fund.config.expense_from_fund ?? false)
@@ -128,15 +124,6 @@ struct EditFundView: View {
                     Toggle("Expense From Fund", isOn: $expenseFromFund)
                 }
 
-                if marginEnabled && features.supportsMargin {
-                    Section("Margin Settings") {
-                        TextField("Margin APR (%)", text: $marginApr)
-                            .numericKeyboard()
-                        TextField("Margin Access (USD)", text: $marginAccessUsd)
-                            .numericKeyboard()
-                    }
-                }
-
                 Section {
                     Button("Delete Fund", role: .destructive) {
                         showDeleteConfirm = true
@@ -176,8 +163,6 @@ struct EditFundView: View {
         config.accumulate = accumulate
         config.manage_cash = manageCash
         config.margin_enabled = marginEnabled
-        config.margin_apr = (Double(marginApr) ?? 0) / 100
-        config.margin_access_usd = Double(marginAccessUsd) ?? 0
         config.dividend_reinvest = dividendReinvest
         config.interest_reinvest = interestReinvest
         config.expense_from_fund = expenseFromFund

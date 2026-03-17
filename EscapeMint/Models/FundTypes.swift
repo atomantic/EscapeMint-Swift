@@ -52,8 +52,6 @@ struct FundConfig: Codable {
     var manage_cash: Bool?
 
     // Margin
-    var margin_apr: Double?
-    var margin_access_usd: Double?
     var margin_enabled: Bool?
 
     // Behavior
@@ -78,7 +76,7 @@ struct FundConfig: Codable {
         case input_min_usd, input_mid_usd, input_max_usd
         case max_at_pct, min_profit_usd
         case cash_apy, manage_cash
-        case margin_apr, margin_access_usd, margin_enabled
+        case margin_enabled
         case accumulate, dividend_reinvest, interest_reinvest, expense_from_fund
         case initial_margin_rate, maintenance_margin_rate, contract_multiplier
         case chart_bounds

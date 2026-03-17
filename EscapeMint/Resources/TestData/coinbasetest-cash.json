@@ -10,8 +10,6 @@
   "max_at_pct": 0,
   "min_profit_usd": 0,
   "cash_apy": 0.01,
-  "margin_apr": 0,
-  "margin_access_usd": 0,
   "accumulate": true,
   "manage_cash": true,
   "start_date": "2021-01-14",

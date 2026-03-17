@@ -242,9 +242,11 @@ struct FundDetailView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(rec.action.rawValue) \(formatCurrency(rec.amount))")
                     .font(.title2).fontWeight(.bold)
-                    .foregroundColor(rec.action == .BUY ? .mint : rec.action == .SELL ? .red : .yellow)
+                    .foregroundColor(Color.forAction(rec.action))
                 Text(rec.reasoning)
                     .font(.caption).foregroundColor(.textSecondary)
+                Text("Based on your configured rules — not financial advice.")
+                    .font(.caption2).foregroundColor(.textMuted)
             }
             Spacer()
         }
@@ -252,7 +254,7 @@ struct FundDetailView: View {
         .background(Color.bgCard)
         .overlay(
             Rectangle()
-                .fill(rec.action == .BUY ? Color.mint : rec.action == .SELL ? Color.red : Color.yellow)
+                .fill(Color.forAction(rec.action))
                 .frame(width: 4),
             alignment: .leading
         )

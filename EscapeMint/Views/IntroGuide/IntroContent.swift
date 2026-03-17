@@ -124,7 +124,7 @@ let introSteps: [IntroStepData] = [
             .text("In both modes, the strategy is the same:"),
             .bullet("Recession \u{2192} Buy more (prices are below your target)"),
             .bullet("Bubble \u{2192} Sell (lock in gains above target)"),
-            .text("The system generates a specific recommendation at each interval — weekly, monthly, or on your custom schedule.")
+            .text("Based on your configured rules, the system calculates an action at each interval — weekly, monthly, or on your custom schedule.")
         ],
         chartType: .buySell
     ),
@@ -132,7 +132,7 @@ let introSteps: [IntroStepData] = [
         id: 9,
         title: "Choosing Your Assets",
         content: [
-            .boldLabel(label: "Core principle:", color: .blue, text: "Stick to assets that would only go to zero if the entire economy collapsed. Individual meme stocks can fail on their own. Broad indexes cannot — unless the whole system fails, at which point portfolio value is the least of anyone's concerns."),
+            .boldLabel(label: "Design assumption:", color: .blue, text: "This system is designed around assets that would only go to zero if the entire economy collapsed. Individual meme stocks can fail on their own. Broad indexes cannot — unless the whole system fails, at which point portfolio value is the least of anyone's concerns."),
             .text("For long-term holdings: broad market indexes (e.g., VTI), large-cap funds, or other assets you believe in for a multi-decade horizon."),
             .text("For cash management: Leveraged ETFs like TQQQ/SPXL can be used in harvest mode if you're confident the current market regime continues."),
             .text("The key is matching your asset choice to your goal: stable accumulation vs. aggressive cash harvesting.")

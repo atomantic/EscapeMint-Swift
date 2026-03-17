@@ -48,8 +48,6 @@ struct BacktestConfig: Equatable {
     var maxAtPct: Double = -0.25
 
     // Optional
-    var marginAccessUSD: Double = 0
-    var marginAPR: Double = 0.05
     var cashAPY: Double = 0.04
 
     var totalAllocation: Double {
