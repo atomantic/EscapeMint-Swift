@@ -57,6 +57,12 @@ extension Color {
     )
 }
 
+// MARK: - Layout Constants
+
+enum Layout {
+    static let chartFrameHeight: CGFloat = 160
+}
+
 // MARK: - Card Style Modifier
 
 struct CardStyle: ViewModifier {
