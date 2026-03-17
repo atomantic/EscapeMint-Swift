@@ -167,8 +167,14 @@ struct AddEntryView: View {
     @State private var deposit = ""
     @State private var withdrawal = ""
     @State private var dividend = ""
+    @State private var cashInterest = ""
+    @State private var fee = ""
+    @State private var marginAvailable = ""
+    @State private var marginBorrowed = ""
     @State private var notes = ""
     @State private var showOptional = false
+
+    private var isCash: Bool { isCashFund(fundType) }
 
     private var features: FundTypeFeatures {
         getFeatures(fundType)
@@ -181,47 +187,14 @@ struct AddEntryView: View {
     var body: some View {
         NavigationStack {
             Form {
-                // MARK: - Action section
-                Section {
-                    DatePicker("Date", selection: $date, displayedComponents: .date)
-                    Picker("Action", selection: $action) {
-                        Text("BUY").tag(FundAction.BUY)
-                        Text("SELL").tag(FundAction.SELL)
-                        Text("HOLD").tag(FundAction.HOLD)
-                    }
-                }
-
-                // MARK: - Values section
-                Section {
-                    NumericFieldRow(label: "Equity ($)", placeholder: "Portfolio value", text: $value)
-                    NumericFieldRow(label: "Amount ($)", placeholder: action == .HOLD ? "N/A" : "Buy/sell amount", text: $amount)
-                        .disabled(action == .HOLD)
-                        .opacity(action == .HOLD ? 0.5 : 1)
-                } header: {
-                    Text("Action")
-                }
-
-                // MARK: - Optional section
-                Section(isExpanded: $showOptional) {
-                    if features.supportsShares {
-                        NumericFieldRow(label: "Shares/Units", text: $shares, hint: totalSharesHint)
-                        NumericFieldRow(label: "Price ($)", placeholder: "Per unit", text: $price)
-                        Button("Calc Price/Equity") { calcPriceEquity() }
-                            .font(.callout)
-                            .foregroundColor(.mint)
-                    }
-                    if features.supportsDividends {
-                        NumericFieldRow(label: "Dividend ($)", text: $dividend)
-                    }
-                    NumericFieldRow(label: "Deposit ($)", text: $deposit)
-                    NumericFieldRow(label: "Withdrawal ($)", text: $withdrawal)
-                    TextField("Notes", text: $notes)
-                } header: {
-                    Text("Optional")
+                if isCash {
+                    cashForm
+                } else {
+                    tradingForm
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle("Add Entry")
+            .navigationTitle(isCash ? "Cash Balance Entry" : "Add Entry")
             #if os(macOS)
             .frame(minWidth: 420, minHeight: 380)
             #endif
@@ -230,12 +203,83 @@ struct AddEntryView: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }
+                    Button("Save") { isCash ? saveCash() : save() }
                 }
             }
             .onAppear {
-                action = .BUY
+                if isCash {
+                    // Pre-fill cash balance from last entry
+                    if let last = existingEntries.last {
+                        value = String(format: "%.2f", last.cash ?? last.value)
+                    }
+                } else {
+                    action = .BUY
+                }
             }
+        }
+    }
+
+    // MARK: - Cash Fund Form
+
+    @ViewBuilder
+    private var cashForm: some View {
+        Section {
+            DatePicker("Date", selection: $date, displayedComponents: .date)
+            NumericFieldRow(label: "Cash Balance ($)", text: $value)
+            NumericFieldRow(label: "Amount ($)", placeholder: "+100 or -50", text: $amount)
+        } footer: {
+            Text("Positive amount = deposit, negative = withdraw")
+        }
+
+        Section("Details") {
+            NumericFieldRow(label: "Interest Earned ($)", text: $cashInterest)
+            NumericFieldRow(label: "Fee ($)", text: $fee)
+            if features.supportsMargin {
+                NumericFieldRow(label: "Margin Available ($)", text: $marginAvailable)
+                NumericFieldRow(label: "Margin Borrowed ($)", text: $marginBorrowed)
+            }
+            TextField("Notes", text: $notes)
+        }
+    }
+
+    // MARK: - Trading Fund Form
+
+    @ViewBuilder
+    private var tradingForm: some View {
+        Section {
+            DatePicker("Date", selection: $date, displayedComponents: .date)
+            Picker("Action", selection: $action) {
+                Text("BUY").tag(FundAction.BUY)
+                Text("SELL").tag(FundAction.SELL)
+                Text("HOLD").tag(FundAction.HOLD)
+            }
+        }
+
+        Section {
+            NumericFieldRow(label: "Equity ($)", placeholder: "Portfolio value", text: $value)
+            NumericFieldRow(label: "Amount ($)", placeholder: action == .HOLD ? "N/A" : "Buy/sell amount", text: $amount)
+                .disabled(action == .HOLD)
+                .opacity(action == .HOLD ? 0.5 : 1)
+        } header: {
+            Text("Action")
+        }
+
+        Section(isExpanded: $showOptional) {
+            if features.supportsShares {
+                NumericFieldRow(label: "Shares/Units", text: $shares, hint: totalSharesHint)
+                NumericFieldRow(label: "Price ($)", placeholder: "Per unit", text: $price)
+                Button("Calc Price/Equity") { calcPriceEquity() }
+                    .font(.callout)
+                    .foregroundColor(.mint)
+            }
+            if features.supportsDividends {
+                NumericFieldRow(label: "Dividend ($)", text: $dividend)
+            }
+            NumericFieldRow(label: "Deposit ($)", text: $deposit)
+            NumericFieldRow(label: "Withdrawal ($)", text: $withdrawal)
+            TextField("Notes", text: $notes)
+        } header: {
+            Text("Optional")
         }
     }
 
@@ -251,6 +295,33 @@ struct AddEntryView: View {
         if prior > 0 {
             let equity = prior * calculatedPrice
             value = String(format: "%.2f", equity)
+        }
+    }
+
+    private func saveCash() {
+        let cashBalance = Double(value) ?? 0
+        let amt = Double(amount) ?? 0
+        // Adjust cash balance by the amount (positive = deposit, negative = withdraw)
+        let adjustedCash = max(0, cashBalance + amt)
+        let entryAction: FundAction? = amt > 0 ? .DEPOSIT : amt < 0 ? .WITHDRAW : nil
+        var entry = FundEntry(
+            date: isoDateFormatter.string(from: date),
+            value: adjustedCash,
+            cash: adjustedCash,
+            action: entryAction,
+            amount: amt != 0 ? abs(amt) : nil
+        )
+        if let ci = Double(cashInterest), ci != 0 { entry.cash_interest = ci }
+        if let f = Double(fee), f != 0 { entry.expense = f }
+        if let ma = Double(marginAvailable), ma != 0 { entry.margin_available = ma }
+        if let mb = Double(marginBorrowed), mb != 0 { entry.margin_borrowed = mb }
+        if !notes.isEmpty { entry.notes = notes }
+        entry.fund_size = computeFundSizeForEntry(entry, existingEntries: existingEntries, config: fundConfig)
+
+        Task {
+            await FundDataStore.shared.appendEntry(fundId: fundId, entry: entry)
+            onSaved()
+            dismiss()
         }
     }
 

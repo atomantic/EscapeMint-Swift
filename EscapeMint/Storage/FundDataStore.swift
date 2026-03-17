@@ -179,6 +179,7 @@ final class FundDataStore {
         }
         if let idx = funds.firstIndex(where: { $0.id == fundId }) {
             funds[idx].entries.append(entry)
+            ViewCache.shared.invalidateFundCache(fundId: fundId)
             await recompute()
         }
     }
@@ -191,6 +192,7 @@ final class FundDataStore {
         }
         if let idx = funds.firstIndex(where: { $0.id == fundId }) {
             funds[idx].entries = entries
+            ViewCache.shared.invalidateFundCache(fundId: fundId)
             await recompute()
         }
     }

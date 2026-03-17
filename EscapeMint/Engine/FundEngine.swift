@@ -957,8 +957,6 @@ func computeEntryRows(entries: [FundEntry], config: FundConfig) -> [ComputedEntr
                 totalBuys = 0
                 totalSells = 0
                 sumShares = 0
-                twapNumerator = 0
-                activeDays = 0
             } else if isAccumulate {
                 entryExtracted = amt
                 sumExtracted += entryExtracted
