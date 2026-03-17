@@ -62,6 +62,9 @@ struct DashboardView: View {
             guard store.isLoaded else { return }
             if showCharts && !store.funds.isEmpty { recomputeChartsIfNeeded() }
         }
+        .onChange(of: store.isLoaded) { _, loaded in
+            if loaded && showCharts && !store.funds.isEmpty { recomputeChartsIfNeeded() }
+        }
         .onAppear {
             loadDashCollapsedState()
             if showCharts && store.isLoaded { recomputeChartsIfNeeded() }
@@ -293,22 +296,23 @@ struct DashboardView: View {
     @ViewBuilder
     private var metricsGrid: some View {
         let p = store.portfolio
-        let avgDays = p.activeFunds > 0 ? p.totalDaysActive / p.activeFunds : 0
+        let avgDays = store.funds.count > 0 ? p.totalDaysActive / store.funds.count : 0
         let unrealizedPct = p.totalStartInput > 0 ? p.totalUnrealizedGains / p.totalStartInput : 0
         let liquidPct = p.totalStartInput > 0 ? p.totalGainUsd / p.totalStartInput : 0
         let hasCash = p.cashBalance > 0.01
         let colCount = hasCash ? 9 : 8
+        let cashFundCount = store.summaries.filter { $0.isCash }.count
         LazyVGrid(columns: Array(repeating: .init(.flexible(), spacing: 10), count: colCount), spacing: 10) {
-            MetricCard(label: "Total Fund Size", value: formatCurrency(p.totalFundSize), sub: "\(store.funds.count) funds")
-            MetricCard(label: "Current Value", value: formatCurrency(p.totalValue), sub: "\(p.activeFunds) active")
-            MetricCard(label: "Realized Gain", value: formatCurrency(p.totalRealizedGains), sub: "Divs + Interest + Sells", color: p.totalRealizedGains > 0 ? .mint : .red)
-            MetricCard(label: "Realized APY", value: formatPercentSigned(p.realizedAPY), sub: "\(avgDays) avg days", color: p.realizedAPY > 0 ? .mint : .red)
-            MetricCard(label: "Unrealized Gain", value: formatCurrency(p.totalUnrealizedGains), sub: formatPercentSigned(unrealizedPct), color: p.totalUnrealizedGains >= 0 ? .mint : .red)
-            MetricCard(label: "Liquid Gain", value: formatCurrency(p.totalGainUsd), sub: formatPercentSigned(liquidPct), color: p.totalGainUsd >= 0 ? .mint : .red)
-            MetricCard(label: "Liquid APY", value: formatPercentSigned(p.liquidAPY), sub: "If liquidated now", color: p.liquidAPY > 0 ? .mint : .red)
-            MetricCard(label: "Projected Annual", value: formatCurrency(p.projectedAnnualReturn), sub: "Based on realized APY", color: p.projectedAnnualReturn > 0 ? .mint : .red)
+            MetricCard(label: "Total Fund Size", value: formatCurrency(p.totalFundSize), sub: "\(store.funds.count) funds", tooltip: "Total capital allocated across all funds")
+            MetricCard(label: "Current Value", value: formatCurrency(p.totalValue), sub: "\(p.activeFunds) active", tooltip: "Current market value of all positions")
+            MetricCard(label: "Realized Gain", value: formatCurrency(p.totalRealizedGains), sub: "Divs + Interest + Sells", color: p.totalRealizedGains > 0 ? .mint : .red, tooltip: "Profits already extracted: dividends, interest, and sell profits minus expenses")
+            MetricCard(label: "Realized APY", value: formatPercentSigned(p.realizedAPY), sub: "\(avgDays) avg days", color: p.realizedAPY > 0 ? .mint : .red, tooltip: "Annualized realized return. Time-Weighted Fund Size: \(formatCurrency(p.totalTimeWeightedFundSize))")
+            MetricCard(label: "Unrealized Gain", value: formatCurrency(p.totalUnrealizedGains), sub: formatPercentSigned(unrealizedPct), color: p.totalUnrealizedGains >= 0 ? .mint : .red, tooltip: "Paper gains: Current Value minus Cost Basis (not yet realized)")
+            MetricCard(label: "Liquid Gain", value: formatCurrency(p.totalGainUsd), sub: formatPercentSigned(liquidPct), color: p.totalGainUsd >= 0 ? .mint : .red, tooltip: "Total lifetime gain: Unrealized + Realized (if liquidated now)")
+            MetricCard(label: "Liquid APY", value: formatPercentSigned(p.liquidAPY), sub: "If liquidated now", color: p.liquidAPY > 0 ? .mint : .red, tooltip: "Annualized return based on total liquid gain")
+            MetricCard(label: "Projected Annual", value: formatCurrency(p.projectedAnnualReturn), sub: "Based on realized APY", color: p.projectedAnnualReturn > 0 ? .mint : .red, tooltip: "Expected annual return if current realized APY continues")
             if hasCash {
-                MetricCard(label: "Cash Balance", value: formatCurrency(p.cashBalance), sub: "Interest: \(formatCurrency(p.totalInterest))")
+                MetricCard(label: "Cash Balance", value: formatCurrency(p.cashBalance), sub: "Interest: \(formatCurrency(p.totalInterest))", tooltip: "Total cash across \(cashFundCount) platform cash funds")
             }
         }
     }

@@ -123,23 +123,37 @@ struct PlatformAllocationChart: View {
 struct PortfolioAllocationChart: View {
     let summaries: [FundSummary]
 
+    private static let categoryOrder: [FundCategory] = [.liquidity, .yield, .sov, .volatility]
+
     private var categories: [(label: String, value: Double, color: Color)] {
-        let grouped = Dictionary(grouping: summaries.filter { !$0.isCash }, by: { $0.fund.config.category ?? .volatility })
-        return grouped.map { cat, sums in
+        let grouped = Dictionary(grouping: summaries, by: { s -> FundCategory in
+            if s.isCash { return .liquidity }
+            return s.fund.config.category ?? .volatility
+        })
+        return Self.categoryOrder.compactMap { cat in
+            guard let sums = grouped[cat] else { return nil }
             let info = categoryConfig[cat]
+            let value = sums.reduce(0.0) { $0 + $1.currentValue }
+            guard value > 0 else { return nil }
             return (
                 label: info?.label ?? cat.rawValue,
-                value: sums.reduce(0.0) { $0 + $1.currentValue },
+                value: value,
                 color: info?.color ?? .gray
             )
         }
-        .filter { $0.value > 0 }
-        .sorted { $0.value > $1.value }
     }
 
     private var total: Double { categories.reduce(0) { $0 + $1.value } }
 
+    private var marginStats: (available: Double, borrowed: Double) {
+        summaries.reduce((0.0, 0.0)) { acc, s in
+            let entry = s.fund.entries.last
+            return (acc.0 + (entry?.margin_available ?? 0), acc.1 + (entry?.margin_borrowed ?? 0))
+        }
+    }
+
     var body: some View {
+        let margin = marginStats
         VStack(alignment: .leading, spacing: 10) {
             Text("Portfolio Allocation")
                 .font(.headline).foregroundColor(.textPrimary)
@@ -164,6 +178,40 @@ struct PortfolioAllocationChart: View {
                             .frame(width: geo.size.width * pct, height: 6)
                     }
                     .frame(height: 6)
+                }
+            }
+
+            if margin.available > 0 || margin.borrowed > 0 {
+                Divider()
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack {
+                        Text("Margin Capacity")
+                            .font(.caption).foregroundColor(.textSecondary)
+                        Spacer()
+                        Text(formatCurrency(margin.available))
+                            .font(.caption).fontWeight(.medium).foregroundColor(.textPrimary)
+                        if margin.borrowed > 0 {
+                            Text("(\(formatCurrency(margin.borrowed)) used)")
+                                .font(.caption2).foregroundColor(.textMuted)
+                        }
+                    }
+                    GeometryReader { geo in
+                        let totalMargin = margin.available + margin.borrowed
+                        let borrowedPct = totalMargin > 0 ? margin.borrowed / totalMargin : 0
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 3)
+                                .strokeBorder(Color.purple, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                                .frame(height: 6)
+                            if borrowedPct > 0 {
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(Color.purple)
+                                    .frame(width: geo.size.width * borrowedPct, height: 6)
+                            }
+                        }
+                    }
+                    .frame(height: 6)
+                    Text("Borrowing capacity from holdings (not an allocation)")
+                        .font(.caption2).foregroundColor(.textMuted)
                 }
             }
         }

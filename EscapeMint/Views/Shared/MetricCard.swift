@@ -5,6 +5,7 @@ struct MetricCard: View {
     let value: String
     var sub: String? = nil
     var color: Color? = nil
+    var tooltip: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -12,6 +13,9 @@ struct MetricCard: View {
             Text(value).font(.callout).fontWeight(.bold).foregroundColor(color ?? .textPrimary)
             if let sub { Text(sub).font(.caption2).foregroundColor(.textMuted) }
         }
+        #if os(macOS)
+        .help(tooltip ?? "")
+        #endif
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .cardStyle()

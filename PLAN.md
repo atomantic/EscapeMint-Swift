@@ -12,9 +12,9 @@ Native SwiftUI app for iOS, iPadOS, and macOS. Same bundle ID as the App Store C
 ## Known Issues
 
 - [ ] iOS 26 liquid glass TabView — using traditional `tabItem` API instead, but appearance still not ideal
-- [ ] UI is functional but not polished — doesn't match the web app's design quality
 - [ ] DRY: identical `calcPriceEquity()` in AddEntryView + EditEntryView (deferred: extract to Engine)
 - [ ] Architecture: DashboardView:622 direct FundStore access for import (needs FundDataStore wrapper)
+- [ ] Dashboard metric values differ slightly from webapp (~$134K in Total Fund Size) — webapp server uses `calendarDays` for daysActive vs Swift engine's cycle-based daysActive
 
 ### Deferred Test Quality Findings
 
