@@ -3,7 +3,7 @@ import Charts
 
 // MARK: - Derivatives Chart Data
 
-struct DerivativesChartPoint: Identifiable {
+struct DerivativesChartPoint: DateIdentifiable {
     let id: String
     let date: String
     // Value & Allocation
@@ -339,6 +339,7 @@ struct DerivativesPLChart: View {
     let points: [DerivativesChartPoint]
     var fundId: String = ""
     var bounds: ChartBounds?
+    @State private var hoverIndex: Int?
 
     var body: some View {
         EMChartCard(title: "P&L") {
@@ -365,6 +366,14 @@ struct DerivativesPLChart: View {
                 .chartYAxis { emCurrencyAxis() }
                 .chartYScale(domain: chartYDomain(bounds, points: points.flatMap { [$0.liquidPL, $0.capturedProfit] }))
                 .chartLegend(.hidden)
+                .chartOverlay { proxy in
+                    chartHoverOverlay(proxy: proxy, entries: points, hoverIndex: $hoverIndex) { pt in
+                        [
+                            (label: "Liquid", value: formatCurrency(pt.liquidPL), color: .orange),
+                            (label: "Realized", value: formatCurrency(pt.capturedProfit), color: .mint),
+                        ]
+                    }
+                }
                 .frame(height: Layout.chartFrameHeight)
             } else {
                 ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
@@ -379,6 +388,7 @@ struct DerivativesAPYChart: View {
     let points: [DerivativesChartPoint]
     var fundId: String = ""
     var bounds: ChartBounds?
+    @State private var hoverIndex: Int?
 
     var body: some View {
         EMChartCard(title: "APY") {
@@ -405,6 +415,14 @@ struct DerivativesAPYChart: View {
                 .chartYAxis { emPercentAxis() }
                 .chartYScale(domain: chartYDomain(bounds, points: points.flatMap { [$0.liquidAPY, $0.realizedAPY] }))
                 .chartLegend(.hidden)
+                .chartOverlay { proxy in
+                    chartHoverOverlay(proxy: proxy, entries: points, hoverIndex: $hoverIndex) { pt in
+                        [
+                            (label: "Liquid", value: formatPercent(pt.liquidAPY), color: .orange),
+                            (label: "Realized", value: formatPercent(pt.realizedAPY), color: .mint),
+                        ]
+                    }
+                }
                 .frame(height: Layout.chartFrameHeight)
             } else {
                 ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
@@ -417,6 +435,7 @@ struct DerivativesAPYChart: View {
 
 struct DerivativesValueChart: View {
     let points: [DerivativesChartPoint]
+    @State private var hoverIndex: Int?
 
     var body: some View {
         EMChartCard(title: "Value & Allocation") {
@@ -447,6 +466,15 @@ struct DerivativesValueChart: View {
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
+                .chartOverlay { proxy in
+                    chartHoverOverlay(proxy: proxy, entries: points, hoverIndex: $hoverIndex) { pt in
+                        [
+                            (label: "Notional", value: formatCurrency(pt.costBasis), color: .purple),
+                            (label: "Cost Basis", value: formatCurrency(pt.costBasis), color: .blue),
+                            (label: "Position", value: formatCurrency(pt.positionValue), color: .mint),
+                        ]
+                    }
+                }
                 .frame(height: Layout.chartFrameHeight)
             } else {
                 ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
@@ -461,6 +489,7 @@ struct DerivativesPriceChart: View {
     let points: [DerivativesChartPoint]
     var fundId: String = ""
     var bounds: ChartBounds?
+    @State private var hoverIndex: Int?
 
     var body: some View {
         let withPosition = points.filter { $0.position > 0 && $0.avgEntry > 0 }
@@ -493,6 +522,14 @@ struct DerivativesPriceChart: View {
                 .chartYAxis { emCurrencyAxis() }
                 .chartYScale(domain: chartYDomain(bounds, points: clampedPoints.flatMap { [$0.avgEntry, $0.liqPrice] }))
                 .chartLegend(.hidden)
+                .chartOverlay { proxy in
+                    chartHoverOverlay(proxy: proxy, entries: withPosition, hoverIndex: $hoverIndex) { pt in
+                        [
+                            (label: "Avg Entry", value: formatCurrency(pt.avgEntry), color: .orange),
+                            (label: "Liq Price", value: formatCurrency(max(0, pt.liqPrice)), color: .mint),
+                        ]
+                    }
+                }
                 .frame(height: Layout.chartFrameHeight)
             } else {
                 Text("Not enough position data")
@@ -507,63 +544,103 @@ struct DerivativesPriceChart: View {
 
 struct DerivativesMarginChart: View {
     let points: [DerivativesChartPoint]
+    @State private var hoverIndex: Int?
+
+    private var maxLev: Double { max(5.0, (points.map(\.leverage).max() ?? 5) * 1.2) }
+
+    private var primaryChart: some View {
+        Chart {
+            ForEach(points) { pt in
+                let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                AreaMark(x: .value("Date", d), y: .value("Cash", pt.marginBalance))
+                    .foregroundStyle(Color.blue.opacity(0.15))
+                    .interpolationMethod(.monotone)
+                LineMark(x: .value("Date", d), y: .value("Cash", pt.marginBalance))
+                    .foregroundStyle(by: .value("Series", "Cash"))
+                    .interpolationMethod(.monotone)
+                LineMark(x: .value("Date", d), y: .value("Margin Locked", pt.marginLocked))
+                    .foregroundStyle(by: .value("Series", "Margin Locked"))
+                    .interpolationMethod(.monotone)
+            }
+        }
+        .chartForegroundStyleScale(["Cash": Color.blue, "Margin Locked": Color.orange])
+        .chartXAxis { emDateAxisTemporal() }
+        .chartYAxis { emCurrencyAxis() }
+        .chartLegend(.hidden)
+    }
+
+    private var leverageChart: some View {
+        Chart {
+            ForEach(points) { pt in
+                let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                LineMark(x: .value("Date", d), y: .value("Leverage", pt.leverage))
+                    .foregroundStyle(Color.green)
+                    .interpolationMethod(.monotone)
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 2]))
+            }
+        }
+        .chartXAxis(.hidden)
+        .chartYAxis {
+            AxisMarks(position: .trailing) { value in
+                AxisGridLine().foregroundStyle(.clear)
+                AxisValueLabel {
+                    if let v = value.as(Double.self) {
+                        Text("\(v, specifier: "%.1f")x")
+                            .font(.caption2)
+                            .foregroundColor(.green)
+                    }
+                }
+            }
+        }
+        .chartYScale(domain: 0...maxLev)
+        .chartLegend(.hidden)
+        .allowsHitTesting(false)
+    }
+
+    private func hoverOverlay() -> some View {
+        GeometryReader { geo in
+            Rectangle().fill(.clear).contentShape(Rectangle())
+                .onContinuousHover { phase in
+                    switch phase {
+                    case .active(let loc):
+                        let frac = max(0, min(1, loc.x / geo.size.width))
+                        hoverIndex = Int(round(frac * Double(points.count - 1)))
+                    case .ended:
+                        hoverIndex = nil
+                    @unknown default:
+                        hoverIndex = nil
+                    }
+                }
+                .overlay {
+                    if let idx = hoverIndex, idx >= 0, idx < points.count {
+                        let pt = points[idx]
+                        let xFrac = Double(idx) / Double(max(1, points.count - 1))
+                        let xPos = xFrac * geo.size.width
+
+                        ChartHoverLine(xPos: xPos, yStart: 0, yEnd: geo.size.height)
+                            .stroke(Color.textMuted.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+
+                        ChartTooltipCard(date: pt.date, lines: [
+                            (label: "Cash", value: formatCurrency(pt.marginBalance), color: .blue),
+                            (label: "Locked", value: formatCurrency(pt.marginLocked), color: .orange),
+                            (label: "Leverage", value: String(format: "%.2fx", pt.leverage), color: .green),
+                        ])
+                        .position(x: xPos > geo.size.width / 2 ? xPos - 70 : xPos + 70, y: 40)
+                    }
+                }
+        }
+    }
 
     var body: some View {
-        let maxLev = max(5.0, (points.map(\.leverage).max() ?? 5) * 1.2)
         EMChartCard(title: "Capital & Leverage") {
             LegendDot(color: .blue, label: "Cash")
             LegendDot(color: .orange, label: "Margin Locked")
             LegendDot(color: .green, label: "Leverage")
         } chart: {
             if !points.isEmpty {
-                ZStack {
-                    // Primary chart: Cash & Margin Locked (left Y-axis)
-                    Chart {
-                        ForEach(points) { pt in
-                            let d = isoDateFormatter.date(from: pt.date) ?? Date()
-                            AreaMark(x: .value("Date", d), y: .value("Cash", pt.marginBalance))
-                                .foregroundStyle(Color.blue.opacity(0.15))
-                                .interpolationMethod(.monotone)
-                            LineMark(x: .value("Date", d), y: .value("Cash", pt.marginBalance))
-                                .foregroundStyle(by: .value("Series", "Cash"))
-                                .interpolationMethod(.monotone)
-                            LineMark(x: .value("Date", d), y: .value("Margin Locked", pt.marginLocked))
-                                .foregroundStyle(by: .value("Series", "Margin Locked"))
-                                .interpolationMethod(.monotone)
-                        }
-                    }
-                    .chartForegroundStyleScale(["Cash": Color.blue, "Margin Locked": Color.orange])
-                    .chartXAxis { emDateAxisTemporal() }
-                    .chartYAxis { emCurrencyAxis() }
-                    .chartLegend(.hidden)
-
-                    // Overlay chart: Leverage (right Y-axis)
-                    Chart {
-                        ForEach(points) { pt in
-                            let d = isoDateFormatter.date(from: pt.date) ?? Date()
-                            LineMark(x: .value("Date", d), y: .value("Leverage", pt.leverage))
-                                .foregroundStyle(Color.green)
-                                .interpolationMethod(.monotone)
-                                .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 2]))
-                        }
-                    }
-                    .chartXAxis(.hidden)
-                    .chartYAxis {
-                        AxisMarks(position: .trailing) { value in
-                            AxisGridLine().foregroundStyle(.clear)
-                            AxisValueLabel {
-                                if let v = value.as(Double.self) {
-                                    Text("\(v, specifier: "%.1f")x")
-                                        .font(.caption2)
-                                        .foregroundColor(.green)
-                                }
-                            }
-                        }
-                    }
-                    .chartYScale(domain: 0...maxLev)
-                    .chartLegend(.hidden)
-                }
-                .frame(height: Layout.chartFrameHeight)
+                ZStack { primaryChart; leverageChart }
+                    .frame(height: Layout.chartFrameHeight)
+                    .overlay { hoverOverlay() }
             } else {
                 ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
             }
@@ -575,6 +652,7 @@ struct DerivativesMarginChart: View {
 
 struct DerivativesCapturedProfitChart: View {
     let points: [DerivativesChartPoint]
+    @State private var hoverIndex: Int?
 
     var body: some View {
         EMChartCard(title: "Captured Profit") {
@@ -614,6 +692,17 @@ struct DerivativesCapturedProfitChart: View {
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
+                .chartOverlay { proxy in
+                    chartHoverOverlay(proxy: proxy, entries: points, hoverIndex: $hoverIndex) { pt in
+                        [
+                            (label: "Realized", value: formatCurrency(pt.sumRealized), color: .green),
+                            (label: "Funding", value: formatCurrency(pt.sumFunding), color: .blue),
+                            (label: "Interest", value: formatCurrency(pt.sumInterest), color: .purple),
+                            (label: "Rebates", value: formatCurrency(pt.sumRebates), color: .cyan),
+                            (label: "Fees", value: formatCurrency(-pt.sumFees), color: .red),
+                        ]
+                    }
+                }
                 .frame(height: Layout.chartFrameHeight)
             } else {
                 ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)

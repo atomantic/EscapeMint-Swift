@@ -8,7 +8,6 @@ struct CreateFundView: View {
     @State private var ticker = ""
     @State private var fundType: FundType = .stock
     @State private var category: FundCategory = .volatility
-    @State private var fundSize = ""
     @State private var targetApy = "10"
     @State private var inputMin = "100"
     @State private var inputMid = "150"
@@ -16,7 +15,7 @@ struct CreateFundView: View {
     @State private var intervalDays = "7"
 
     private var canCreate: Bool {
-        !platform.isEmpty && !ticker.isEmpty && !fundSize.isEmpty
+        !platform.isEmpty && !ticker.isEmpty
     }
 
     var body: some View {
@@ -98,12 +97,6 @@ struct CreateFundView: View {
                         }
                     }
 
-                    // Allocation
-                    formSection("Allocation") {
-                        formField("Fund Size (USD)", placeholder: "$0", text: $fundSize)
-                            .frame(maxWidth: 200)
-                    }
-
                     // DCA
                     if fundType != .cash && fundType != .derivatives {
                         formSection("DCA Configuration") {
@@ -180,11 +173,6 @@ struct CreateFundView: View {
                 }
             }
 
-            Section("Allocation") {
-                TextField("Fund Size (USD)", text: $fundSize)
-                    .numericKeyboard()
-            }
-
             if fundType != .cash && fundType != .derivatives {
                 Section("DCA Configuration") {
                     TextField("Target APY (%)", text: $targetApy)
@@ -242,7 +230,6 @@ struct CreateFundView: View {
         config.fund_type = fundType
         config.status = .active
         config.category = category
-        config.fund_size_usd = Double(fundSize) ?? 0
         config.target_apy = (Double(targetApy) ?? 0) / 100
         config.input_min_usd = Double(inputMin) ?? 0
         config.input_mid_usd = Double(inputMid) ?? 0

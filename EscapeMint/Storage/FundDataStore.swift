@@ -56,9 +56,8 @@ final class FundDataStore {
         await FundStore.shared.migrateToICloudIfNeeded()
 
         // Phase 1: Load configs off the main thread (nonisolated does synchronous file I/O)
-        // Filter out test/demo funds — matches web app behavior
         let configs = await Task.detached(priority: .userInitiated) {
-            FundStore.shared.readAllFundConfigs().filter { !isTestPlatform($0.platform) }
+            FundStore.shared.readAllFundConfigs()
         }.value
         funds = configs
         loadedFundCount = 0
@@ -121,7 +120,7 @@ final class FundDataStore {
     // MARK: - Reload from Disk
 
     func reload() async {
-        let loaded = await FundStore.shared.readAllFunds().filter { !isTestPlatform($0.platform) }
+        let loaded = await FundStore.shared.readAllFunds()
         funds = loaded
         loadedFundCount = loaded.count
         isConfigLoaded = true

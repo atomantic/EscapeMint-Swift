@@ -323,7 +323,6 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
 
     let fundConfig = FundConfig(
         fund_type: .stock, status: .active,
-        fund_size_usd: config.initialCash,
         target_apy: config.targetAPY,
         interval_days: 7,
         input_min_usd: config.inputMin,

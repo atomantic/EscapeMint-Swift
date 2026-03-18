@@ -98,7 +98,7 @@ func computeFundSizeForEntry(_ newEntry: FundEntry, existingEntries: [FundEntry]
     } else {
         // Cash managing: carry forward from previous entry, adjust for deposits/withdrawals
         let entriesBefore = allEntries.filter { $0.date < newEntry.date }
-        let prevFundSize = entriesBefore.last?.fund_size ?? config.fund_size_usd ?? 0
+        let prevFundSize = entriesBefore.last?.fund_size ?? 0
 
         // Check for deposit/withdrawal in notes
         var depositAmount = 0.0
@@ -153,7 +153,7 @@ func autoSyncCashFund(fundId: String, entry: FundEntry, config: FundConfig) asyn
         action: isBuy ? .WITHDRAW : .DEPOSIT,
         amount: amt
     )
-    cashEntry.fund_size = cashFund.entries.last?.fund_size ?? cashFund.config.fund_size_usd ?? 0
+    cashEntry.fund_size = cashFund.entries.last?.fund_size ?? 0
     cashEntry.notes = "Auto: \(entry.action?.rawValue ?? "") \(ticker) $\(String(format: "%.2f", amt))"
     await store.appendEntry(fundId: cashFundId, entry: cashEntry)
 }

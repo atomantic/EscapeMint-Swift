@@ -40,7 +40,7 @@ let fundTypeFeatures: [FundType: FundTypeFeatures] = [
 
 let fundTypeDefaults: [FundType: FundConfig] = [
     .cash: FundConfig(
-        fund_type: .cash, status: .active, fund_size_usd: 0,
+        fund_type: .cash, status: .active,
         target_apy: 0, interval_days: 1,
         input_min_usd: 0, input_mid_usd: 0, input_max_usd: 0,
         max_at_pct: 0, min_profit_usd: 0, cash_apy: 0.04,
@@ -62,7 +62,7 @@ let fundTypeDefaults: [FundType: FundConfig] = [
     ),
     .derivatives: FundConfig(
         fund_type: .derivatives, status: .active,
-        fund_size_usd: 0, target_apy: 0, interval_days: 1,
+        target_apy: 0, interval_days: 1,
         input_min_usd: 0, input_mid_usd: 0, input_max_usd: 0,
         max_at_pct: 0, min_profit_usd: 0, cash_apy: 0.05,
         manage_cash: true, margin_enabled: true, accumulate: false

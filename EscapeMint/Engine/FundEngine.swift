@@ -117,9 +117,8 @@ func computeCashAvailable(config: FundConfig, trades: [Trade], cashflows: [CashF
 }
 
 private func computeCashAvailableWithInterest(config: FundConfig, trades: [Trade], cashflows: [CashFlow], dividends: [Dividend], expenses: [Expense], asOfDate: String, precomputedInterest: Double) -> Double {
-    let fundSize = config.fund_size_usd ?? 0
     let startInput = computeStartInput(trades: trades, asOfDate: asOfDate, config: config)
-    var cash = fundSize - startInput
+    var cash = -startInput
 
     for cf in cashflows where daysBetween(cf.date, asOfDate) >= 0 {
         if cf.type == .deposit { cash += cf.amountUsd }
@@ -153,7 +152,6 @@ func computeCashInterest(config: FundConfig, trades: [Trade], cashflows: [CashFl
     let cashApy = config.cash_apy ?? 0
     if cashApy == 0 { return 0 }
 
-    let fundSize = config.fund_size_usd ?? 0
     var events: [(date: String, sign: Double, amount: Double)] = []
 
     for trade in trades {
@@ -166,7 +164,7 @@ func computeCashInterest(config: FundConfig, trades: [Trade], cashflows: [CashFl
     events.sort { $0.date < $1.date }
 
     var totalInterest = 0.0
-    var currentCash = fundSize
+    var currentCash = 0.0
     var lastDate = events.first?.date ?? asOfDate
 
     for event in events {
@@ -765,7 +763,7 @@ func computeFundMetricsForFund(_ fund: FundData, asOfDate: String) -> (metrics: 
         if !manageCash {
             computedFundSize = latestEntry?.fund_size ?? netInvested
         } else {
-            computedFundSize = latestEntry?.fund_size ?? config.fund_size_usd ?? 0
+            computedFundSize = latestEntry?.fund_size ?? 0
         }
 
         if !manageCash {

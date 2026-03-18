@@ -36,7 +36,6 @@ struct FundConfig: Codable {
     var fund_type: FundType?
     var status: FundStatus?
     var category: FundCategory?
-    var fund_size_usd: Double?
     var target_apy: Double?
     var interval_days: Int?
 
@@ -72,7 +71,7 @@ struct FundConfig: Codable {
         case platform = "__platform"
         case ticker = "__ticker"
         case fund_type, status, category
-        case fund_size_usd, target_apy, interval_days
+        case target_apy, interval_days
         case input_min_usd, input_mid_usd, input_max_usd
         case max_at_pct, min_profit_usd
         case cash_apy, manage_cash

@@ -224,8 +224,6 @@ struct FundDetailView: View {
                 Text("Cash: \(formatCurrency(lastCash))")
                     .fontWeight(.medium)
             }
-            Text("Size: \(formatCurrency(config.fund_size_usd ?? 0))")
-                .fontWeight(.medium)
         }
         .font(.caption)
         .foregroundColor(.textMuted)

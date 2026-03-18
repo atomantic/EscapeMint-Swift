@@ -1,7 +1,7 @@
 {
   "fund_type": "cash",
   "status": "active",
-  "fund_size_usd": 0,
+  "category": "liquidity",
   "target_apy": 0.01,
   "interval_days": 7,
   "input_min_usd": 0,

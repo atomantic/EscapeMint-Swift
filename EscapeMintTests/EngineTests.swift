@@ -7,7 +7,6 @@ final class EngineTests: XCTestCase {
 
     /// Build a minimal stock FundConfig with sensible defaults for testing
     private func makeStockConfig(
-        fundSize: Double = 5000,
         targetApy: Double = 0.10,
         inputMin: Double = 100,
         inputMid: Double = 150,
@@ -20,7 +19,7 @@ final class EngineTests: XCTestCase {
         manageCash: Bool = true
     ) -> FundConfig {
         FundConfig(
-            fund_type: .stock, status: status, fund_size_usd: fundSize,
+            fund_type: .stock, status: status,
             target_apy: targetApy, interval_days: 7,
             input_min_usd: inputMin, input_mid_usd: inputMid, input_max_usd: inputMax,
             max_at_pct: maxAtPct, min_profit_usd: minProfit,
@@ -266,10 +265,11 @@ final class EngineTests: XCTestCase {
     // MARK: - computeFundState
 
     func testComputeFundStateActive() {
-        let config = makeStockConfig(fundSize: 5000)
+        let config = makeStockConfig()
         let trades = [Trade(date: "2024-06-01", amountUsd: 1000, type: .buy)]
+        let cashflows = [CashFlow(date: "2024-01-01", amountUsd: 5000, type: .deposit)]
         let state = computeFundState(
-            config: config, trades: trades, cashflows: [], dividends: [], expenses: [],
+            config: config, trades: trades, cashflows: cashflows, dividends: [], expenses: [],
             actualValue: 1100, asOfDate: "2025-01-01"
         )
         XCTAssertEqual(state.startInputUsd, 1000, accuracy: 0.01)
@@ -785,7 +785,7 @@ final class EngineTests: XCTestCase {
         let config = FundConfig(
             platform: "coinbase", ticker: "BTC",
             fund_type: .crypto, status: .active, category: .sov,
-            fund_size_usd: 10000, target_apy: 0.15, interval_days: 7,
+            target_apy: 0.15, interval_days: 7,
             input_min_usd: 100, input_mid_usd: 150, input_max_usd: 200,
             max_at_pct: -0.30, min_profit_usd: 100,
             cash_apy: 0.05, manage_cash: true,
@@ -802,7 +802,6 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(decoded.fund_type, .crypto)
         XCTAssertEqual(decoded.status, .active)
         XCTAssertEqual(decoded.category, .sov)
-        XCTAssertEqual(decoded.fund_size_usd, 10000)
         XCTAssertEqual(decoded.target_apy, 0.15)
         XCTAssertEqual(decoded.interval_days, 7)
         XCTAssertEqual(decoded.input_min_usd, 100)
@@ -826,7 +825,6 @@ final class EngineTests: XCTestCase {
         XCTAssertNil(config.platform)
         XCTAssertNil(config.ticker)
         XCTAssertNil(config.fund_type)
-        XCTAssertNil(config.fund_size_usd)
     }
 
     // MARK: - isTestPlatform
@@ -1037,7 +1035,7 @@ final class EngineTests: XCTestCase {
     // MARK: - Full Fund Metrics Integration
 
     func testComputeFundMetricsForFund() {
-        let config = makeStockConfig(fundSize: 5000)
+        let config = makeStockConfig()
         let entries = [
             FundEntry(date: "2024-06-01", value: 1000, action: .BUY, amount: 1000, shares: 20, price: 50),
             FundEntry(date: "2024-09-01", value: 1100, action: .HOLD),
@@ -1128,7 +1126,7 @@ final class EngineTests: XCTestCase {
     // MARK: - Cash Interest
 
     func testComputeCashInterest() {
-        let config = makeStockConfig(fundSize: 10000, cashApy: 0.04)
+        let config = makeStockConfig(cashApy: 0.04)
         // No trades, no cashflows — full 10000 earning 4% for 365 days
         let interest = computeCashInterest(config: config, trades: [], cashflows: [], asOfDate: "2025-01-01")
         // With no events, lastDate = asOfDate, so finalDays = 0, interest = 0
@@ -1137,10 +1135,11 @@ final class EngineTests: XCTestCase {
     }
 
     func testComputeCashInterestWithTrade() {
-        let config = makeStockConfig(fundSize: 10000, cashApy: 0.04)
+        let config = makeStockConfig(cashApy: 0.04)
+        let cashflows = [CashFlow(date: "2023-12-31", amountUsd: 10000, type: .deposit)]
         let trades = [Trade(date: "2024-01-01", amountUsd: 1000, type: .buy)]
-        // Fund size 10000, buy 1000 on Jan 1 -> 9000 cash earning 4% for 365 days
-        let interest = computeCashInterest(config: config, trades: trades, cashflows: [], asOfDate: "2025-01-01")
+        // Deposit 10000, buy 1000 on Jan 1 -> 9000 cash earning 4% for 365 days
+        let interest = computeCashInterest(config: config, trades: trades, cashflows: cashflows, asOfDate: "2025-01-01")
         // 9000 * (1.04^1 - 1) = 360
         XCTAssertEqual(interest, 360, accuracy: 5.0)
     }
@@ -1148,17 +1147,17 @@ final class EngineTests: XCTestCase {
     // MARK: - Portfolio Metrics
 
     func testComputePortfolioMetrics() {
-        let config1 = makeStockConfig(fundSize: 5000)
+        let config1 = makeStockConfig()
         let entries1 = [
-            FundEntry(date: "2024-06-01", value: 1000, action: .BUY, amount: 1000, shares: 20),
-            FundEntry(date: "2025-01-01", value: 1200, action: .HOLD),
+            FundEntry(date: "2024-06-01", value: 1000, action: .BUY, amount: 1000, shares: 20, fund_size: 5000),
+            FundEntry(date: "2025-01-01", value: 1200, action: .HOLD, fund_size: 5000),
         ]
         let fund1 = FundData(platform: "test", ticker: "AAPL", config: config1, entries: entries1)
 
-        let config2 = makeStockConfig(fundSize: 3000)
+        let config2 = makeStockConfig()
         let entries2 = [
-            FundEntry(date: "2024-06-01", value: 500, action: .BUY, amount: 500, shares: 5),
-            FundEntry(date: "2025-01-01", value: 600, action: .HOLD),
+            FundEntry(date: "2024-06-01", value: 500, action: .BUY, amount: 500, shares: 5, fund_size: 3000),
+            FundEntry(date: "2025-01-01", value: 600, action: .HOLD, fund_size: 3000),
         ]
         let fund2 = FundData(platform: "test", ticker: "GOOG", config: config2, entries: entries2)
 

@@ -1,19 +1,6 @@
 import SwiftUI
 import Charts
 
-// MARK: - DateIdentifiable Protocol
-
-private protocol DateIdentifiable: Identifiable {
-    var date: String { get }
-    var dateValue: Date { get }
-}
-
-extension DateIdentifiable {
-    var dateValue: Date {
-        isoDateFormatter.date(from: date) ?? .distantPast
-    }
-}
-
 extension BacktestResult.BacktestEntry: DateIdentifiable {}
 
 // MARK: - BacktestAPYEntry
@@ -348,72 +335,3 @@ fileprivate extension View {
     }
 }
 
-// MARK: - Chart Hover Overlay
-
-private func chartHoverOverlay<T: DateIdentifiable>(
-    proxy: ChartProxy,
-    entries: [T],
-    hoverIndex: Binding<Int?>,
-    tooltipLines: @escaping (T) -> [(label: String, value: String, color: Color)]
-) -> some View {
-    GeometryReader { geo in
-        if let plotFrame = proxy.plotFrame {
-            let frame = geo[plotFrame]
-
-            Rectangle().fill(.clear).contentShape(Rectangle())
-                .onContinuousHover { phase in
-                    switch phase {
-                    case .active(let loc):
-                        let x = loc.x - frame.origin.x
-                        let frac = max(0, min(1, x / frame.width))
-                        hoverIndex.wrappedValue = Int(round(frac * Double(entries.count - 1)))
-                    case .ended:
-                        hoverIndex.wrappedValue = nil
-                    @unknown default:
-                        hoverIndex.wrappedValue = nil
-                    }
-                }
-                .overlay {
-                    if let idx = hoverIndex.wrappedValue,
-                       idx >= 0, idx < entries.count {
-                        let entry = entries[idx]
-                        let xFrac = Double(idx) / Double(max(1, entries.count - 1))
-                        let xPos = frame.origin.x + xFrac * frame.width
-                        let lines = tooltipLines(entry)
-
-                        // Vertical dashed hover line
-                        Path { path in
-                            path.move(to: CGPoint(x: xPos, y: frame.origin.y))
-                            path.addLine(to: CGPoint(x: xPos, y: frame.origin.y + frame.height))
-                        }
-                        .stroke(Color.textMuted.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
-
-                        // Tooltip card
-                        let flipLeft = xPos > frame.midX
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(formatTooltipDate(entry.date))
-                                .font(.caption2).fontWeight(.medium).foregroundColor(.textPrimary)
-                            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                                HStack(spacing: 3) {
-                                    Circle().fill(line.color).frame(width: 5, height: 5)
-                                    Text("\(line.label):")
-                                        .font(.system(size: 9)).foregroundColor(.textMuted)
-                                    Text(line.value)
-                                        .font(.system(size: 9, weight: .medium)).foregroundColor(line.color)
-                                }
-                            }
-                        }
-                        .padding(6)
-                        .background(Color.bgCard)
-                        .cornerRadius(6)
-                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.textMuted.opacity(0.3), lineWidth: 1))
-                        .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
-                        .position(
-                            x: flipLeft ? xPos - 70 : xPos + 70,
-                            y: frame.origin.y + 40
-                        )
-                    }
-                }
-        }
-    }
-}

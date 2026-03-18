@@ -3,10 +3,11 @@ import Charts
 
 // MARK: - Portfolio Time Series Data
 
-struct PortfolioTimeSeriesPoint: Identifiable {
+struct PortfolioTimeSeriesPoint: DateIdentifiable {
     let id: String
     let date: String
     let parsedDate: Date
+    var dateValue: Date { parsedDate }
     let realizedAPY: Double
     let liquidAPY: Double
     let realized: Double
@@ -286,6 +287,7 @@ private struct AllocationPieChart: View {
 
 struct DashboardAPYChart: View {
     let points: [PortfolioTimeSeriesPoint]
+    @State private var hoverIndex: Int?
 
     var body: some View {
         let data = points
@@ -317,6 +319,14 @@ struct DashboardAPYChart: View {
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emPercentAxis() }
                 .chartLegend(.hidden)
+                .chartOverlay { proxy in
+                    chartHoverOverlay(proxy: proxy, entries: data, hoverIndex: $hoverIndex) { pt in
+                        [
+                            (label: "Realized", value: formatPercent(pt.realizedAPY), color: .mint),
+                            (label: "Liquid", value: formatPercent(pt.liquidAPY), color: .blue),
+                        ]
+                    }
+                }
                 .frame(height: 180)
             } else {
                 emChartPlaceholder
@@ -327,6 +337,7 @@ struct DashboardAPYChart: View {
 
 struct DashboardGainChart: View {
     let points: [PortfolioTimeSeriesPoint]
+    @State private var hoverIndex: Int?
 
     var body: some View {
         let data = points
@@ -362,6 +373,15 @@ struct DashboardGainChart: View {
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
+                .chartOverlay { proxy in
+                    chartHoverOverlay(proxy: proxy, entries: data, hoverIndex: $hoverIndex) { pt in
+                        [
+                            (label: "Realized", value: formatCurrency(pt.realized), color: .mint),
+                            (label: "Unrealized", value: formatCurrency(pt.unrealized), color: .orange),
+                            (label: "Liquid", value: formatCurrency(pt.liquid), color: .blue),
+                        ]
+                    }
+                }
                 .frame(height: 180)
             } else {
                 emChartPlaceholder
@@ -372,6 +392,7 @@ struct DashboardGainChart: View {
 
 struct DashboardValueChart: View {
     let points: [PortfolioTimeSeriesPoint]
+    @State private var hoverIndex: Int?
 
     var body: some View {
         let data = points
@@ -400,6 +421,14 @@ struct DashboardValueChart: View {
                 }
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emCurrencyAxis() }
+                .chartOverlay { proxy in
+                    chartHoverOverlay(proxy: proxy, entries: data, hoverIndex: $hoverIndex) { pt in
+                        [
+                            (label: "Value", value: formatCurrency(pt.totalValue), color: .orange),
+                            (label: "Invested", value: formatCurrency(pt.totalInvested), color: .purple),
+                        ]
+                    }
+                }
                 .frame(height: 180)
             } else {
                 emChartPlaceholder
@@ -410,6 +439,7 @@ struct DashboardValueChart: View {
 
 struct DashboardFundSizeChart: View {
     let points: [PortfolioTimeSeriesPoint]
+    @State private var hoverIndex: Int?
 
     private static let fundColors: [Color] = [
         .blue, .mint, .orange, .purple, .pink, .cyan, .yellow, .green, .red, .indigo
@@ -447,6 +477,13 @@ struct DashboardFundSizeChart: View {
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
+                .chartOverlay { proxy in
+                    chartHoverOverlay(proxy: proxy, entries: data, hoverIndex: $hoverIndex) { pt in
+                        tickers.prefix(5).enumerated().map { i, ticker in
+                            (label: ticker, value: formatCurrency(pt.perFundValues[ticker] ?? 0), color: Self.fundColors[i % Self.fundColors.count])
+                        }
+                    }
+                }
                 .frame(height: 180)
             } else {
                 emChartPlaceholder
@@ -457,6 +494,7 @@ struct DashboardFundSizeChart: View {
 
 struct DashboardLiquidValueChart: View {
     let points: [PortfolioTimeSeriesPoint]
+    @State private var hoverIndex: Int?
 
     var body: some View {
         let data = points
@@ -487,6 +525,14 @@ struct DashboardLiquidValueChart: View {
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
+                .chartOverlay { proxy in
+                    chartHoverOverlay(proxy: proxy, entries: data, hoverIndex: $hoverIndex) { pt in
+                        [
+                            (label: "Cash", value: formatCurrency(pt.cashBalance), color: .mint),
+                            (label: "Assets", value: formatCurrency(pt.assetValue), color: .purple),
+                        ]
+                    }
+                }
                 .frame(height: 180)
             } else {
                 emChartPlaceholder
@@ -497,6 +543,7 @@ struct DashboardLiquidValueChart: View {
 
 struct DashboardMarginChart: View {
     let points: [PortfolioTimeSeriesPoint]
+    @State private var hoverIndex: Int?
 
     private var hasMarginData: Bool {
         points.contains { $0.marginAccess > 0 || $0.marginBorrowed > 0 }
@@ -535,6 +582,14 @@ struct DashboardMarginChart: View {
                     .chartXAxis { emDateAxisTemporal() }
                     .chartYAxis { emCurrencyAxis() }
                     .chartLegend(.hidden)
+                    .chartOverlay { proxy in
+                        chartHoverOverlay(proxy: proxy, entries: data, hoverIndex: $hoverIndex) { pt in
+                            [
+                                (label: "Available", value: formatCurrency(pt.marginAccess), color: .green),
+                                (label: "Borrowed", value: formatCurrency(pt.marginBorrowed), color: .red),
+                            ]
+                        }
+                    }
                     .frame(height: 180)
                 } else {
                     emChartPlaceholder
@@ -546,6 +601,7 @@ struct DashboardMarginChart: View {
 
 struct DashboardCashVsAssetChart: View {
     let points: [PortfolioTimeSeriesPoint]
+    @State private var hoverIndex: Int?
 
     var body: some View {
         let data = points
@@ -584,6 +640,17 @@ struct DashboardCashVsAssetChart: View {
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emPercentAxis() }
                 .chartLegend(.hidden)
+                .chartOverlay { proxy in
+                    chartHoverOverlay(proxy: proxy, entries: data, hoverIndex: $hoverIndex) { pt in
+                        let total = pt.cashBalance + pt.assetValue
+                        let cashPct = total > 0 ? pt.cashBalance / total : 0
+                        let assetPct = total > 0 ? pt.assetValue / total : 0
+                        return [
+                            (label: "Cash", value: formatPercent(cashPct), color: .mint),
+                            (label: "Asset", value: formatPercent(assetPct), color: .purple),
+                        ]
+                    }
+                }
                 .frame(height: 180)
             } else {
                 emChartPlaceholder

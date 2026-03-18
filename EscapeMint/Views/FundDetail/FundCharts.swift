@@ -1,6 +1,104 @@
 import SwiftUI
 import Charts
 
+// MARK: - DateIdentifiable Protocol
+
+protocol DateIdentifiable: Identifiable {
+    var date: String { get }
+    var dateValue: Date { get }
+}
+
+extension DateIdentifiable {
+    var dateValue: Date {
+        isoDateFormatter.date(from: date) ?? .distantPast
+    }
+}
+
+// MARK: - Chart Hover Overlay
+
+struct ChartTooltipCard: View {
+    let date: String
+    let lines: [(label: String, value: String, color: Color)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(formatTooltipDate(date))
+                .font(.caption2).fontWeight(.medium).foregroundColor(.textPrimary)
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                HStack(spacing: 3) {
+                    Circle().fill(line.color).frame(width: 5, height: 5)
+                    Text("\(line.label):")
+                        .font(.system(size: 9)).foregroundColor(.textMuted)
+                    Text(line.value)
+                        .font(.system(size: 9, weight: .medium)).foregroundColor(line.color)
+                }
+            }
+        }
+        .padding(6)
+        .background(Color.bgCard)
+        .cornerRadius(6)
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.textMuted.opacity(0.3), lineWidth: 1))
+        .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+    }
+}
+
+struct ChartHoverLine: Shape {
+    let xPos: CGFloat
+    let yStart: CGFloat
+    let yEnd: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: xPos, y: yStart))
+        path.addLine(to: CGPoint(x: xPos, y: yEnd))
+        return path
+    }
+}
+
+func chartHoverOverlay<T: DateIdentifiable>(
+    proxy: ChartProxy,
+    entries: [T],
+    hoverIndex: Binding<Int?>,
+    tooltipLines: @escaping (T) -> [(label: String, value: String, color: Color)]
+) -> some View {
+    GeometryReader { geo in
+        if let plotFrame = proxy.plotFrame {
+            let frame = geo[plotFrame]
+
+            Rectangle().fill(.clear).contentShape(Rectangle())
+                .onContinuousHover { phase in
+                    switch phase {
+                    case .active(let loc):
+                        let x = loc.x - frame.origin.x
+                        let frac = max(0, min(1, x / frame.width))
+                        hoverIndex.wrappedValue = Int(round(frac * Double(entries.count - 1)))
+                    case .ended:
+                        hoverIndex.wrappedValue = nil
+                    @unknown default:
+                        hoverIndex.wrappedValue = nil
+                    }
+                }
+                .overlay {
+                    if let idx = hoverIndex.wrappedValue,
+                       idx >= 0, idx < entries.count {
+                        let entry = entries[idx]
+                        let xFrac = Double(idx) / Double(max(1, entries.count - 1))
+                        let xPos = frame.origin.x + xFrac * frame.width
+
+                        ChartHoverLine(xPos: xPos, yStart: frame.origin.y, yEnd: frame.origin.y + frame.height)
+                            .stroke(Color.textMuted.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+
+                        ChartTooltipCard(date: entry.date, lines: tooltipLines(entry))
+                            .position(
+                                x: xPos > frame.midX ? xPos - 70 : xPos + 70,
+                                y: frame.origin.y + 40
+                            )
+                    }
+                }
+        }
+    }
+}
+
 // MARK: - Sampling
 
 func sampleArray<T>(_ items: [T], maxPoints: Int = 60) -> [T] {
@@ -32,21 +130,21 @@ struct StatBox: View {
 
 // MARK: - Chart Data Point Structs
 
-struct PLPoint: Identifiable {
+struct PLPoint: DateIdentifiable {
     let id: String
     let date: String
     let realized: Double
     let liquid: Double
 }
 
-struct APYPoint: Identifiable {
+struct APYPoint: DateIdentifiable {
     let id: String
     let date: String
     let realizedAPY: Double
     let liquidAPY: Double
 }
 
-struct ProfitPoint: Identifiable {
+struct ProfitPoint: DateIdentifiable {
     let id: String
     let date: String
     let cumDividend: Double
@@ -55,7 +153,7 @@ struct ProfitPoint: Identifiable {
     var total: Double { cumDividend + cumInterest + cumExtracted }
 }
 
-struct ValuePoint: Identifiable {
+struct ValuePoint: DateIdentifiable {
     let id: String
     let date: String
     let value: Double
@@ -222,6 +320,7 @@ struct ValueChartView: View {
     let config: FundConfig
     let fundId: String
     @State private var points: [ValuePoint]?
+    @State private var hoverIndex: Int?
 
     var body: some View {
         EMChartCard(title: "Value & Allocation") {
@@ -259,6 +358,15 @@ struct ValueChartView: View {
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
+                .chartOverlay { proxy in
+                    chartHoverOverlay(proxy: proxy, entries: points, hoverIndex: $hoverIndex) { pt in
+                        [
+                            (label: "Value", value: formatCurrency(pt.value), color: .mint),
+                            (label: "Invested", value: formatCurrency(pt.invested), color: .purple),
+                            (label: "Target", value: formatCurrency(pt.target), color: .green),
+                        ]
+                    }
+                }
                 .frame(height: Layout.chartFrameHeight)
             } else {
                 ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
@@ -286,6 +394,7 @@ struct PLChartView: View {
     let config: FundConfig
     let fundId: String
     @State private var points: [PLPoint]?
+    @State private var hoverIndex: Int?
 
     private var bounds: ChartBounds? { config.chart_bounds?["pnl"] }
 
@@ -320,6 +429,14 @@ struct PLChartView: View {
                 .chartYAxis { emCurrencyAxis() }
                 .chartYScale(domain: chartYDomain(bounds, points: allValues))
                 .chartLegend(.hidden)
+                .chartOverlay { proxy in
+                    chartHoverOverlay(proxy: proxy, entries: points, hoverIndex: $hoverIndex) { pt in
+                        [
+                            (label: "Realized", value: formatCurrency(pt.realized), color: .mint),
+                            (label: "Liquid", value: formatCurrency(pt.liquid), color: .blue),
+                        ]
+                    }
+                }
                 .frame(height: Layout.chartFrameHeight)
             } else {
                 ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
@@ -347,6 +464,7 @@ struct APYChartView: View {
     let config: FundConfig
     let fundId: String
     @State private var points: [APYPoint]?
+    @State private var hoverIndex: Int?
 
     private var bounds: ChartBounds? { config.chart_bounds?["apy"] }
 
@@ -382,6 +500,14 @@ struct APYChartView: View {
                 .chartYAxis { emPercentAxis() }
                 .chartYScale(domain: chartYDomain(effectiveBounds, points: allValues))
                 .chartLegend(.hidden)
+                .chartOverlay { proxy in
+                    chartHoverOverlay(proxy: proxy, entries: points, hoverIndex: $hoverIndex) { pt in
+                        [
+                            (label: "Realized", value: formatPercent(pt.realizedAPY), color: .mint),
+                            (label: "Liquid", value: formatPercent(pt.liquidAPY), color: .blue),
+                        ]
+                    }
+                }
                 .frame(height: Layout.chartFrameHeight)
             } else {
                 ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
@@ -409,6 +535,7 @@ struct CapturedProfitChartView: View {
     let config: FundConfig
     let fundId: String
     @State private var points: [ProfitPoint]?
+    @State private var hoverIndex: Int?
 
     var body: some View {
         let pts = points ?? []
@@ -456,6 +583,15 @@ struct CapturedProfitChartView: View {
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
+                .chartOverlay { proxy in
+                    chartHoverOverlay(proxy: proxy, entries: points, hoverIndex: $hoverIndex) { pt in
+                        var lines: [(label: String, value: String, color: Color)] = []
+                        if hasExtracted { lines.append((label: "Extracted", value: formatCurrency(pt.cumExtracted), color: .mint)) }
+                        if hasDividends { lines.append((label: "Dividends", value: formatCurrency(pt.cumDividend), color: .green)) }
+                        if hasInterest { lines.append((label: "Interest", value: formatCurrency(pt.cumInterest), color: .yellow)) }
+                        return lines
+                    }
+                }
                 .frame(height: Layout.chartFrameHeight)
             } else {
                 ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)

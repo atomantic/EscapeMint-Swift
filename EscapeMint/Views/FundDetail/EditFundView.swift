@@ -8,7 +8,6 @@ struct EditFundView: View {
 
     @State private var platform: String
     @State private var ticker: String
-    @State private var fundSize: String
     @State private var targetApy: String
     @State private var inputMin: String
     @State private var inputMid: String
@@ -25,6 +24,7 @@ struct EditFundView: View {
     @State private var interestReinvest: Bool
     @State private var expenseFromFund: Bool
     @State private var showDeleteConfirm = false
+    @State private var isSaving = false
 
     init(fund: FundData, onSaved: @escaping () -> Void, onDeleted: (() -> Void)? = nil) {
         self.fund = fund
@@ -32,7 +32,6 @@ struct EditFundView: View {
         self.onDeleted = onDeleted
         _platform = State(initialValue: fund.platform)
         _ticker = State(initialValue: fund.ticker)
-        _fundSize = State(initialValue: String(fund.config.fund_size_usd ?? 0))
         _targetApy = State(initialValue: String((fund.config.target_apy ?? 0) * 100))
         _inputMin = State(initialValue: String(fund.config.input_min_usd ?? 0))
         _inputMid = State(initialValue: String(fund.config.input_mid_usd ?? 0))
@@ -85,11 +84,6 @@ struct EditFundView: View {
                     }
                 }
 
-                Section("Allocation") {
-                    TextField("Fund Size (USD)", text: $fundSize)
-                        .numericKeyboard()
-                }
-
                 if isTradingFund {
                     Section("Trading Configuration") {
                         TextField("Target APY (%)", text: $targetApy)
@@ -138,6 +132,7 @@ struct EditFundView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
+                        .disabled(isSaving)
                 }
             }
             .confirmationDialog("Delete \(fund.id)?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
@@ -149,8 +144,10 @@ struct EditFundView: View {
     }
 
     private func save() {
+        guard !isSaving else { return }
+        isSaving = true
+
         var config = fund.config
-        config.fund_size_usd = Double(fundSize) ?? 0
         config.target_apy = (Double(targetApy) ?? 0) / 100
         config.input_min_usd = Double(inputMin) ?? 0
         config.input_mid_usd = Double(inputMid) ?? 0
@@ -170,10 +167,11 @@ struct EditFundView: View {
         let platformChanged = platform != fund.platform
         let tickerChanged = ticker != fund.ticker
 
+        dismiss()
+
         let store = FundDataStore.shared
         Task {
             if platformChanged || tickerChanged {
-                // Identity changed — write as new fund and delete old
                 var newFund = fund
                 newFund.platform = platform
                 newFund.ticker = ticker
@@ -184,7 +182,6 @@ struct EditFundView: View {
                 await store.updateConfig(fundId: fund.id, config: config)
             }
             onSaved()
-            dismiss()
         }
     }
 
