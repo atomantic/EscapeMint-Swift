@@ -52,12 +52,8 @@ func computePortfolioTimeSeries(_ funds: [FundData]) -> [PortfolioTimeSeriesPoin
             let priorEntries = fund.entries.filter { $0.date <= date }
             guard let lastEntry = priorEntries.last else { continue }
             perFund[fund.ticker.uppercased()] = lastEntry.value
-            // Only aggregate margin from funds that manage their own cash —
-            // non-manage_cash funds' margin is already tracked by their platform's cash fund
-            if fund.config.manage_cash != false {
-                marginAccess += priorEntries.last(where: { $0.margin_available != nil })?.margin_available ?? 0
-                marginBorrowed += priorEntries.last(where: { $0.margin_borrowed != nil })?.margin_borrowed ?? 0
-            }
+            marginAccess += lastEntry.margin_available ?? 0
+            marginBorrowed += lastEntry.margin_borrowed ?? 0
         }
 
         let tickers = perFund.sorted { $0.value > $1.value }.map(\.key)
@@ -509,7 +505,8 @@ struct DashboardMarginChart: View {
     @ViewBuilder
     var body: some View {
         if hasMarginData {
-            let data = points.filter { $0.marginAccess > 0 || $0.marginBorrowed > 0 }
+            let firstMarginIdx = points.firstIndex { $0.marginAccess > 0 || $0.marginBorrowed > 0 } ?? 0
+            let data = Array(points[firstMarginIdx...])
             EMChartCard(title: "Margin") {
                 if let last = data.last {
                     LegendDot(color: .green, label: "Avail: \(formatCurrency(last.marginAccess))")
@@ -519,23 +516,25 @@ struct DashboardMarginChart: View {
                 if data.count >= 2 {
                     Chart(data) { pt in
                         let d = pt.parsedDate
-                        AreaMark(x: .value("Date", d), y: .value("Access", pt.marginAccess))
-                            .foregroundStyle(Color.green.opacity(0.1))
+                        AreaMark(x: .value("Date", d), y: .value("Amount", pt.marginAccess), stacking: .unstacked)
+                            .foregroundStyle(by: .value("Series", "Avail"))
                             .interpolationMethod(.monotone)
-                        AreaMark(x: .value("Date", d), y: .value("Borrowed", pt.marginBorrowed))
-                            .foregroundStyle(Color.red.opacity(0.1))
+                        AreaMark(x: .value("Date", d), y: .value("Amount", pt.marginBorrowed), stacking: .unstacked)
+                            .foregroundStyle(by: .value("Series", "Borrow"))
                             .interpolationMethod(.monotone)
-                        LineMark(x: .value("Date", d), y: .value("Access", pt.marginAccess))
-                            .foregroundStyle(Color.green)
+                        LineMark(x: .value("Date", d), y: .value("Amount", pt.marginAccess))
+                            .foregroundStyle(by: .value("Series", "Avail"))
                             .lineStyle(StrokeStyle(lineWidth: 2))
                             .interpolationMethod(.monotone)
-                        LineMark(x: .value("Date", d), y: .value("Borrowed", pt.marginBorrowed))
-                            .foregroundStyle(Color.red)
+                        LineMark(x: .value("Date", d), y: .value("Amount", pt.marginBorrowed))
+                            .foregroundStyle(by: .value("Series", "Borrow"))
                             .lineStyle(StrokeStyle(lineWidth: 2))
                             .interpolationMethod(.monotone)
                     }
+                    .chartForegroundStyleScale(["Avail": Color.green.opacity(0.6), "Borrow": Color.red.opacity(0.6)])
                     .chartXAxis { emDateAxisTemporal() }
                     .chartYAxis { emCurrencyAxis() }
+                    .chartLegend(.hidden)
                     .frame(height: 180)
                 } else {
                     emChartPlaceholder
@@ -609,6 +608,7 @@ struct EMChartCard<Legend: View, ChartContent: View>: View {
                 HStack(spacing: 8) { legend() }
             }
             chart()
+                .clipped()
         }
         .padding(12)
         .cardStyle()
