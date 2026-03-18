@@ -362,7 +362,7 @@ struct FundDetailView: View {
         ("fund_size", "Fund Size", true, [.derivatives]),
         ("extracted", "Extracted", true, [.cash, .derivatives]),
         ("cash_interest", "Cash Int", false, [.derivatives]),
-        ("unrealized", "Unrealized", false, [.cash]),
+        ("unrealized", "Unrealized", true, [.cash]),
         ("realized", "Realized", true, []),
         ("liquid_pnl", "Liquid P&L", true, [.cash]),
         ("realized_apy", "Realized APY", true, []),
@@ -373,7 +373,7 @@ struct FundDetailView: View {
         ("sum_cash_int", "\u{03A3} Int", false, [.derivatives]),
         ("margin_available", "Margin Avail", false, []),
         ("margin_borrowed", "Margin Borrowed", false, []),
-        ("notes", "Notes", true, []),
+        ("notes", "Notes", false, []),
         // Derivatives-specific (ordered to match web app)
         ("contracts", "Contracts", false, [.cash, .stock, .crypto]),
         ("fee", "Fee", false, [.cash, .stock, .crypto]),
@@ -400,6 +400,8 @@ struct FundDetailView: View {
             .map(\.id))
         if ft == .derivatives {
             cols.formUnion(["contracts", "price", "fee", "position", "entry_price", "deriv_cash", "margin_locked", "liquidation_price", "deriv_equity", "unrealized_pnl"])
+        } else if ft == .cash {
+            cols.formUnion(["cash_interest", "sum_cash_int"])
         }
         return cols
     }

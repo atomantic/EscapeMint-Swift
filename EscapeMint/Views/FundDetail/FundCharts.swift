@@ -172,6 +172,7 @@ private func chartConfig(_ config: FundConfig) -> FundConfig {
 func computePLPoints(entries: [FundEntry], config: FundConfig) -> [PLPoint] {
     // Use active status for chart computation — closed funds return zeros from computeFundState
     let cc = chartConfig(config)
+    let isCash = isCashFund(config.fund_type)
     let sampled = sampleArray(entries)
     return sampled.map { entry in
         let prior = entries.filter { $0.date <= entry.date }
@@ -180,13 +181,20 @@ func computePLPoints(entries: [FundEntry], config: FundConfig) -> [PLPoint] {
         let dividends = entriesToDividends(prior)
         let expenses = entriesToExpenses(prior)
         let state = computeFundState(config: cc, trades: trades, cashflows: cashflows, dividends: dividends, expenses: expenses, actualValue: entry.value, asOfDate: entry.date)
-        return PLPoint(id: entry.date, date: entry.date, realized: state.realizedGainsUsd, liquid: state.gainUsd + state.realizedGainsUsd)
+        // Cash funds: unrealized=0, liquid=realized (no double-counting)
+        let liquid = isCash ? state.realizedGainsUsd : state.gainUsd + state.realizedGainsUsd
+        return PLPoint(id: entry.date, date: entry.date, realized: state.realizedGainsUsd, liquid: liquid)
     }
 }
 
 func computeAPYPoints(entries: [FundEntry], config: FundConfig) -> [APYPoint] {
-    // Use active status for chart computation — closed funds return zeros from computeFundState
     let cc = chartConfig(config)
+    let isCash = isCashFund(config.fund_type)
+
+    if isCash {
+        return computeCashAPYPoints(entries: entries, config: cc)
+    }
+
     let sampled = sampleArray(entries)
     return sampled.map { entry in
         let prior = entries.filter { $0.date <= entry.date }
@@ -204,6 +212,37 @@ func computeAPYPoints(entries: [FundEntry], config: FundConfig) -> [APYPoint] {
         let lAPY = computeLinearAPY(lGain, basis, days)
         return APYPoint(id: entry.date, date: entry.date, realizedAPY: rAPY, liquidAPY: lAPY)
     }
+}
+
+/// Cash fund APY uses TWAB (time-weighted average balance) as denominator — matches web app
+private func computeCashAPYPoints(entries: [FundEntry], config: FundConfig) -> [APYPoint] {
+    let startDate = getFundStartDate(entries)
+    var twabNumerator = 0.0
+    var lastBalance = 0.0
+    var lastDate: String?
+    var sumInterest = 0.0
+    var sumExpenses = 0.0
+
+    var all: [APYPoint] = []
+    for entry in entries {
+        if let ld = lastDate {
+            let daysBtw = max(0, Double(daysBetween(ld, entry.date)))
+            twabNumerator += lastBalance * daysBtw
+        }
+        if let ci = entry.cash_interest { sumInterest += ci }
+        if let exp = entry.expense { sumExpenses += exp }
+
+        lastBalance = entry.cash ?? entry.value
+        lastDate = entry.date
+
+        let days = max(1, daysBetween(startDate, entry.date))
+        let twab = Double(days) > 0 ? twabNumerator / Double(days) : 0
+        let basis = twab > 0 ? twab : lastBalance
+        let realized = sumInterest - sumExpenses
+        let apy = abs(realized) >= 0.01 ? computeLinearAPY(realized, basis, days) : 0
+        all.append(APYPoint(id: entry.date, date: entry.date, realizedAPY: apy, liquidAPY: apy))
+    }
+    return sampleArray(all)
 }
 
 func computeProfitPoints(entries: [FundEntry], config: FundConfig) -> [ProfitPoint] {
