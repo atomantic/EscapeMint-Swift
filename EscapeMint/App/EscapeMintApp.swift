@@ -58,6 +58,13 @@ struct ContentView: View {
             IntroGuideView(isPresented: $showIntroGuide)
         }
         .task {
+            // -loadTestData: clear all data, load test data, skip intro (for screenshots)
+            if CommandLine.arguments.contains("-loadTestData") {
+                introCompleted = true
+                showIntroOnLaunch = false
+                try? await FundStore.shared.deleteAllFunds()
+                _ = try? await FundStore.shared.loadTestData()
+            }
             let isFirstTime = !introCompleted || showIntroOnLaunch
             // Start historical data loading immediately, boosted priority for first-time users
             ViewCache.shared.startLoading(prioritizeGuide: isFirstTime)
@@ -65,8 +72,16 @@ struct ContentView: View {
                 ModeComparisonPreloader.shared.preload()
             }
             await store.loadIfNeeded()
+            // -selectFund <id>: auto-navigate to fund detail after load
+            if let idx = CommandLine.arguments.firstIndex(of: "-selectFund"),
+               idx + 1 < CommandLine.arguments.count {
+                let fundId = CommandLine.arguments[idx + 1]
+                try? await Task.sleep(for: .milliseconds(500))
+                NotificationCenter.default.post(name: .selectFund, object: fundId)
+            }
         }
         .onAppear {
+            if CommandLine.arguments.contains("-loadTestData") { return }
             if !introCompleted || showIntroOnLaunch {
                 showIntroGuide = true
             }

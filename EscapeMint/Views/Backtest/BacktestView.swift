@@ -12,6 +12,17 @@ struct BacktestView: View {
     @State private var hoverCP: Int?
     @State private var hoverGB: Int?
     @State private var hoverAPY: Int?
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    #endif
+
+    private var isWide: Bool {
+        #if os(macOS)
+        true
+        #else
+        sizeClass == .regular
+        #endif
+    }
 
     // First-run detection
     @AppStorage("escapemint-intro-completed") private var introCompleted = false
@@ -277,7 +288,7 @@ struct BacktestView: View {
             #if os(macOS)
             let columnCount = 8
             #else
-            let columnCount = 2
+            let columnCount = isWide ? 4 : 2
             #endif
             let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: columnCount)
             LazyVGrid(columns: columns, spacing: 8) {
@@ -324,7 +335,7 @@ struct BacktestView: View {
         #if os(macOS)
         let columnCount = 8
         #else
-        let columnCount = 2
+        let columnCount = isWide ? 4 : 2
         #endif
         let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: columnCount)
         LazyVGrid(columns: columns, spacing: 8) {

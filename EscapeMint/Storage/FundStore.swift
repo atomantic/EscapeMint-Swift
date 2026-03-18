@@ -208,6 +208,17 @@ actor FundStore {
         for file in files {
             try? fileManager.removeItem(at: file)
         }
+
+        // When using iCloud, also clear the local Documents/funds/ directory
+        // to prevent migrateToICloudIfNeeded() from restoring deleted data on next launch
+        if isICloud, let localDocs = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
+            let localFunds = localDocs.appendingPathComponent("funds")
+            if let localFiles = try? fileManager.contentsOfDirectory(at: localFunds, includingPropertiesForKeys: nil) {
+                for file in localFiles {
+                    try? fileManager.removeItem(at: file)
+                }
+            }
+        }
     }
 
     /// Delete all funds belonging to test platforms (coinbasetest, robinhoodtest, demo, etc.)

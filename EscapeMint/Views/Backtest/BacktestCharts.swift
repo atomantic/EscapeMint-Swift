@@ -22,6 +22,17 @@ struct BacktestChartsGrid: View {
     @Binding var hoverCP: Int?
     @Binding var hoverGB: Int?
     @Binding var hoverAPY: Int?
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    #endif
+
+    private var isWide: Bool {
+        #if os(macOS)
+        true
+        #else
+        sizeClass == .regular
+        #endif
+    }
 
     var body: some View {
         let sampled = sampleArray(result.entries, maxPoints: 120)
@@ -43,18 +54,36 @@ struct BacktestChartsGrid: View {
         }
         .frame(height: 200)
         #else
-        valueAllocationChart(sampled)
-            .accessibilityIdentifier("chart-value-allocation")
+        if isWide {
+            // iPad: 2x2 grid
+            HStack(spacing: 12) {
+                valueAllocationChart(sampled)
+                    .accessibilityIdentifier("chart-value-allocation")
+                capturedProfitChart(sampled)
+                    .accessibilityIdentifier("chart-captured-profit")
+            }
             .frame(height: 200)
-        capturedProfitChart(sampled)
-            .accessibilityIdentifier("chart-captured-profit")
+            HStack(spacing: 12) {
+                gainBreakdownChart(sampled)
+                    .accessibilityIdentifier("chart-gain-breakdown")
+                apyBreakdownChart(sampled)
+                    .accessibilityIdentifier("chart-apy-breakdown")
+            }
             .frame(height: 200)
-        gainBreakdownChart(sampled)
-            .accessibilityIdentifier("chart-gain-breakdown")
-            .frame(height: 200)
-        apyBreakdownChart(sampled)
-            .accessibilityIdentifier("chart-apy-breakdown")
-            .frame(height: 200)
+        } else {
+            valueAllocationChart(sampled)
+                .accessibilityIdentifier("chart-value-allocation")
+                .frame(height: 200)
+            capturedProfitChart(sampled)
+                .accessibilityIdentifier("chart-captured-profit")
+                .frame(height: 200)
+            gainBreakdownChart(sampled)
+                .accessibilityIdentifier("chart-gain-breakdown")
+                .frame(height: 200)
+            apyBreakdownChart(sampled)
+                .accessibilityIdentifier("chart-apy-breakdown")
+                .frame(height: 200)
+        }
         #endif
     }
 

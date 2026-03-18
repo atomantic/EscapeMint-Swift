@@ -11,6 +11,17 @@ struct DashboardView: View {
     @State private var viewMode: ViewMode = .grid
     @State private var dismissedAlertIds: Set<String> = []
     @State private var collapsedDashPlatforms: Set<String> = []
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    #endif
+
+    private var isWide: Bool {
+        #if os(macOS)
+        true
+        #else
+        sizeClass == .regular
+        #endif
+    }
 
     enum ViewMode: String, CaseIterable {
         case grid = "Grid"
@@ -196,12 +207,14 @@ struct DashboardView: View {
         .padding(.horizontal)
     }
 
-    // MARK: - iOS Metrics Grid (2-col)
+    // MARK: - iOS Metrics Grid
 
     @ViewBuilder
     private var iosMetricsGrid: some View {
         let p = store.portfolio
-        LazyVGrid(columns: [.init(.flexible(), spacing: 8), .init(.flexible(), spacing: 8)], spacing: 8) {
+        let colCount = isWide ? 3 : 2
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: colCount)
+        LazyVGrid(columns: columns, spacing: 8) {
             MetricCard(label: "Fund Size", value: formatCurrency(p.totalFundSize), sub: "\(store.funds.count) funds")
             MetricCard(label: "Value", value: formatCurrency(p.totalValue), sub: "\(p.activeFunds) active")
             MetricCard(label: "Realized", value: formatCurrency(p.totalRealizedGains), color: p.totalRealizedGains > 0 ? .mint : .red)
@@ -220,18 +233,36 @@ struct DashboardView: View {
     @ViewBuilder
     private var iosDashboardCharts: some View {
         VStack(spacing: 12) {
-            // Allocation pie charts
-            FundAllocationChart(summaries: activeSummaries)
-            PortfolioAllocationChart(summaries: activeSummaries)
-            PlatformAllocationChart(summaries: activeSummaries)
-            // Time series (matches web app order)
-            DashboardAPYChart(points: cache.dashboardTimeSeries)
-            DashboardGainChart(points: cache.dashboardTimeSeries)
-            DashboardFundSizeChart(points: cache.dashboardTimeSeries)
-            DashboardLiquidValueChart(points: cache.dashboardTimeSeries)
-            DashboardValueChart(points: cache.dashboardTimeSeries)
-            DashboardMarginChart(points: cache.dashboardTimeSeries)
-            DashboardCashVsAssetChart(points: cache.dashboardTimeSeries)
+            if isWide {
+                // iPad: pie charts in a row
+                HStack(alignment: .top, spacing: 12) {
+                    FundAllocationChart(summaries: activeSummaries)
+                    PortfolioAllocationChart(summaries: activeSummaries)
+                    PlatformAllocationChart(summaries: activeSummaries)
+                }
+                // iPad: time series in 2-column grid
+                LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
+                    DashboardAPYChart(points: cache.dashboardTimeSeries)
+                    DashboardGainChart(points: cache.dashboardTimeSeries)
+                    DashboardFundSizeChart(points: cache.dashboardTimeSeries)
+                    DashboardLiquidValueChart(points: cache.dashboardTimeSeries)
+                    DashboardValueChart(points: cache.dashboardTimeSeries)
+                    DashboardMarginChart(points: cache.dashboardTimeSeries)
+                    DashboardCashVsAssetChart(points: cache.dashboardTimeSeries)
+                }
+            } else {
+                // iPhone: single column
+                FundAllocationChart(summaries: activeSummaries)
+                PortfolioAllocationChart(summaries: activeSummaries)
+                PlatformAllocationChart(summaries: activeSummaries)
+                DashboardAPYChart(points: cache.dashboardTimeSeries)
+                DashboardGainChart(points: cache.dashboardTimeSeries)
+                DashboardFundSizeChart(points: cache.dashboardTimeSeries)
+                DashboardLiquidValueChart(points: cache.dashboardTimeSeries)
+                DashboardValueChart(points: cache.dashboardTimeSeries)
+                DashboardMarginChart(points: cache.dashboardTimeSeries)
+                DashboardCashVsAssetChart(points: cache.dashboardTimeSeries)
+            }
         }
         .padding(.horizontal)
     }
@@ -383,11 +414,22 @@ struct DashboardView: View {
                             }
                         }
                         #else
-                        ForEach(platformFunds, id: \.fund.id) { summary in
-                            NavigationLink(destination: FundDetailView(fundId: summary.fund.id)) {
-                                FundCardView(summary: summary)
+                        if isWide {
+                            LazyVGrid(columns: [.init(.flexible(), spacing: 10), .init(.flexible(), spacing: 10)], spacing: 10) {
+                                ForEach(platformFunds, id: \.fund.id) { summary in
+                                    NavigationLink(destination: FundDetailView(fundId: summary.fund.id)) {
+                                        FundCardView(summary: summary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                             }
-                            .buttonStyle(.plain)
+                        } else {
+                            ForEach(platformFunds, id: \.fund.id) { summary in
+                                NavigationLink(destination: FundDetailView(fundId: summary.fund.id)) {
+                                    FundCardView(summary: summary)
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
                         #endif
                     }
@@ -425,11 +467,22 @@ struct DashboardView: View {
                                 }
                             }
                             #else
-                            ForEach(platformFunds, id: \.fund.id) { summary in
-                                NavigationLink(destination: FundDetailView(fundId: summary.fund.id)) {
-                                    FundCardView(summary: summary)
+                            if isWide {
+                                LazyVGrid(columns: [.init(.flexible(), spacing: 10), .init(.flexible(), spacing: 10)], spacing: 10) {
+                                    ForEach(platformFunds, id: \.fund.id) { summary in
+                                        NavigationLink(destination: FundDetailView(fundId: summary.fund.id)) {
+                                            FundCardView(summary: summary)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
                                 }
-                                .buttonStyle(.plain)
+                            } else {
+                                ForEach(platformFunds, id: \.fund.id) { summary in
+                                    NavigationLink(destination: FundDetailView(fundId: summary.fund.id)) {
+                                        FundCardView(summary: summary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                             }
                             #endif
                         }

@@ -4,6 +4,17 @@ struct BacktestConfigPanel: View {
     @Binding var config: BacktestConfig
     @Binding var selectedPreset: BacktestPreset
     let onConfigChanged: () -> Void
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    #endif
+
+    private var isWide: Bool {
+        #if os(macOS)
+        true
+        #else
+        sizeClass == .regular
+        #endif
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -19,16 +30,34 @@ struct BacktestConfigPanel: View {
             }
             .padding(12)
             #else
-            VStack(spacing: 12) {
-                allocationColumn
-                Divider()
-                strategyColumn
-                Divider()
-                dcaTiersColumn
-                Divider()
-                fundModeColumn
+            if isWide {
+                // iPad: 2x2 grid layout
+                HStack(alignment: .top, spacing: 16) {
+                    VStack(spacing: 12) {
+                        allocationColumn
+                        Divider()
+                        strategyColumn
+                    }
+                    Divider()
+                    VStack(spacing: 12) {
+                        dcaTiersColumn
+                        Divider()
+                        fundModeColumn
+                    }
+                }
+                .padding(12)
+            } else {
+                VStack(spacing: 12) {
+                    allocationColumn
+                    Divider()
+                    strategyColumn
+                    Divider()
+                    dcaTiersColumn
+                    Divider()
+                    fundModeColumn
+                }
+                .padding(12)
             }
-            .padding(12)
             #endif
         }
         .background(Color.bgCard)
