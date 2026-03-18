@@ -16,6 +16,8 @@ struct SettingsView: View {
     @State private var testFundCount = 0
     @AppStorage("escapemint-show-intro-on-launch") var showIntroOnLaunch = false
     @State private var showIntroGuide = false
+    @State private var backupFileURL: URL?
+    @State private var showShareSheet = false
 
     var body: some View {
         settingsContent
@@ -40,6 +42,7 @@ struct SettingsView: View {
                 Section("Import / Export") {
                     Button("Import from Backup (.json)") { pickAndImportJSON() }
                     Button("Import from Folder (TSV+JSON)") { pickAndImport() }
+                    Button("Export Backup (.json)") { exportBackup() }
                     #if os(macOS)
                     Button("Export to Folder") { pickAndExport() }
                     #endif
@@ -86,6 +89,11 @@ struct SettingsView: View {
             .animation(reduceMotion ? .none : .easeInOut(duration: 0.3), value: showStatus)
             .sheet(isPresented: $showIntroGuide) {
                 IntroGuideView(isPresented: $showIntroGuide)
+            }
+            .sheet(isPresented: $showShareSheet) {
+                if let url = backupFileURL {
+                    ShareSheetView(items: [url])
+                }
             }
             .alert("Clear All Data?", isPresented: $showClearConfirm) {
                 Button("Cancel", role: .cancel) {}
@@ -196,6 +204,36 @@ struct SettingsView: View {
         #endif
     }
 
+    private func exportBackup() {
+        Task {
+            do {
+                let url = try await FundStore.shared.exportToBackupJSON()
+                #if os(macOS)
+                let panel = NSSavePanel()
+                panel.title = "Save Backup"
+                panel.nameFieldStringValue = url.lastPathComponent
+                panel.allowedContentTypes = [.json]
+                let response: NSApplication.ModalResponse
+                if let window = NSApp.keyWindow {
+                    response = await panel.beginSheetModal(for: window)
+                } else {
+                    response = panel.runModal()
+                }
+                if response == .OK, let dest = panel.url {
+                    try? FileManager.default.removeItem(at: dest)
+                    try FileManager.default.copyItem(at: url, to: dest)
+                    showToast("Backup saved")
+                }
+                #else
+                backupFileURL = url
+                showShareSheet = true
+                #endif
+            } catch {
+                showToast("Export failed")
+            }
+        }
+    }
+
     #if os(macOS)
     private func pickAndExport() {
         let panel = NSOpenPanel()
@@ -301,3 +339,24 @@ struct SettingsView: View {
         }
     }
 }
+
+#if os(iOS)
+struct ShareSheetView: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+#else
+struct ShareSheetView: View {
+    let items: [Any]
+
+    var body: some View {
+        Text("Use the save dialog to export.")
+            .padding()
+    }
+}
+#endif
