@@ -64,7 +64,7 @@ struct AuditTrailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 10) {
                 #if os(macOS)
                 // Header
                 HStack {
@@ -81,7 +81,7 @@ struct AuditTrailView: View {
                 // Stats Cards
                 let s = stats
                 #if os(macOS)
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 5), spacing: 12) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 5), spacing: 8) {
                     statsCards(s)
                 }
                 #else

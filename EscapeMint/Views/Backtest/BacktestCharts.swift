@@ -38,38 +38,38 @@ struct BacktestChartsGrid: View {
         let sampled = sampleArray(result.entries, maxPoints: 120)
 
         #if os(macOS)
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             valueAllocationChart(sampled)
                 .accessibilityIdentifier("chart-value-allocation")
             capturedProfitChart(sampled)
                 .accessibilityIdentifier("chart-captured-profit")
         }
-        .frame(height: 200)
+        .frame(height: 160)
 
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             gainBreakdownChart(sampled)
                 .accessibilityIdentifier("chart-gain-breakdown")
             apyBreakdownChart(sampled)
                 .accessibilityIdentifier("chart-apy-breakdown")
         }
-        .frame(height: 200)
+        .frame(height: 160)
         #else
         if isWide {
             // iPad: 2x2 grid
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 valueAllocationChart(sampled)
                     .accessibilityIdentifier("chart-value-allocation")
                 capturedProfitChart(sampled)
                     .accessibilityIdentifier("chart-captured-profit")
             }
-            .frame(height: 200)
-            HStack(spacing: 12) {
+            .frame(height: 180)
+            HStack(spacing: 8) {
                 gainBreakdownChart(sampled)
                     .accessibilityIdentifier("chart-gain-breakdown")
                 apyBreakdownChart(sampled)
                     .accessibilityIdentifier("chart-apy-breakdown")
             }
-            .frame(height: 200)
+            .frame(height: 180)
         } else {
             valueAllocationChart(sampled)
                 .accessibilityIdentifier("chart-value-allocation")
@@ -307,17 +307,17 @@ struct BacktestChartsGrid: View {
 struct BacktestChartsPlaceholder: View {
     var body: some View {
         #if os(macOS)
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             chartPlaceholderCard("Value & Allocation")
             chartPlaceholderCard("Captured Profit")
         }
-        .frame(height: 200)
+        .frame(height: 160)
 
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             chartPlaceholderCard("Gain Breakdown")
             chartPlaceholderCard("APY Breakdown")
         }
-        .frame(height: 200)
+        .frame(height: 160)
         #else
         chartPlaceholderCard("Value & Allocation").frame(height: 200)
         chartPlaceholderCard("Captured Profit").frame(height: 200)

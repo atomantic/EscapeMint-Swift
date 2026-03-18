@@ -161,9 +161,9 @@ struct PortfolioAllocationChart: View {
 
     var body: some View {
         let margin = marginStats
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("Portfolio Allocation")
-                .font(.headline).foregroundColor(.textPrimary)
+                .font(.subheadline).fontWeight(.medium).foregroundColor(.textPrimary)
 
             ForEach(categories.indices, id: \.self) { i in
                 let cat = categories[i]
@@ -222,7 +222,7 @@ struct PortfolioAllocationChart: View {
                 }
             }
         }
-        .padding(12)
+        .padding(8)
         .cardStyle()
     }
 }
@@ -234,11 +234,11 @@ private struct AllocationPieChart: View {
     private var total: Double { slices.reduce(0) { $0 + $1.value } }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.headline).foregroundColor(.textPrimary)
+                .font(.subheadline).fontWeight(.medium).foregroundColor(.textPrimary)
 
-            HStack(spacing: 16) {
+            HStack(spacing: 12) {
                 Chart(slices.indices, id: \.self) { i in
                     let slice = slices[i]
                     SectorMark(
@@ -248,9 +248,9 @@ private struct AllocationPieChart: View {
                     )
                     .foregroundStyle(slice.color)
                 }
-                .frame(width: 100, height: 100)
+                .frame(width: 80, height: 80)
 
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 4) {
                     ForEach(slices.prefix(6).indices, id: \.self) { i in
                         let slice = slices[i]
                         let pct = total > 0 ? slice.value / total : 0
@@ -278,7 +278,7 @@ private struct AllocationPieChart: View {
                 }
             }
         }
-        .padding(12)
+        .padding(8)
         .cardStyle()
     }
 }
@@ -327,7 +327,7 @@ struct DashboardAPYChart: View {
                         ]
                     }
                 }
-                .frame(height: 180)
+                .frame(height: 150)
             } else {
                 emChartPlaceholder
             }
@@ -382,7 +382,7 @@ struct DashboardGainChart: View {
                         ]
                     }
                 }
-                .frame(height: 180)
+                .frame(height: 150)
             } else {
                 emChartPlaceholder
             }
@@ -429,7 +429,7 @@ struct DashboardValueChart: View {
                         ]
                     }
                 }
-                .frame(height: 180)
+                .frame(height: 150)
             } else {
                 emChartPlaceholder
             }
@@ -484,7 +484,7 @@ struct DashboardFundSizeChart: View {
                         }
                     }
                 }
-                .frame(height: 180)
+                .frame(height: 150)
             } else {
                 emChartPlaceholder
             }
@@ -533,7 +533,7 @@ struct DashboardLiquidValueChart: View {
                         ]
                     }
                 }
-                .frame(height: 180)
+                .frame(height: 150)
             } else {
                 emChartPlaceholder
             }
@@ -590,7 +590,7 @@ struct DashboardMarginChart: View {
                             ]
                         }
                     }
-                    .frame(height: 180)
+                    .frame(height: 150)
                 } else {
                     emChartPlaceholder
                 }
@@ -651,7 +651,7 @@ struct DashboardCashVsAssetChart: View {
                         ]
                     }
                 }
-                .frame(height: 180)
+                .frame(height: 150)
             } else {
                 emChartPlaceholder
             }
@@ -667,17 +667,17 @@ struct EMChartCard<Legend: View, ChartContent: View>: View {
     @ViewBuilder let chart: () -> ChartContent
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(title)
-                    .font(.headline).foregroundColor(.textPrimary)
+                    .font(.subheadline).fontWeight(.medium).foregroundColor(.textPrimary)
                 Spacer()
-                HStack(spacing: 8) { legend() }
+                HStack(spacing: 6) { legend() }
             }
             chart()
                 .clipped()
         }
-        .padding(12)
+        .padding(8)
         .cardStyle()
     }
 }
@@ -698,6 +698,6 @@ private var emChartPlaceholder: some View {
     Text("Not enough data for chart")
         .font(.caption).foregroundColor(.textMuted)
         .frame(maxWidth: .infinity)
-        .frame(height: 180)
+        .frame(height: 150)
 }
 

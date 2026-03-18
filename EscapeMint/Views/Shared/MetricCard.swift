@@ -16,7 +16,7 @@ struct MetricCard: View {
         #if os(macOS)
         .help(tooltip ?? "")
         #endif
-        .padding(10)
+        .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .cardStyle()
         .accessibilityElement(children: .ignore)

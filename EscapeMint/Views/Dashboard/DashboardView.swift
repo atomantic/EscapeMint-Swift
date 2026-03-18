@@ -119,7 +119,7 @@ struct DashboardView: View {
     @ViewBuilder
     private var macDashboard: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            VStack(spacing: 10) {
                 dashboardHeader
                 loadingBanner
                 if !store.actionableFunds.isEmpty {
@@ -235,13 +235,13 @@ struct DashboardView: View {
         VStack(spacing: 12) {
             if isWide {
                 // iPad: pie charts in a row
-                HStack(alignment: .top, spacing: 12) {
+                HStack(alignment: .top, spacing: 8) {
                     FundAllocationChart(summaries: activeSummaries)
                     PortfolioAllocationChart(summaries: activeSummaries)
                     PlatformAllocationChart(summaries: activeSummaries)
                 }
                 // iPad: time series in 2-column grid
-                LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
+                LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 8) {
                     DashboardAPYChart(points: cache.dashboardTimeSeries)
                     DashboardGainChart(points: cache.dashboardTimeSeries)
                     DashboardFundSizeChart(points: cache.dashboardTimeSeries)
@@ -353,14 +353,14 @@ struct DashboardView: View {
     @ViewBuilder
     private var dashboardCharts: some View {
         // Allocation pie charts row
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: 8) {
             FundAllocationChart(summaries: activeSummaries)
             PortfolioAllocationChart(summaries: activeSummaries)
             PlatformAllocationChart(summaries: activeSummaries)
         }
 
-        // Time series charts — 2-column grid (matches web app order)
-        LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
+        // Time series charts — 3-column grid for density
+        LazyVGrid(columns: [.init(.flexible()), .init(.flexible()), .init(.flexible())], spacing: 8) {
             DashboardAPYChart(points: cache.dashboardTimeSeries)
             DashboardGainChart(points: cache.dashboardTimeSeries)
             DashboardFundSizeChart(points: cache.dashboardTimeSeries)

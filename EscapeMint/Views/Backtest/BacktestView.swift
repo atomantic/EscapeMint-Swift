@@ -47,7 +47,7 @@ struct BacktestView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 12) {
+            VStack(spacing: 8) {
                 header
                 if !introCompleted {
                     introCard
