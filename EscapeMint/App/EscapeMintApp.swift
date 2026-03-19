@@ -2,6 +2,32 @@ import SwiftUI
 
 @main
 struct EscapeMintApp: App {
+    init() {
+        // Handle -loadTestData synchronously before any views load
+        if CommandLine.arguments.contains("-loadTestData") {
+            UserDefaults.standard.set(true, forKey: "escapemint-intro-completed")
+            UserDefaults.standard.set(false, forKey: "escapemint-show-intro-on-launch")
+            let fm = FileManager.default
+            let dir = FundStore.shared.fundsDirectory
+            // Delete all existing funds
+            if let files = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) {
+                for file in files { try? fm.removeItem(at: file) }
+            }
+            // Copy test data from bundle
+            let testFundIds = [
+                "coinbasetest-btc", "coinbasetest-cash",
+                "robinhoodtest-tqqq", "robinhoodtest-spxl", "robinhoodtest-cash"
+            ]
+            for fundId in testFundIds {
+                if let jsonURL = Bundle.main.url(forResource: fundId, withExtension: "json"),
+                   let tsvURL = Bundle.main.url(forResource: fundId, withExtension: "tsv") {
+                    try? fm.copyItem(at: jsonURL, to: dir.appendingPathComponent("\(fundId).json"))
+                    try? fm.copyItem(at: tsvURL, to: dir.appendingPathComponent("\(fundId).tsv"))
+                }
+            }
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -58,13 +84,7 @@ struct ContentView: View {
             IntroGuideView(isPresented: $showIntroGuide)
         }
         .task {
-            // -loadTestData: clear all data, load test data, skip intro (for screenshots)
-            if CommandLine.arguments.contains("-loadTestData") {
-                introCompleted = true
-                showIntroOnLaunch = false
-                try? await FundStore.shared.deleteAllFunds()
-                _ = try? await FundStore.shared.loadTestData()
-            }
+            // -loadTestData is handled in EscapeMintApp.init() before views load
             let isFirstTime = !introCompleted || showIntroOnLaunch
             // Start historical data loading immediately, boosted priority for first-time users
             ViewCache.shared.startLoading(prioritizeGuide: isFirstTime)

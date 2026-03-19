@@ -15,7 +15,11 @@ actor FundStore {
         let resolvedDir: URL
         let resolvedICloud: Bool
 
-        if let iCloudURL = fm.url(forUbiquityContainerIdentifier: "iCloud.net.shadowpuppet.EscapeMint") {
+        // When loading test data (screenshots), skip iCloud to avoid sync race conditions
+        let skipICloud = CommandLine.arguments.contains("-loadTestData")
+
+        if !skipICloud,
+           let iCloudURL = fm.url(forUbiquityContainerIdentifier: "iCloud.net.shadowpuppet.EscapeMint") {
             let funds = iCloudURL.appendingPathComponent("Documents/funds")
             var iCloudWorks = false
             do {
