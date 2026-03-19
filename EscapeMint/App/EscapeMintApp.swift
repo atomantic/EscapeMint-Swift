@@ -92,6 +92,7 @@ struct ContentView: View {
                 ModeComparisonPreloader.shared.preload()
             }
             await store.loadIfNeeded()
+            ICloudSyncMonitor.shared.startMonitoring()
             // -selectFund <id>: auto-navigate to fund detail after load
             if let idx = CommandLine.arguments.firstIndex(of: "-selectFund"),
                idx + 1 < CommandLine.arguments.count {
@@ -298,7 +299,7 @@ struct MacContentView: View {
     @ViewBuilder
     private var sidebar: some View {
         List(selection: $selectedNav) {
-            // Logo + name
+            // Logo + name + sync
             HStack(spacing: 8) {
                 Image(systemName: "leaf.fill")
                     .foregroundColor(.mint)
@@ -306,6 +307,22 @@ struct MacContentView: View {
                 Text("EscapeMint")
                     .font(.title3).fontWeight(.bold)
                     .foregroundColor(.textPrimary)
+                Spacer()
+                if FundStore.shared.isICloud {
+                    Button {
+                        Task { await ICloudSyncMonitor.shared.syncNow() }
+                    } label: {
+                        if ICloudSyncMonitor.shared.isSyncing {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.triangle.2.circlepath.icloud")
+                                .foregroundColor(.textMuted)
+                                .font(.callout)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .help("Sync with iCloud")
+                }
             }
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)

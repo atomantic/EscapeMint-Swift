@@ -37,6 +37,24 @@ struct SettingsView: View {
                     LabeledContent("Location", value: storageLocation)
                     LabeledContent("Funds", value: "\(fundCount)")
                     LabeledContent("Data Size", value: dataSize)
+                    if FundStore.shared.isICloud {
+                        Button {
+                            Task {
+                                await ICloudSyncMonitor.shared.syncNow()
+                                await refreshStats()
+                                showToast("Synced from iCloud")
+                            }
+                        } label: {
+                            HStack {
+                                Label("Sync with iCloud", systemImage: "arrow.triangle.2.circlepath.icloud")
+                                if ICloudSyncMonitor.shared.isSyncing {
+                                    Spacer()
+                                    ProgressView().controlSize(.small)
+                                }
+                            }
+                        }
+                        .disabled(ICloudSyncMonitor.shared.isSyncing)
+                    }
                 }
 
                 Section("Import / Export") {

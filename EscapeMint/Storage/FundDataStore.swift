@@ -143,6 +143,7 @@ final class FundDataStore {
     func addFund(_ fund: FundData) async {
         do {
             try await FundStore.shared.writeFund(fund)
+            ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
             Self.logger.error("addFund disk write failed: \(error)")
         }
@@ -154,6 +155,7 @@ final class FundDataStore {
     func updateFund(_ fund: FundData) async {
         do {
             try await FundStore.shared.writeFund(fund)
+            ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
             Self.logger.error("updateFund disk write failed: \(error)")
         }
@@ -166,6 +168,7 @@ final class FundDataStore {
     func deleteFund(id: String) async {
         do {
             try await FundStore.shared.deleteFund(id: id)
+            ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
             Self.logger.error("deleteFund disk delete failed: \(error)")
         }
@@ -177,6 +180,7 @@ final class FundDataStore {
     func appendEntry(fundId: String, entry: FundEntry) async {
         do {
             try await FundStore.shared.appendEntry(fundId: fundId, entry: entry)
+            ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
             Self.logger.error("appendEntry disk write failed: \(error)")
         }
@@ -190,6 +194,7 @@ final class FundDataStore {
     func replaceEntries(fundId: String, entries: [FundEntry]) async {
         do {
             try await FundStore.shared.replaceEntries(fundId: fundId, entries: entries)
+            ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
             Self.logger.error("replaceEntries disk write failed: \(error)")
         }
@@ -203,6 +208,7 @@ final class FundDataStore {
     func updateConfig(fundId: String, config: FundConfig) async {
         do {
             try await FundStore.shared.updateConfig(fundId: fundId, config: config)
+            ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
             Self.logger.error("updateConfig disk write failed: \(error)")
         }
