@@ -190,7 +190,7 @@ EOF
     echo "✅ macOS pkg exported"
 
     # macOS export produces a .pkg file
-    PKG_PATH=$(find "$EXPORT_MACOS" -name "*.pkg" -o -name "*.app" | head -1)
+    PKG_PATH=$(find "$EXPORT_MACOS" -name "*.pkg" | head -1)
     if [ -z "$PKG_PATH" ]; then
         echo "❌ macOS package not found in $EXPORT_MACOS"
         ls -la "$EXPORT_MACOS/"
