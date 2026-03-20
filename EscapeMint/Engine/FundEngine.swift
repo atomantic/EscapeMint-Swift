@@ -828,6 +828,7 @@ func computeFundMetricsForFund(_ fund: FundData, asOfDate: String) -> (metrics: 
         let divs = entriesToDividends(fund.entries)
         let exps = entriesToExpenses(fund.entries)
         expectedTarget = computeExpectedTarget(config: config, trades: trades, asOfDate: asOfDate)
+
         cashAvailable = computeCashAvailable(config: config, trades: trades, cashflows: cashflows, dividends: divs, expenses: exps, asOfDate: asOfDate)
     }
 
@@ -878,16 +879,37 @@ func computeFundMetricsForFund(_ fund: FundData, asOfDate: String) -> (metrics: 
 func computeSummariesFromPortfolio(funds: [FundData], portfolio: PortfolioMetrics) -> [FundSummary] {
     guard funds.count == portfolio.funds.count, funds.count == portfolio.states.count else {
         // Fallback if sizes mismatch
-        return funds.map { FundSummary($0) }
+        return funds.map { FundSummary($0, allFunds: funds) }
     }
     return zip(funds, zip(portfolio.funds, portfolio.states)).map { fund, pair in
         FundSummary(fund, metrics: pair.0, state: pair.1)
     }
 }
 
+/// Resolve the cash fund ID for a fund that doesn't manage its own cash.
+func resolveCashFundId(config: FundConfig, platform: String) -> String {
+    config.cash_fund ?? "\(platform)-cash"
+}
+
 func computePortfolioMetrics(_ funds: [FundData], asOfDate: String? = nil) -> PortfolioMetrics {
     let today = asOfDate ?? todayString()
-    let computed: [(FundMetrics, FundState)] = funds.map { computeFundMetricsForFund($0, asOfDate: today) }
+    var computed: [(FundMetrics, FundState)] = funds.map { computeFundMetricsForFund($0, asOfDate: today) }
+
+    // Resolve cash from platform cash funds for manage_cash=false funds
+    let fundById = Dictionary(uniqueKeysWithValues: funds.map { ($0.id, $0) })
+    for i in funds.indices {
+        let fund = funds[i]
+        if fund.config.manage_cash == false {
+            let cashFundId = resolveCashFundId(config: fund.config, platform: fund.platform)
+            if let cashFund = fundById[cashFundId],
+               let latest = cashFund.entries.max(by: { $0.date < $1.date }) {
+                computed[i].1.cashAvailableUsd = latest.cash ?? latest.value
+            } else {
+                computed[i].1.cashAvailableUsd = 0
+            }
+        }
+    }
+
     let fundMetrics = computed.map(\.0)
 
     var totalFundSize = 0.0

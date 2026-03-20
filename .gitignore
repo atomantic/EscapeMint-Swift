@@ -17,3 +17,6 @@ Pods/
 
 # Screenshots
 *.png
+
+# Editor/terminal themes
+.ghostty-theme

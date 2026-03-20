@@ -49,6 +49,7 @@ struct FundConfig: Codable {
     // Cash
     var cash_apy: Double?
     var manage_cash: Bool?
+    var cash_fund: String?
 
     // Margin
     var margin_enabled: Bool?
@@ -74,7 +75,7 @@ struct FundConfig: Codable {
         case target_apy, interval_days
         case input_min_usd, input_mid_usd, input_max_usd
         case max_at_pct, min_profit_usd
-        case cash_apy, manage_cash
+        case cash_apy, manage_cash, cash_fund
         case margin_enabled
         case accumulate, dividend_reinvest, interest_reinvest, expense_from_fund
         case initial_margin_rate, maintenance_margin_rate, contract_multiplier
@@ -161,7 +162,7 @@ struct FundSummary {
     var projectedAnnualReturn: Double { metrics.projectedAnnualReturn }
     var fundSharesPct: Double { metrics.fundSharesPct }
 
-    init(_ fund: FundData, asOfDate: String? = nil) {
+    init(_ fund: FundData, asOfDate: String? = nil, allFunds: [FundData]? = nil) {
         let today = asOfDate ?? todayString()
 
         self.fund = fund
@@ -171,8 +172,21 @@ struct FundSummary {
         // Single computation — returns both metrics and state
         let result = computeFundMetricsForFund(fund, asOfDate: today)
         self.metrics = result.metrics
-        self.state = result.state
-        self.recommendation = computeRecommendation(config: fund.config, state: result.state)
+
+        // Resolve cash from platform cash fund for manage_cash=false funds
+        var state = result.state
+        if fund.config.manage_cash == false, let allFunds {
+            let cashFundId = resolveCashFundId(config: fund.config, platform: fund.platform)
+            if let cashFund = allFunds.first(where: { $0.id == cashFundId }),
+               let latest = cashFund.entries.max(by: { $0.date < $1.date }) {
+                state.cashAvailableUsd = latest.cash ?? latest.value
+            } else {
+                state.cashAvailableUsd = 0
+            }
+        }
+
+        self.state = state
+        self.recommendation = computeRecommendation(config: fund.config, state: state)
         self.closedMetrics = Self.buildClosedMetrics(fund: fund, asOfDate: today)
     }
 
