@@ -150,6 +150,13 @@ struct FundSummary {
     var effectiveRealizedAPY: Double { closedMetrics?.apy ?? realizedAPY }
     var effectiveLiquidAPY: Double { closedMetrics?.apy ?? liquidAPY }
 
+    /// Whether this fund is due for its next DCA action (interval elapsed since last entry)
+    var isDueForAction: Bool {
+        guard let intervalDays = fund.config.interval_days, intervalDays > 0 else { return true }
+        guard let lastEntry = fund.entries.last else { return true }
+        return daysBetween(lastEntry.date, todayString()) >= intervalDays
+    }
+
     // Convenience accessors from metrics
     var currentValue: Double { metrics.currentValue }
     var startDate: String { getFundStartDate(fund.entries) }

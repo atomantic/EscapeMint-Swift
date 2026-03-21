@@ -481,9 +481,12 @@ actor FundStore {
         }
 
         let backup: [String: Any] = [
-            "version": 1,
-            "exported": ISO8601DateFormatter().string(from: Date()),
-            "funds": fundsArray
+            "version": "1.0.0",
+            "backup_date": ISO8601DateFormatter().string(from: Date()),
+            "funds": fundsArray,
+            "platforms": NSNull(),
+            "totals_snapshot": NSNull(),
+            "scrape_archives": [String: Any]()
         ]
 
         let data = try JSONSerialization.data(withJSONObject: backup, options: [.prettyPrinted, .sortedKeys])
@@ -501,6 +504,27 @@ actor FundStore {
         let backupURL = exportDir.appendingPathComponent(filename)
         try data.write(to: backupURL)
         return backupURL
+    }
+
+    /// Create a timestamped backup of a single fund before a destructive operation.
+    /// Returns the backup directory URL for the toast message.
+    func backupFund(id: String) throws -> URL {
+        let fm = fileManager
+        let backupDir = fundsDirectory.deletingLastPathComponent().appendingPathComponent("backups")
+        try fm.createDirectory(at: backupDir, withIntermediateDirectories: true)
+
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd-HHmmss"
+        let timestamp = df.string(from: Date())
+        let fundBackupDir = backupDir.appendingPathComponent("\(id)_\(timestamp)")
+        try fm.createDirectory(at: fundBackupDir, withIntermediateDirectories: true)
+
+        let tsvSrc = fundsDirectory.appendingPathComponent("\(id).tsv")
+        let jsonSrc = fundsDirectory.appendingPathComponent("\(id).json")
+
+        try? fm.copyItem(at: tsvSrc, to: fundBackupDir.appendingPathComponent("\(id).tsv"))
+        try? fm.copyItem(at: jsonSrc, to: fundBackupDir.appendingPathComponent("\(id).json"))
+        return fundBackupDir
     }
 
     struct DataStats {

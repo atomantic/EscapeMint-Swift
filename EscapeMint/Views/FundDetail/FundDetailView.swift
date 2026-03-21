@@ -19,6 +19,10 @@ struct FundDetailView: View {
     @State private var columnOrder: [String] = []
     @State private var showColumnConfig = false
     @State private var showStats = true
+    @State private var isRecalculating = false
+    @State private var advancedToolsMessage = ""
+    @State private var showAdvancedToast = false
+    @AppStorage("escapemint-advanced-tools") private var advancedToolsEnabled = false
 
     private var fund: FundData? { store.fund(byId: fundId) }
     private var summary: FundSummary? { store.summary(byId: fundId) }
@@ -60,7 +64,7 @@ struct FundDetailView: View {
         }
         .sheet(isPresented: $showAddEntry) {
             if let fund {
-                AddEntryView(fundId: fund.id, fundType: fund.config.fund_type ?? .stock, fundConfig: fund.config, existingEntries: fund.entries) {
+                AddEntryView(fundId: fund.id, fundType: fund.config.fund_type ?? .stock, fundConfig: fund.config, existingEntries: fund.entries, recommendation: summary?.isDueForAction == true ? summary?.recommendation : nil) {
                     Task { await store.reload() }
                 }
             }
@@ -117,8 +121,8 @@ struct FundDetailView: View {
                 // Config summary
                 configSummary(fund, features: features, state: state)
 
-                // Recommendation
-                if let rec {
+                // Recommendation (only when fund is due for action per interval)
+                if summary.isDueForAction, let rec {
                     recommendationCard(rec)
                 }
 
@@ -345,6 +349,72 @@ struct FundDetailView: View {
         }
     }
 
+    // MARK: - Advanced Tools
+
+    @ViewBuilder
+    private func advancedToolsButtons(_ fund: FundData) -> some View {
+        Button {
+            guard !isRecalculating else { return }
+            isRecalculating = true
+            Task {
+                let (_, msg) = await store.recalculateFund(fundId: fund.id)
+                advancedToolsMessage = msg
+                isRecalculating = false
+                showAdvancedToast = true
+                hideToastAfterDelay()
+            }
+        } label: {
+            Text(isRecalculating ? "..." : "Recalculate")
+                .font(.caption2).fontWeight(.medium)
+                .foregroundColor(.white)
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(Color.secondary.opacity(0.7))
+                .cornerRadius(6)
+        }
+        .disabled(isRecalculating)
+        #if os(macOS)
+        .buttonStyle(.plain)
+        #endif
+
+        Menu {
+            ForEach(InterpolatableColumn.allCases, id: \.rawValue) { column in
+                Button(column.label) {
+                    guard !isRecalculating else { return }
+                    isRecalculating = true
+                    Task {
+                        let (_, msg) = await store.interpolateFundColumn(fundId: fund.id, column: column)
+                        advancedToolsMessage = msg
+                        isRecalculating = false
+                        showAdvancedToast = true
+                        hideToastAfterDelay()
+                    }
+                }
+            }
+        } label: {
+            Text("Interpolate")
+                .font(.caption2).fontWeight(.medium)
+                .foregroundColor(.white)
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(Color.secondary.opacity(0.7))
+                .cornerRadius(6)
+        }
+        .disabled(isRecalculating)
+        #if os(macOS)
+        .menuStyle(.borderlessButton)
+        #endif
+    }
+
+    @State private var toastTask: Task<Void, Never>?
+
+    private func hideToastAfterDelay() {
+        toastTask?.cancel()
+        toastTask = Task {
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            showAdvancedToast = false
+        }
+    }
+
     // MARK: - Entries Table
 
     private static let allEntryColumns: [(id: String, label: String, defaultVisible: Bool, excludeFrom: Set<FundType>)] = [
@@ -456,6 +526,9 @@ struct FundDetailView: View {
                 Text("Entries (\(fund.entries.count))")
                     .font(.headline).foregroundColor(.textPrimary)
                 Spacer()
+                if advancedToolsEnabled {
+                    advancedToolsButtons(fund)
+                }
                 #if os(macOS)
                 Button {
                     showColumnConfig.toggle()
@@ -490,6 +563,19 @@ struct FundDetailView: View {
         .background(Color.bgCard)
         .cornerRadius(12)
         .onAppear { initVisibleColumnsIfNeeded(for: fund) }
+        .overlay(alignment: .bottom) {
+            if showAdvancedToast {
+                Text(advancedToolsMessage)
+                    .font(.caption).fontWeight(.medium)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .background(Color.mint.cornerRadius(8))
+                    .shadow(radius: 4)
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .animation(.easeInOut(duration: 0.3), value: showAdvancedToast)
+            }
+        }
     }
 
     /// All available columns in user-defined order (for the config UI)

@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var showRemoveTestConfirm = false
     @State private var testFundCount = 0
     @AppStorage("escapemint-show-intro-on-launch") var showIntroOnLaunch = false
+    @AppStorage("escapemint-advanced-tools") var advancedToolsEnabled = false
     @State private var showIntroGuide = false
     @State private var backupFileURL: URL?
     @State private var showShareSheet = false
@@ -72,6 +73,14 @@ struct SettingsView: View {
                         Button("Remove Test Data", role: .destructive) { showRemoveTestConfirm = true }
                     }
                     Button("Clear All Data", role: .destructive) { showClearConfirm = true }
+                }
+
+                Section {
+                    Toggle("Enable Advanced/Beta Tools", isOn: $advancedToolsEnabled)
+                } header: {
+                    Text("Advanced / Beta")
+                } footer: {
+                    Text("Shows recalculate and interpolate tools in fund detail views. Data is automatically backed up before each operation.")
                 }
 
                 Section("About") {

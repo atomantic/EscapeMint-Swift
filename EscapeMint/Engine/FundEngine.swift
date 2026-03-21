@@ -1332,6 +1332,8 @@ func formatCurrencyCompact(_ value: Double) -> String {
 
 func formatPercentSigned(_ value: Double) -> String {
     let pct = value * 100
+    if pct >= 10_000 { return "+10,000%+" }
+    if pct <= -10_000 { return "-10,000%+" }
     let sign = pct >= 0 ? "+" : ""
     return "\(sign)\(String(format: "%.1f", pct))%"
 }

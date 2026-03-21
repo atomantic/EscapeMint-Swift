@@ -387,7 +387,9 @@ struct MacContentView: View {
                                 Text(fund.ticker.uppercased())
                                     .font(.callout)
                                 Spacer()
-                                if let rec = store.summaryMap[fund.id]?.recommendation {
+                                if let summary = store.summaryMap[fund.id],
+                                   summary.isDueForAction,
+                                   let rec = summary.recommendation {
                                     let isHold = rec.action == .HOLD
                                     Text(rec.action.rawValue)
                                         .font(.caption2).fontWeight(.semibold)

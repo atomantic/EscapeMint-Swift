@@ -218,6 +218,53 @@ final class FundDataStore {
         }
     }
 
+    // MARK: - Advanced Tools (Recalculate / Interpolate)
+
+    /// Backup fund, recalculate fund_size for all entries, save to disk.
+    func recalculateFund(fundId: String) async -> (success: Bool, message: String) {
+        guard let fund = fund(byId: fundId) else {
+            return (false, "Fund not found")
+        }
+        // Backup first
+        do {
+            _ = try await FundStore.shared.backupFund(id: fundId)
+        } catch {
+            return (false, "Backup failed: \(error.localizedDescription)")
+        }
+
+        let config = fund.config
+        let entries = fund.entries
+        let recalculated = await Task.detached(priority: .userInitiated) {
+            recalculateFundSize(entries: entries, config: config)
+        }.value
+
+        await replaceEntries(fundId: fundId, entries: recalculated)
+        return (true, "Recalculated fund_size for \(recalculated.count) entries")
+    }
+
+    /// Backup fund, interpolate missing values for a column, save to disk.
+    func interpolateFundColumn(fundId: String, column: InterpolatableColumn) async -> (success: Bool, message: String) {
+        guard let fund = fund(byId: fundId) else {
+            return (false, "Fund not found")
+        }
+        // Backup first
+        do {
+            _ = try await FundStore.shared.backupFund(id: fundId)
+        } catch {
+            return (false, "Backup failed: \(error.localizedDescription)")
+        }
+
+        let entries = fund.entries
+        let (updatedEntries, result) = await Task.detached(priority: .userInitiated) {
+            interpolateColumn(column, entries: entries)
+        }.value
+
+        if result.interpolated > 0 {
+            await replaceEntries(fundId: fundId, entries: updatedEntries)
+        }
+        return (true, "Interpolated \(result.interpolated) \(column.label) values (\(result.knownValues) known of \(result.totalEntries))")
+    }
+
     // MARK: - Recompute Derived State
 
     /// Holds the result of expensive background computation

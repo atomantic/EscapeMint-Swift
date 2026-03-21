@@ -92,7 +92,9 @@
 		B8047AE46A726EDA9BADE48D /* robinhoodtest-spxl.json in Resources */ = {isa = PBXBuildFile; fileRef = 2324DA91E49C3F0CD95CE1DE /* robinhoodtest-spxl.json */; };
 		BA705DF3CCF3E382D2289B65 /* AppearanceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0653A0CB7C81F563F38D00C1 /* AppearanceManager.swift */; };
 		BCBDF87F48F3742996392369 /* spxl-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = A1CDA29D3BC058B300AC82EA /* spxl-weekly.json */; };
+		BE54A8C9C11054F4DE6F27D5 /* AdvancedTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE306CC057A54F1DBFC1B1CA /* AdvancedTools.swift */; };
 		BF86A28C297812E6CC78D1C6 /* robinhoodtest-tqqq.tsv in Resources */ = {isa = PBXBuildFile; fileRef = 2259AF8CF6454043EE230821 /* robinhoodtest-tqqq.tsv */; };
+		C5EA5640DF0B733C575E0FE0 /* AdvancedTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE306CC057A54F1DBFC1B1CA /* AdvancedTools.swift */; };
 		CBF230C3FE1A6EB5F2D9E4CF /* FundTypeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84E4D35AF8187D701960FA42 /* FundTypeConfig.swift */; };
 		CC01A0E06B50D0B8B2FD6A86 /* AddEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFF252A47ECBD98740348309 /* AddEntryView.swift */; };
 		CC31BD57B8B4EC7862535B39 /* btc-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 62673091D474C5E9C408B22C /* btc-weekly.json */; };
@@ -200,6 +202,7 @@
 		E0E8FFADDDBD64D9D18EDA3F /* coinbasetest-cash.tsv */ = {isa = PBXFileReference; path = "coinbasetest-cash.tsv"; sourceTree = "<group>"; };
 		E725D16A17E4F0835D06D981 /* BacktestEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacktestEngine.swift; sourceTree = "<group>"; };
 		EE13E05BF89434FDA4849CA4 /* coinbasetest-btc.tsv */ = {isa = PBXFileReference; path = "coinbasetest-btc.tsv"; sourceTree = "<group>"; };
+		EE306CC057A54F1DBFC1B1CA /* AdvancedTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedTools.swift; sourceTree = "<group>"; };
 		FAA79537E5DE06EC77B10C04 /* ActionableFundsBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionableFundsBanner.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -425,6 +428,7 @@
 		FE4FFB5BF6C2B016C4E47427 /* Engine */ = {
 			isa = PBXGroup;
 			children = (
+				EE306CC057A54F1DBFC1B1CA /* AdvancedTools.swift */,
 				E725D16A17E4F0835D06D981 /* BacktestEngine.swift */,
 				15B673A9482FD463F5027CA9 /* Converters.swift */,
 				ADF82E9F62C6337CA018D70F /* FundEngine.swift */,
@@ -614,6 +618,7 @@
 			files = (
 				2CCCC96D9726E43C2600B59B /* ActionableFundsBanner.swift in Sources */,
 				3CC59A024D8346DE8F6B4F08 /* AddEntryView.swift in Sources */,
+				BE54A8C9C11054F4DE6F27D5 /* AdvancedTools.swift in Sources */,
 				58D0B9DE1C246402ADD32CF6 /* AppearanceManager.swift in Sources */,
 				F9AD19FCC89D6ED33D924C7D /* AuditTrailView.swift in Sources */,
 				34D34944ADBC48298BC126F7 /* BacktestCharts.swift in Sources */,
@@ -658,6 +663,7 @@
 			files = (
 				8BF59AB08706035EC43FBCFB /* ActionableFundsBanner.swift in Sources */,
 				CC01A0E06B50D0B8B2FD6A86 /* AddEntryView.swift in Sources */,
+				C5EA5640DF0B733C575E0FE0 /* AdvancedTools.swift in Sources */,
 				BA705DF3CCF3E382D2289B65 /* AppearanceManager.swift in Sources */,
 				8D8079E7073E294BC0F8BE35 /* AuditTrailView.swift in Sources */,
 				9DC304A05E7B231C017F74C4 /* BacktestCharts.swift in Sources */,

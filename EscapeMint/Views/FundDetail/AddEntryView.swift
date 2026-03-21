@@ -83,11 +83,11 @@ func computeFundSizeForEntry(_ newEntry: FundEntry, existingEntries: [FundEntry]
                 if !isAccumulate {
                     invested -= amt
                 }
-                // Check full liquidation
+                // Check full liquidation (use OR — either condition triggers)
                 let hasShareTracking = e.shares != nil && (e.shares ?? 0) != 0
-                let isLiquidation = hasShareTracking
-                    ? abs(sumShares) < 0.0001
-                    : (e.value > 0 && e.value <= amt + 0.01)
+                let sharesLiquidated = hasShareTracking && abs(sumShares) < 0.0001
+                let valueLiquidated = e.value > 0 && e.value <= amt + 0.01
+                let isLiquidation = sharesLiquidated || valueLiquidated
                 if isLiquidation {
                     invested = 0
                     sumShares = 0
@@ -164,6 +164,7 @@ struct AddEntryView: View {
     let fundType: FundType
     let fundConfig: FundConfig
     var existingEntries: [FundEntry] = []
+    var recommendation: Recommendation? = nil
     let onSaved: () -> Void
 
     @State private var date = Date()
@@ -219,6 +220,11 @@ struct AddEntryView: View {
                     // Pre-fill cash balance from last entry
                     if let last = existingEntries.last {
                         value = String(format: "%.2f", last.cash ?? last.value)
+                    }
+                } else if let rec = recommendation {
+                    action = rec.action
+                    if rec.amount > 0 {
+                        amount = String(format: "%.2f", rec.amount)
                     }
                 } else {
                     action = .BUY
