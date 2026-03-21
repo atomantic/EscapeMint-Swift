@@ -689,6 +689,7 @@ func computeFundMetricsForFund(_ fund: FundData, asOfDate: String) -> (metrics: 
                 costBasis = 0
                 totalBuys = 0
                 totalSells = 0
+                sumShares = 0
                 // Freeze active days on full liquidation
                 if let csd = cycleStartDate {
                     cumulativeActiveDays += max(0, Double(daysBetween(csd, entry.date)))
