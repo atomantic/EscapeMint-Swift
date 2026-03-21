@@ -1,5 +1,6 @@
 import SwiftUI
 import Charts
+import UniformTypeIdentifiers
 
 struct DashboardView: View {
     private var store: FundDataStore { .shared }
@@ -165,7 +166,6 @@ struct DashboardView: View {
                     }
                 }
                 fundList
-                emptyState
             }
             .padding(.bottom, 32)
         }
@@ -175,6 +175,11 @@ struct DashboardView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         #endif
         .refreshable { await store.reload() }
+        .fileImporter(isPresented: $showImport, allowedContentTypes: [.folder]) { result in
+            if case .success(let url) = result {
+                importFunds(from: url)
+            }
+        }
     }
 
     // MARK: - iOS Header Controls

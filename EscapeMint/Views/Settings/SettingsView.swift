@@ -7,7 +7,8 @@ struct SettingsView: View {
     @State private var fundCount = 0
     @State private var dataSize = "..."
     @State private var storageLocation = "..."
-    @State private var showImport = false
+    @State private var showImportJSON = false
+    @State private var showImportFolder = false
     @State private var statusMessage = ""
     @State private var showStatus = false
     @State private var showClearConfirm = false
@@ -140,6 +141,16 @@ struct SettingsView: View {
             } message: {
                 Text("This will delete all \(testFundCount) test \(testFundCount == 1 ? "fund" : "funds") (coinbasetest, robinhoodtest platforms). Your real funds will not be affected.")
             }
+            .fileImporter(isPresented: $showImportJSON, allowedContentTypes: [.json]) { result in
+                if case .success(let url) = result {
+                    importBackupJSON(from: url)
+                }
+            }
+            .fileImporter(isPresented: $showImportFolder, allowedContentTypes: [.folder]) { result in
+                if case .success(let url) = result {
+                    importFunds(from: url)
+                }
+            }
     }
 
     @State private var toastTask: Task<Void, Never>?
@@ -184,8 +195,7 @@ struct SettingsView: View {
             }
         }
         #else
-        // iOS: use file importer for JSON
-        showImport = true
+        showImportJSON = true
         #endif
     }
 
@@ -227,7 +237,7 @@ struct SettingsView: View {
             }
         }
         #else
-        showImport = true
+        showImportFolder = true
         #endif
     }
 
