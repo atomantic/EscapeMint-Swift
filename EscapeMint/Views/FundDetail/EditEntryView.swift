@@ -90,10 +90,10 @@ struct EditEntryView: View {
                     if features.supportsDividends {
                         NumericFieldRow(label: "Dividend ($)", text: $dividend)
                     }
-                    NumericFieldRow(label: "Expense ($)", text: $expense)
+                    NumericFieldRow(label: "Expense ($)", text: $expense, sign: "-")
                     if features.supportsMargin {
                         NumericFieldRow(label: "Margin Available ($)", text: $marginAvailable)
-                        NumericFieldRow(label: "Margin Borrowed ($)", text: $marginBorrowed)
+                        NumericFieldRow(label: "Margin Borrowed ($)", text: $marginBorrowed, sign: "-")
                     }
                     NumericFieldRow(label: "Fund Size ($)", text: $fundSizeText)
                     TextField("Notes", text: $notes)

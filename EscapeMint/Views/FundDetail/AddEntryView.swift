@@ -5,12 +5,18 @@ struct NumericFieldRow: View {
     var placeholder: String = ""
     @Binding var text: String
     var hint: String? = nil
+    var sign: String? = nil
 
     var body: some View {
         HStack {
             Text(label)
                 .foregroundColor(.textPrimary)
             Spacer()
+            if let sign {
+                Text(sign)
+                    .foregroundColor(.textMuted)
+                    .font(.callout)
+            }
             TextField("", text: $text, prompt: Text(placeholder).foregroundColor(.textMuted.opacity(0.5)))
                 .numericKeyboard()
                 .multilineTextAlignment(.trailing)
@@ -18,6 +24,11 @@ struct NumericFieldRow: View {
                 .frame(maxWidth: 200)
                 .textFieldStyle(.roundedBorder)
                 #endif
+                .onChange(of: text) { _, newValue in
+                    if sign != nil && newValue.contains("-") {
+                        text = newValue.replacingOccurrences(of: "-", with: "")
+                    }
+                }
             if let hint {
                 Text(hint)
                     .font(.caption)
@@ -264,10 +275,10 @@ struct AddEntryView: View {
         Section("Details") {
             NumericFieldRow(label: "Fund Size ($)", placeholder: "Auto-calculated", text: $fundSizeOverride)
             NumericFieldRow(label: "Interest Earned ($)", text: $cashInterest)
-            NumericFieldRow(label: "Fee ($)", text: $fee)
+            NumericFieldRow(label: "Fee ($)", text: $fee, sign: "-")
             if features.supportsMargin {
                 NumericFieldRow(label: "Margin Available ($)", text: $marginAvailable)
-                NumericFieldRow(label: "Margin Borrowed ($)", text: $marginBorrowed)
+                NumericFieldRow(label: "Margin Borrowed ($)", text: $marginBorrowed, sign: "-")
             }
             TextField("Notes", text: $notes)
         }
@@ -308,10 +319,10 @@ struct AddEntryView: View {
             }
             if features.supportsMargin {
                 NumericFieldRow(label: "Margin Available ($)", text: $marginAvailable)
-                NumericFieldRow(label: "Margin Borrowed ($)", text: $marginBorrowed)
+                NumericFieldRow(label: "Margin Borrowed ($)", text: $marginBorrowed, sign: "-")
             }
             NumericFieldRow(label: "Deposit ($)", text: $deposit)
-            NumericFieldRow(label: "Withdrawal ($)", text: $withdrawal)
+            NumericFieldRow(label: "Withdrawal ($)", text: $withdrawal, sign: "-")
             TextField("Notes", text: $notes)
         } header: {
             Text("Optional")
