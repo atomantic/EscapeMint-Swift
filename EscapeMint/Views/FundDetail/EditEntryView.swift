@@ -19,6 +19,8 @@ struct EditEntryView: View {
     @State private var price: String
     @State private var dividend: String
     @State private var expense: String
+    @State private var marginAvailable: String
+    @State private var marginBorrowed: String
     @State private var notes: String
     @State private var isSaving = false
     @State private var showDeleteConfirm = false
@@ -40,6 +42,8 @@ struct EditEntryView: View {
         _price = State(initialValue: entry.price.map { String($0) } ?? "")
         _dividend = State(initialValue: entry.dividend.map { String($0) } ?? "")
         _expense = State(initialValue: entry.expense.map { String($0) } ?? "")
+        _marginAvailable = State(initialValue: entry.margin_available.map { String($0) } ?? "")
+        _marginBorrowed = State(initialValue: entry.margin_borrowed.map { String($0) } ?? "")
         _notes = State(initialValue: entry.notes ?? "")
     }
 
@@ -85,6 +89,10 @@ struct EditEntryView: View {
                         NumericFieldRow(label: "Dividend ($)", text: $dividend)
                     }
                     NumericFieldRow(label: "Expense ($)", text: $expense)
+                    if features.supportsMargin {
+                        NumericFieldRow(label: "Margin Available ($)", text: $marginAvailable)
+                        NumericFieldRow(label: "Margin Borrowed ($)", text: $marginBorrowed)
+                    }
                     TextField("Notes", text: $notes)
                 } header: {
                     Text("Optional")
@@ -147,6 +155,8 @@ struct EditEntryView: View {
         updated.price = Double(price)
         updated.dividend = Double(dividend)
         updated.expense = Double(expense)
+        updated.margin_available = Double(marginAvailable)
+        updated.margin_borrowed = Double(marginBorrowed)
         updated.notes = notes.isEmpty ? nil : notes
 
         // Compute fund_size — use other entries excluding this one being edited

@@ -304,6 +304,10 @@ struct AddEntryView: View {
             if features.supportsDividends {
                 NumericFieldRow(label: "Dividend ($)", text: $dividend)
             }
+            if features.supportsMargin {
+                NumericFieldRow(label: "Margin Available ($)", text: $marginAvailable)
+                NumericFieldRow(label: "Margin Borrowed ($)", text: $marginBorrowed)
+            }
             NumericFieldRow(label: "Deposit ($)", text: $deposit)
             NumericFieldRow(label: "Withdrawal ($)", text: $withdrawal)
             TextField("Notes", text: $notes)
@@ -377,6 +381,8 @@ struct AddEntryView: View {
             notes = notes.isEmpty ? wNote : "\(notes) | \(wNote)"
         }
         if let dv = Double(dividend), dv != 0 { entry.dividend = dv }
+        if let ma = Double(marginAvailable), ma != 0 { entry.margin_available = ma }
+        if let mb = Double(marginBorrowed), mb != 0 { entry.margin_borrowed = mb }
         if !notes.isEmpty { entry.notes = notes }
 
         // Compute fund_size
