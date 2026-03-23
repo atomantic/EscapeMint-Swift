@@ -143,7 +143,7 @@ struct FundDetailView: View {
                         .font(.headline).foregroundColor(.textPrimary)
                 }
                 .tint(.textSecondary)
-                .task(id: "\(fund.id)-\(fund.entries.count)") {
+                .task(id: "\(fund.id)-\(fund.entries.count)-\(store.revision)") {
                     let ec = fund.entries.count
                     let entries = fund.entries
                     let config = fund.config
