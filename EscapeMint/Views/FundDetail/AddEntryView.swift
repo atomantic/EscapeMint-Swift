@@ -181,7 +181,18 @@ struct AddEntryView: View {
     @State private var marginAvailable = ""
     @State private var marginBorrowed = ""
     @State private var notes = ""
-    @State private var showOptional = false
+    @State private var isSaving = false
+    @State private var showOptional: Bool
+
+    init(fundId: String, fundType: FundType, fundConfig: FundConfig, existingEntries: [FundEntry] = [], recommendation: Recommendation? = nil, onSaved: @escaping () -> Void) {
+        self.fundId = fundId
+        self.fundType = fundType
+        self.fundConfig = fundConfig
+        self.existingEntries = existingEntries
+        self.recommendation = recommendation
+        self.onSaved = onSaved
+        _showOptional = State(initialValue: UserDefaults.standard.bool(forKey: "addEntry_showOptional_\(fundId)"))
+    }
 
     private var isCash: Bool { isCashFund(fundType) }
 
@@ -213,6 +224,7 @@ struct AddEntryView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { isCash ? saveCash() : save() }
+                        .disabled(isSaving)
                 }
             }
             .onAppear {
@@ -229,6 +241,9 @@ struct AddEntryView: View {
                 } else {
                     action = .BUY
                 }
+            }
+            .onChange(of: showOptional) { _, newValue in
+                UserDefaults.standard.set(newValue, forKey: "addEntry_showOptional_\(fundId)")
             }
         }
     }
@@ -313,6 +328,8 @@ struct AddEntryView: View {
     }
 
     private func saveCash() {
+        guard !isSaving else { return }
+        isSaving = true
         let cashBalance = Double(value) ?? 0
         let amt = Double(amount) ?? 0
         // Adjust cash balance by the amount (positive = deposit, negative = withdraw)
@@ -332,14 +349,16 @@ struct AddEntryView: View {
         if !notes.isEmpty { entry.notes = notes }
         entry.fund_size = computeFundSizeForEntry(entry, existingEntries: existingEntries, config: fundConfig)
 
+        dismiss()
         Task {
             await FundDataStore.shared.appendEntry(fundId: fundId, entry: entry)
             onSaved()
-            dismiss()
         }
     }
 
     private func save() {
+        guard !isSaving else { return }
+        isSaving = true
         var entry = FundEntry(
             date: isoDateFormatter.string(from: date),
             value: Double(value) ?? 0,
@@ -363,11 +382,11 @@ struct AddEntryView: View {
         // Compute fund_size
         entry.fund_size = computeFundSizeForEntry(entry, existingEntries: existingEntries, config: fundConfig)
 
+        dismiss()
         Task {
             await FundDataStore.shared.appendEntry(fundId: fundId, entry: entry)
             await autoSyncCashFund(fundId: fundId, entry: entry, config: fundConfig)
             onSaved()
-            dismiss()
         }
     }
 }

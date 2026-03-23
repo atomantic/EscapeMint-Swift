@@ -693,6 +693,7 @@ struct FundDetailView: View {
     @ViewBuilder
     private func macEntriesTable(_ fund: FundData) -> some View {
         let cols = orderedVisibleColumns(for: fund.config.fund_type)
+        let contentWidth = cols.reduce(CGFloat(0)) { $0 + columnWidth($1.id) } + CGFloat(cols.count - 1) * 6 + 30
 
         ScrollView(.horizontal, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 0) {
@@ -718,7 +719,9 @@ struct FundDetailView: View {
                     entryRow(entry, entryIndex: actualIndex, columns: cols, config: fund.config, isEven: reverseIdx.isMultiple(of: 2), computed: computed)
                 }
             }
+            .frame(minWidth: contentWidth)
         }
+        .scrollIndicators(.visible)
     }
 
     private static let dash = Text("-").foregroundColor(.textMuted)

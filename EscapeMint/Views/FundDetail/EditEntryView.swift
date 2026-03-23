@@ -20,6 +20,7 @@ struct EditEntryView: View {
     @State private var dividend: String
     @State private var expense: String
     @State private var notes: String
+    @State private var isSaving = false
     @State private var showDeleteConfirm = false
     @State private var showOptional = true
 
@@ -109,6 +110,7 @@ struct EditEntryView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
+                        .disabled(isSaving)
                 }
             }
             .confirmationDialog("Delete this entry?", isPresented: $showDeleteConfirm) {
@@ -134,6 +136,8 @@ struct EditEntryView: View {
     }
 
     private func save() {
+        guard !isSaving else { return }
+        isSaving = true
         var updated = entry
         updated.date = isoDateFormatter.string(from: date)
         updated.value = Double(value) ?? 0
@@ -149,24 +153,24 @@ struct EditEntryView: View {
         let otherEntries = existingEntries.enumerated().compactMap { $0.offset != entryIndex ? $0.element : nil }
         updated.fund_size = computeFundSizeForEntry(updated, existingEntries: otherEntries, config: fundConfig)
 
+        dismiss()
         Task {
             guard var fund = store.fund(byId: fundId) else { return }
             guard entryIndex >= 0 && entryIndex < fund.entries.count else { return }
             fund.entries[entryIndex] = updated
             await store.replaceEntries(fundId: fundId, entries: fund.entries)
             onSaved()
-            dismiss()
         }
     }
 
     private func deleteEntry() {
+        dismiss()
         Task {
             guard var fund = store.fund(byId: fundId) else { return }
             guard entryIndex >= 0 && entryIndex < fund.entries.count else { return }
             fund.entries.remove(at: entryIndex)
             await store.replaceEntries(fundId: fundId, entries: fund.entries)
             onSaved()
-            dismiss()
         }
     }
 }
