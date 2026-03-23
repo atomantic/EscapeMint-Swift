@@ -22,6 +22,7 @@ struct EditEntryView: View {
     @State private var marginAvailable: String
     @State private var marginBorrowed: String
     @State private var notes: String
+    @State private var fundSizeText: String
     @State private var isSaving = false
     @State private var showDeleteConfirm = false
     @State private var showOptional = true
@@ -45,6 +46,7 @@ struct EditEntryView: View {
         _marginAvailable = State(initialValue: entry.margin_available.map { String($0) } ?? "")
         _marginBorrowed = State(initialValue: entry.margin_borrowed.map { String($0) } ?? "")
         _notes = State(initialValue: entry.notes ?? "")
+        _fundSizeText = State(initialValue: entry.fund_size.map { String($0) } ?? "")
     }
 
     private var features: FundTypeFeatures { getFeatures(fundType) }
@@ -93,6 +95,7 @@ struct EditEntryView: View {
                         NumericFieldRow(label: "Margin Available ($)", text: $marginAvailable)
                         NumericFieldRow(label: "Margin Borrowed ($)", text: $marginBorrowed)
                     }
+                    NumericFieldRow(label: "Fund Size ($)", text: $fundSizeText)
                     TextField("Notes", text: $notes)
                 } header: {
                     Text("Optional")
@@ -159,9 +162,7 @@ struct EditEntryView: View {
         updated.margin_borrowed = Double(marginBorrowed)
         updated.notes = notes.isEmpty ? nil : notes
 
-        // Compute fund_size — use other entries excluding this one being edited
-        let otherEntries = existingEntries.enumerated().compactMap { $0.offset != entryIndex ? $0.element : nil }
-        updated.fund_size = computeFundSizeForEntry(updated, existingEntries: otherEntries, config: fundConfig)
+        updated.fund_size = Double(fundSizeText)
 
         dismiss()
         Task {

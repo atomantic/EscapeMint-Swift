@@ -181,6 +181,7 @@ struct AddEntryView: View {
     @State private var marginAvailable = ""
     @State private var marginBorrowed = ""
     @State private var notes = ""
+    @State private var fundSizeOverride = ""
     @State private var isSaving = false
     @State private var showOptional: Bool
 
@@ -261,6 +262,7 @@ struct AddEntryView: View {
         }
 
         Section("Details") {
+            NumericFieldRow(label: "Fund Size ($)", placeholder: "Auto-calculated", text: $fundSizeOverride)
             NumericFieldRow(label: "Interest Earned ($)", text: $cashInterest)
             NumericFieldRow(label: "Fee ($)", text: $fee)
             if features.supportsMargin {
@@ -351,7 +353,11 @@ struct AddEntryView: View {
         if let ma = Double(marginAvailable), ma != 0 { entry.margin_available = ma }
         if let mb = Double(marginBorrowed), mb != 0 { entry.margin_borrowed = mb }
         if !notes.isEmpty { entry.notes = notes }
-        entry.fund_size = computeFundSizeForEntry(entry, existingEntries: existingEntries, config: fundConfig)
+        if let fs = Double(fundSizeOverride), fs >= 0 {
+            entry.fund_size = fs
+        } else {
+            entry.fund_size = computeFundSizeForEntry(entry, existingEntries: existingEntries, config: fundConfig)
+        }
 
         dismiss()
         Task {
