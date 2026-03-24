@@ -13,6 +13,10 @@ struct CreateFundView: View {
     @State private var inputMid = "150"
     @State private var inputMax = "200"
     @State private var intervalDays = "7"
+    @State private var minProfit = "100"
+    @State private var maxAtPct = "-25"
+    @State private var accumulate = true
+    @State private var manageCash = true
 
     private var canCreate: Bool {
         !platform.isEmpty && !ticker.isEmpty
@@ -26,12 +30,21 @@ struct CreateFundView: View {
         #endif
     }
 
+    // MARK: - Auto-category
+
+    private func autoCategory(for t: String) -> FundCategory {
+        let lower = t.lowercased()
+        if lower == "btc" || lower == "bitcoin" { return .sov }
+        if lower == "strc" { return .yield }
+        if lower == "cash" || lower == "savings" { return .liquidity }
+        return .volatility
+    }
+
     // MARK: - macOS
 
     @ViewBuilder
     private var macForm: some View {
         VStack(spacing: 0) {
-            // Title bar
             HStack {
                 Text("Create Fund")
                     .font(.title3).fontWeight(.bold).foregroundColor(.textPrimary)
@@ -48,7 +61,6 @@ struct CreateFundView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    // Fund Identity
                     formSection("Fund Identity") {
                         HStack(spacing: 12) {
                             formField("Platform", placeholder: "e.g. robinhood", text: $platform)
@@ -57,10 +69,12 @@ struct CreateFundView: View {
                             formField("Ticker", placeholder: "e.g. TQQQ", text: $ticker)
                                 .uppercaseCapitalization()
                                 .autocorrectionDisabled()
+                                .onChange(of: ticker) { _, newTicker in
+                                    category = autoCategory(for: newTicker)
+                                }
                         }
                     }
 
-                    // Type & Category
                     formSection("Type & Category") {
                         HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 4) {
@@ -74,13 +88,7 @@ struct CreateFundView: View {
                                 .pickerStyle(.segmented)
                             }
                             .onChange(of: fundType) { _, newType in
-                                if let defaults = fundTypeDefaults[newType] {
-                                    targetApy = String((defaults.target_apy ?? 0) * 100)
-                                    inputMin = String(Int(defaults.input_min_usd ?? 0))
-                                    inputMid = String(Int(defaults.input_mid_usd ?? 0))
-                                    inputMax = String(Int(defaults.input_max_usd ?? 0))
-                                    intervalDays = String(defaults.interval_days ?? 7)
-                                }
+                                applyDefaults(for: newType)
                             }
 
                             if fundType != .cash {
@@ -97,7 +105,6 @@ struct CreateFundView: View {
                         }
                     }
 
-                    // DCA
                     if fundType != .cash && fundType != .derivatives {
                         formSection("DCA Configuration") {
                             HStack(spacing: 12) {
@@ -105,9 +112,13 @@ struct CreateFundView: View {
                                 formField("Interval (days)", placeholder: "7", text: $intervalDays)
                             }
                             HStack(spacing: 12) {
-                                formField("Min DCA", placeholder: "100", text: $inputMin)
-                                formField("Mid DCA", placeholder: "150", text: $inputMid)
-                                formField("Max DCA", placeholder: "200", text: $inputMax)
+                                formField("Min DCA ($)", placeholder: "100", text: $inputMin)
+                                formField("Mid DCA ($)", placeholder: "150", text: $inputMid)
+                                formField("Max DCA ($)", placeholder: "200", text: $inputMax)
+                            }
+                            HStack(spacing: 12) {
+                                formField("Max Threshold (%)", placeholder: "-25", text: $maxAtPct)
+                                formField("Min Profit ($)", placeholder: "100", text: $minProfit)
                             }
                         }
                     }
@@ -117,7 +128,6 @@ struct CreateFundView: View {
 
             Divider().background(Color.bgInput)
 
-            // Action bar
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }
@@ -146,6 +156,9 @@ struct CreateFundView: View {
                 TextField("Ticker (e.g. TQQQ)", text: $ticker)
                     .uppercaseCapitalization()
                     .autocorrectionDisabled()
+                    .onChange(of: ticker) { _, newTicker in
+                        category = autoCategory(for: newTicker)
+                    }
             }
 
             Section("Type & Category") {
@@ -155,13 +168,7 @@ struct CreateFundView: View {
                     }
                 }
                 .onChange(of: fundType) { _, newType in
-                    if let defaults = fundTypeDefaults[newType] {
-                        targetApy = String((defaults.target_apy ?? 0) * 100)
-                        inputMin = String(Int(defaults.input_min_usd ?? 0))
-                        inputMid = String(Int(defaults.input_mid_usd ?? 0))
-                        inputMax = String(Int(defaults.input_max_usd ?? 0))
-                        intervalDays = String(defaults.interval_days ?? 7)
-                    }
+                    applyDefaults(for: newType)
                 }
 
                 if fundType != .cash {
@@ -174,17 +181,34 @@ struct CreateFundView: View {
             }
 
             if fundType != .cash && fundType != .derivatives {
-                Section("DCA Configuration") {
-                    TextField("Target APY (%)", text: $targetApy)
-                        .numericKeyboard()
-                    TextField("Min DCA (performing well)", text: $inputMin)
-                        .numericKeyboard()
-                    TextField("Mid DCA (underperforming)", text: $inputMid)
-                        .numericKeyboard()
-                    TextField("Max DCA (significant loss)", text: $inputMax)
-                        .numericKeyboard()
-                    TextField("Interval (days)", text: $intervalDays)
-                        .numberKeyboard()
+                Section {
+                    labeledField("Target APY (%)", text: $targetApy, prompt: "10")
+                    labeledField("Interval (days)", text: $intervalDays, prompt: "7")
+                } header: {
+                    Text("DCA Strategy")
+                } footer: {
+                    Text("How often to invest and what annual return to target.")
+                }
+
+                Section {
+                    labeledField("Min ($) — at/above target", text: $inputMin, prompt: "100")
+                    labeledField("Mid ($) — below target", text: $inputMid, prompt: "150")
+                    labeledField("Max ($) — significant loss", text: $inputMax, prompt: "200")
+                    labeledField("Max threshold (%)", text: $maxAtPct, prompt: "-25")
+                } header: {
+                    Text("DCA Amounts")
+                } footer: {
+                    Text("Invest more when the asset drops. Max kicks in below the threshold.")
+                }
+
+                Section {
+                    labeledField("Min profit ($) to sell", text: $minProfit, prompt: "100")
+                    Toggle("Accumulate mode", isOn: $accumulate)
+                    Toggle("Manage cash in fund", isOn: $manageCash)
+                } header: {
+                    Text("Sell & Cash")
+                } footer: {
+                    Text("Accumulate mode sells only the DCA amount. Manage cash maintains a dedicated cash pile in this fund.")
                 }
             }
         }
@@ -201,7 +225,20 @@ struct CreateFundView: View {
         }
     }
 
-    // MARK: - Helpers
+    // MARK: - Shared helpers
+
+    @ViewBuilder
+    private func labeledField(_ label: String, text: Binding<String>, prompt: String) -> some View {
+        HStack {
+            Text(label)
+                .foregroundColor(.textSecondary)
+            Spacer()
+            TextField(prompt, text: text)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 100)
+                .numericKeyboard()
+        }
+    }
 
     @ViewBuilder
     private func formSection(_ title: String, @ViewBuilder content: () -> some View) -> some View {
@@ -225,16 +262,34 @@ struct CreateFundView: View {
         }
     }
 
+    private func applyDefaults(for newType: FundType) {
+        guard let defaults = fundTypeDefaults[newType] else { return }
+        targetApy = String(Int((defaults.target_apy ?? 0) * 100))
+        inputMin = String(Int(defaults.input_min_usd ?? 0))
+        inputMid = String(Int(defaults.input_mid_usd ?? 0))
+        inputMax = String(Int(defaults.input_max_usd ?? 0))
+        intervalDays = String(defaults.interval_days ?? 7)
+        minProfit = String(Int(defaults.min_profit_usd ?? 0))
+        let pct = (defaults.max_at_pct ?? 0) * 100
+        maxAtPct = String(Int(pct))
+        accumulate = defaults.accumulate ?? true
+        manageCash = defaults.manage_cash ?? true
+    }
+
     private func save() {
         var config = fundTypeDefaults[fundType] ?? FundConfig()
         config.fund_type = fundType
         config.status = .active
-        config.category = category
+        config.category = fundType == .cash ? .liquidity : category
         config.target_apy = (Double(targetApy) ?? 0) / 100
         config.input_min_usd = Double(inputMin) ?? 0
         config.input_mid_usd = Double(inputMid) ?? 0
         config.input_max_usd = Double(inputMax) ?? 0
         config.interval_days = Int(intervalDays) ?? 7
+        config.min_profit_usd = Double(minProfit) ?? 0
+        config.max_at_pct = (Double(maxAtPct) ?? 0) / 100
+        config.accumulate = accumulate
+        config.manage_cash = manageCash
 
         let fund = FundData(
             platform: platform.lowercased().trimmingCharacters(in: .whitespaces),
