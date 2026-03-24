@@ -54,6 +54,9 @@ struct FundDetailView: View {
             }
         }
         .navigationTitle(fund.map { "\($0.ticker.uppercased()) (\($0.platform))" } ?? "Fund")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
             if fund != nil {
                 #if os(iOS)

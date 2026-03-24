@@ -32,6 +32,9 @@ struct PlatformDetailView: View {
         }
         .background(Color.bg.ignoresSafeArea())
         .navigationTitle(platform.capitalized)
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 
     // MARK: - Header (macOS)
