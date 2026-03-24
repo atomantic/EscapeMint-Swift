@@ -123,10 +123,12 @@ struct DashboardView: View {
             VStack(spacing: 10) {
                 dashboardHeader
                 loadingBanner
-                if !store.actionableFunds.isEmpty {
-                    ActionableFundsBanner(actionableFunds: store.actionableFunds, dismissedIds: $dismissedAlertIds)
+                if !store.funds.isEmpty {
+                    if !store.actionableFunds.isEmpty {
+                        ActionableFundsBanner(actionableFunds: store.actionableFunds, dismissedIds: $dismissedAlertIds)
+                    }
+                    metricsGrid
                 }
-                metricsGrid
                 if showCharts && !store.funds.isEmpty {
                     if cache.isComputingDashboard && cache.dashboardTimeSeries.isEmpty {
                         chartLoadingIndicator
@@ -148,16 +150,18 @@ struct DashboardView: View {
     private var iosDashboard: some View {
         ScrollView {
             VStack(spacing: 12) {
-                // iOS header controls
-                iosHeaderControls
                 if !store.isLoaded {
                     loadingBanner.padding(.horizontal)
                 }
-                if !store.actionableFunds.isEmpty {
-                    ActionableFundsBanner(actionableFunds: store.actionableFunds, dismissedIds: $dismissedAlertIds)
-                        .padding(.horizontal)
+                if !store.funds.isEmpty {
+                    // iOS header controls
+                    iosHeaderControls
+                    if !store.actionableFunds.isEmpty {
+                        ActionableFundsBanner(actionableFunds: store.actionableFunds, dismissedIds: $dismissedAlertIds)
+                            .padding(.horizontal)
+                    }
+                    iosMetricsGrid
                 }
-                iosMetricsGrid
                 if showCharts && !store.funds.isEmpty {
                     if cache.isComputingDashboard && cache.dashboardTimeSeries.isEmpty {
                         chartLoadingIndicator
@@ -281,20 +285,24 @@ struct DashboardView: View {
                 Text("Dashboard")
                     .font(.largeTitle).fontWeight(.bold)
                     .foregroundColor(.textPrimary)
-                Text("\(store.portfolio.activeFunds) active \u{2022} \(store.portfolio.closedFunds) closed")
-                    .font(.subheadline).foregroundColor(.textSecondary)
+                if !store.funds.isEmpty {
+                    Text("\(store.portfolio.activeFunds) active \u{2022} \(store.portfolio.closedFunds) closed")
+                        .font(.subheadline).foregroundColor(.textSecondary)
+                }
             }
 
             Spacer()
 
-            // Charts toggle
-            Toggle(isOn: $showCharts) {
-                Text("Charts")
-                    .font(.callout).foregroundColor(.textSecondary)
+            if !store.funds.isEmpty {
+                // Charts toggle
+                Toggle(isOn: $showCharts) {
+                    Text("Charts")
+                        .font(.callout).foregroundColor(.textSecondary)
+                }
+                .toggleStyle(.switch)
+                .tint(.mint)
+                .frame(width: 110)
             }
-            .toggleStyle(.switch)
-            .tint(.mint)
-            .frame(width: 110)
 
             // Platform filter
             if platforms.count > 1 {
