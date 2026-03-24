@@ -41,6 +41,8 @@ targets:
     info:
       path: EscapeMint/App/Info.plist
       properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDisplayName: EscapeMint
         LSApplicationCategoryType: public.app-category.finance
         UILaunchScreen: {}
