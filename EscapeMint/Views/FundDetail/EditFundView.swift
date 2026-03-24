@@ -85,37 +85,29 @@ struct EditFundView: View {
                 }
 
                 if isTradingFund {
-                    Section("Trading Configuration") {
-                        TextField("Target APY (%)", text: $targetApy)
-                            .numericKeyboard()
-                        TextField("Interval (days)", text: $intervalDays)
-                            .numberKeyboard()
-                        TextField("Min DCA", text: $inputMin)
-                            .numericKeyboard()
-                        TextField("Mid DCA", text: $inputMid)
-                            .numericKeyboard()
-                        TextField("Max DCA", text: $inputMax)
-                            .numericKeyboard()
-                        TextField("Max DCA Threshold (%)", text: $maxAtPct)
-                            .numericKeyboard()
-                        TextField("Min Profit to Sell (USD)", text: $minProfitUsd)
-                            .numericKeyboard()
+                    Section {
+                        labeledField("Target APY (%)", text: $targetApy)
+                        labeledField("Interval (days)", text: $intervalDays)
+                    } header: {
+                        Text("DCA Strategy")
                     }
-                }
 
-                Section("Features") {
-                    Toggle("Accumulate", isOn: $accumulate)
-                    Toggle("Manage Cash", isOn: $manageCash)
-                    if features.supportsMargin {
-                        Toggle("Margin Trading", isOn: $marginEnabled)
+                    Section {
+                        labeledField("Min ($) — at/above target", text: $inputMin)
+                        labeledField("Mid ($) — below target", text: $inputMid)
+                        labeledField("Max ($) — significant loss", text: $inputMax)
+                        labeledField("Max threshold (%)", text: $maxAtPct)
+                    } header: {
+                        Text("DCA Amounts")
                     }
-                    if features.supportsDividends {
-                        Toggle("Dividend Reinvestment", isOn: $dividendReinvest)
+
+                    Section {
+                        labeledField("Min profit ($) to sell", text: $minProfitUsd)
+                        Toggle("Accumulate mode", isOn: $accumulate)
+                        Toggle("Manage cash in fund", isOn: $manageCash)
+                    } header: {
+                        Text("Sell & Cash")
                     }
-                    if features.supportsCashInterest {
-                        Toggle("Interest Reinvestment", isOn: $interestReinvest)
-                    }
-                    Toggle("Expense From Fund", isOn: $expenseFromFund)
                 }
 
                 Section {
@@ -190,6 +182,19 @@ struct EditFundView: View {
             await FundDataStore.shared.deleteFund(id: fund.id)
             dismiss()
             onDeleted?() ?? onSaved()
+        }
+    }
+
+    @ViewBuilder
+    private func labeledField(_ label: String, text: Binding<String>) -> some View {
+        HStack {
+            Text(label)
+                .foregroundColor(.textSecondary)
+            Spacer()
+            TextField("0", text: text)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 100)
+                .numericKeyboard()
         }
     }
 }
