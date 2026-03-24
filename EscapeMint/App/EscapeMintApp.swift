@@ -460,7 +460,7 @@ struct MacContentView: View {
             // Version
             HStack {
                 Spacer()
-                Text("v1.1.0")
+                Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")")
                     .font(.caption2)
                     .foregroundColor(.textMuted)
                 Spacer()
