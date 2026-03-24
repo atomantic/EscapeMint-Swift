@@ -81,7 +81,11 @@ struct SettingsView: View {
 
                 Section("About") {
                     LabeledContent("App", value: "EscapeMint")
-                    LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")
+                    LabeledContent("Version", value: {
+                        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+                        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+                        return "\(version) (\(build))"
+                    }())
                 }
 
                 if let privacyURL = URL(string: "https://github.com/atomantic/EscapeMint/blob/main/docs/PRIVACY.md"),
