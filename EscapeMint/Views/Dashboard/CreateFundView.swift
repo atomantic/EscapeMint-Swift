@@ -16,7 +16,7 @@ struct CreateFundView: View {
     @State private var minProfit = "100"
     @State private var maxAtPct = "-25"
     @State private var accumulate = true
-    @State private var manageCash = true
+    @State private var manageCash = false
 
     private var canCreate: Bool {
         !platform.isEmpty && !ticker.isEmpty
