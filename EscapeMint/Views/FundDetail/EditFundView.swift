@@ -85,28 +85,22 @@ struct EditFundView: View {
                 }
 
                 if isTradingFund {
-                    Section {
-                        labeledField("Target APY (%)", text: $targetApy)
-                        labeledField("Interval (days)", text: $intervalDays)
-                    } header: {
-                        Text("DCA Strategy")
+                    Section("DCA Strategy") {
+                        tipField("Target APY (%)", tip: DCAHelp.targetApy, text: $targetApy)
+                        tipField("Interval (days)", tip: DCAHelp.interval, text: $intervalDays)
                     }
 
-                    Section {
-                        labeledField("Min ($) — at/above target", text: $inputMin)
-                        labeledField("Mid ($) — below target", text: $inputMid)
-                        labeledField("Max ($) — significant loss", text: $inputMax)
-                        labeledField("Max threshold (%)", text: $maxAtPct)
-                    } header: {
-                        Text("DCA Amounts")
+                    Section("DCA Amounts") {
+                        tipField("Min ($) — at/above target", tip: DCAHelp.minDCA, text: $inputMin)
+                        tipField("Mid ($) — below target", tip: DCAHelp.midDCA, text: $inputMid)
+                        tipField("Max ($) — significant loss", tip: DCAHelp.maxDCA, text: $inputMax)
+                        tipField("Max threshold (%)", tip: DCAHelp.maxThreshold, text: $maxAtPct)
                     }
 
-                    Section {
-                        labeledField("Min profit ($) to sell", text: $minProfitUsd)
-                        Toggle("Accumulate mode", isOn: $accumulate)
-                        Toggle("Manage cash in fund", isOn: $manageCash)
-                    } header: {
-                        Text("Sell & Cash")
+                    Section("Sell & Cash") {
+                        tipField("Min profit ($) to sell", tip: DCAHelp.minProfit, text: $minProfitUsd)
+                        tipToggle("Accumulate mode", tip: DCAHelp.accumulate, isOn: $accumulate)
+                        tipToggle("Manage cash in fund", tip: DCAHelp.manageCash, isOn: $manageCash)
                     }
                 }
 
@@ -186,15 +180,21 @@ struct EditFundView: View {
     }
 
     @ViewBuilder
-    private func labeledField(_ label: String, text: Binding<String>) -> some View {
+    private func tipField(_ label: String, tip: String, text: Binding<String>) -> some View {
         HStack {
-            Text(label)
-                .foregroundColor(.textSecondary)
+            InfoTipLabel(label: label, tip: tip)
             Spacer()
             TextField("0", text: text)
                 .multilineTextAlignment(.trailing)
                 .frame(width: 100)
                 .numericKeyboard()
+        }
+    }
+
+    @ViewBuilder
+    private func tipToggle(_ label: String, tip: String, isOn: Binding<Bool>) -> some View {
+        Toggle(isOn: isOn) {
+            InfoTipLabel(label: label, tip: tip)
         }
     }
 }
