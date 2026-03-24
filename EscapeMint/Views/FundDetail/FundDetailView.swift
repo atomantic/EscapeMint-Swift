@@ -259,7 +259,7 @@ struct FundDetailView: View {
     private func recommendationCard(_ rec: Recommendation) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text("\(rec.action.rawValue) \(formatCurrency(rec.amount))")
+                Text(rec.action == .HOLD ? "HOLD" : "\(rec.action.rawValue) \(formatCurrency(rec.amount))")
                     .font(.title2).fontWeight(.bold)
                     .foregroundColor(Color.forAction(rec.action))
                 Text(rec.reasoning)

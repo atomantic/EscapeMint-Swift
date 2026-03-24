@@ -351,7 +351,12 @@ func computeRecommendation(config: FundConfig, state: FundState) -> Recommendati
 
     // Special case: no investment yet, recommend initial BUY
     if state.startInputUsd == 0 && state.actualValueUsd == 0 {
-        let buyAmount = hasCashPool ? min(limit, state.cashAvailableUsd) : limit
+        // Check if cash is available (either in-fund or platform-level)
+        if state.cashAvailableUsd < 0.01 {
+            return Recommendation(action: .HOLD, amount: 0,
+                                  reasoning: "No cash available. Deposit funds to your platform cash account before your first DCA purchase.")
+        }
+        let buyAmount = hasCashPool ? min(limit, state.cashAvailableUsd) : min(limit, state.cashAvailableUsd)
         return Recommendation(action: .BUY, amount: buyAmount,
                               reasoning: "No position yet. System calculates initial DCA of \(formatCurrency(buyAmount)).")
     }
@@ -369,11 +374,11 @@ func computeRecommendation(config: FundConfig, state: FundState) -> Recommendati
     }
 
     // BUY: below or at target
-    let buyAmount = hasCashPool ? min(limit, state.cashAvailableUsd) : limit
+    let buyAmount = min(limit, state.cashAvailableUsd)
 
     // No cash available — HOLD
-    if (hasCashPool && buyAmount < 0.01) || (!hasCashPool && state.cashAvailableUsd < 0.01) {
-        return Recommendation(action: .HOLD, amount: 0, reasoning: "No cash available for DCA. Holding position.")
+    if buyAmount < 0.01 {
+        return Recommendation(action: .HOLD, amount: 0, reasoning: "No cash available for DCA. Deposit funds to your platform cash account.")
     }
 
     let reasoning: String
@@ -1053,9 +1058,9 @@ func computeActionableFunds(_ funds: [FundData], asOfDate: String? = nil) -> [Ac
               let intervalDays = config.interval_days,
               intervalDays > 0 else { return nil }
 
-        // Find last entry date — skip funds with no entries (matches web app)
+        // New funds with no entries are always actionable (need first action)
         guard let lastEntry = fund.entries.last else {
-            return nil
+            return ActionableFund(id: fund.id, fund: fund, daysOverdue: 0, intervalDays: intervalDays)
         }
 
         let daysSinceLastEntry = daysBetween(lastEntry.date, today)
