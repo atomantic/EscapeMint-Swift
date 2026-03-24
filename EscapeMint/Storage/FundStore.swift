@@ -4,9 +4,10 @@ actor FundStore {
     static let shared = FundStore()
 
     private let fileManager = FileManager.default
+    private static let iCloudContainerId = "iCloud.net.shadowpuppet.EscapeMint"
 
-    let fundsDirectory: URL
-    nonisolated let isICloud: Bool
+    nonisolated(unsafe) private(set) var fundsDirectory: URL
+    nonisolated(unsafe) private(set) var isICloud: Bool
 
     private init() {
         let fm = FileManager.default
@@ -19,7 +20,7 @@ actor FundStore {
         let skipICloud = CommandLine.arguments.contains("-loadTestData")
 
         if !skipICloud,
-           let iCloudURL = fm.url(forUbiquityContainerIdentifier: "iCloud.net.shadowpuppet.EscapeMint") {
+           let iCloudURL = fm.url(forUbiquityContainerIdentifier: Self.iCloudContainerId) {
             let funds = iCloudURL.appendingPathComponent("Documents/funds")
             var iCloudWorks = false
             do {
@@ -32,33 +33,79 @@ actor FundStore {
             if iCloudWorks {
                 resolvedDir = funds
                 resolvedICloud = true
+                print("[FundStore] ☁️ using iCloud: \(funds.path)")
             } else if let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first {
                 let local = docs.appendingPathComponent("funds")
                 try? fm.createDirectory(at: local, withIntermediateDirectories: true)
                 resolvedDir = local
                 resolvedICloud = false
+                print("[FundStore] ⚠️ iCloud container exists but inaccessible, using local")
             } else {
-                print("[FundStore] documentDirectory unavailable, using temp directory")
+                print("[FundStore] ⚠️ documentDirectory unavailable, using temp directory")
                 let local = fm.temporaryDirectory.appendingPathComponent("funds")
                 try? fm.createDirectory(at: local, withIntermediateDirectories: true)
                 resolvedDir = local
                 resolvedICloud = false
             }
-        } else if let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first {
-            let funds = docs.appendingPathComponent("funds")
-            try? fm.createDirectory(at: funds, withIntermediateDirectories: true)
-            resolvedDir = funds
-            resolvedICloud = false
+        } else if !skipICloud {
+            // iCloud URL returned nil — may be temporarily unavailable (e.g. after reboot)
+            print("[FundStore] ⚠️ iCloud unavailable at init, will retry during load")
+            if let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first {
+                let funds = docs.appendingPathComponent("funds")
+                try? fm.createDirectory(at: funds, withIntermediateDirectories: true)
+                resolvedDir = funds
+                resolvedICloud = false
+            } else {
+                let funds = fm.temporaryDirectory.appendingPathComponent("funds")
+                try? fm.createDirectory(at: funds, withIntermediateDirectories: true)
+                resolvedDir = funds
+                resolvedICloud = false
+            }
         } else {
-            print("[FundStore] documentDirectory unavailable, using temp directory")
-            let funds = fm.temporaryDirectory.appendingPathComponent("funds")
-            try? fm.createDirectory(at: funds, withIntermediateDirectories: true)
-            resolvedDir = funds
+            if let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first {
+                let funds = docs.appendingPathComponent("funds")
+                try? fm.createDirectory(at: funds, withIntermediateDirectories: true)
+                resolvedDir = funds
+            } else {
+                let funds = fm.temporaryDirectory.appendingPathComponent("funds")
+                try? fm.createDirectory(at: funds, withIntermediateDirectories: true)
+                resolvedDir = funds
+            }
             resolvedICloud = false
         }
 
         self.fundsDirectory = resolvedDir
         self.isICloud = resolvedICloud
+    }
+
+    /// Retry iCloud resolution if it wasn't available at init (e.g. after system reboot).
+    /// Called during the loading screen before any funds are read.
+    /// Returns true if iCloud became available and the funds directory was switched.
+    func retryICloudIfNeeded() async -> Bool {
+        guard !isICloud else { return false }
+
+        let fm = FileManager.default
+        for attempt in 1...5 {
+            print("[FundStore] ☁️ iCloud retry \(attempt)/5")
+            try? await Task.sleep(for: .seconds(1))
+
+            guard let iCloudURL = fm.url(forUbiquityContainerIdentifier: Self.iCloudContainerId) else {
+                continue
+            }
+            let funds = iCloudURL.appendingPathComponent("Documents/funds")
+            do {
+                try fm.createDirectory(at: funds, withIntermediateDirectories: true)
+                _ = try fm.contentsOfDirectory(at: funds, includingPropertiesForKeys: nil)
+                print("[FundStore] ☁️ iCloud recovered on attempt \(attempt)")
+                fundsDirectory = funds
+                isICloud = true
+                return true
+            } catch {
+                continue
+            }
+        }
+        print("[FundStore] ☁️ iCloud unavailable after 5 retries, using local storage")
+        return false
     }
 
     /// Migrate local funds to iCloud if iCloud became available

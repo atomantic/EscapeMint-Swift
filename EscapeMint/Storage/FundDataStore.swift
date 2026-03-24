@@ -53,6 +53,14 @@ final class FundDataStore {
         // Yield immediately so the UI (intro guide sheet) can finish rendering
         await Task.yield()
 
+        // If iCloud wasn't available at init (e.g. after reboot), retry before loading
+        if !FundStore.shared.isICloud {
+            let recovered = await FundStore.shared.retryICloudIfNeeded()
+            if recovered {
+                Self.logger.info("☁️ iCloud recovered after retry, loading from iCloud")
+            }
+        }
+
         await FundStore.shared.migrateToICloudIfNeeded()
 
         // Phase 1: Load configs off the main thread (nonisolated does synchronous file I/O)

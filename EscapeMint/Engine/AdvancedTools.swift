@@ -99,7 +99,7 @@ func recalculateFundSize(entries: [FundEntry], config: FundConfig) -> [FundEntry
             + sumDividends + sumCashInterest
             - sumExpenses
 
-        indexed[i].entry.fund_size = max(0, newFundSize)
+        indexed[i].entry.fund_size = max(0, (newFundSize * 100).rounded() / 100)
 
         // After full liquidation, reset all cumulative values
         if isFullLiq {
