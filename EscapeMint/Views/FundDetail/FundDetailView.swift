@@ -211,35 +211,39 @@ struct FundDetailView: View {
     @ViewBuilder
     private func configSummary(_ fund: FundData, features: FundTypeFeatures, state: FundState) -> some View {
         let config = fund.config
-        HStack(spacing: 8) {
-            Text(features.label)
-                .fontWeight(.medium)
-            if let cat = config.category, let catInfo = categoryConfig[cat] {
-                Text(catInfo.shortLabel)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(Color.forCategory(cat).opacity(0.2))
-                    .cornerRadius(4)
-            }
-            if config.status == .closed {
-                Text("Closed")
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(Color.bgInput).cornerRadius(4)
-            }
-            if let acc = config.accumulate {
-                Text(acc ? "Accumulate" : "Harvest")
-                    .foregroundColor(acc ? .mint : .orange)
-            }
-            if !isCashFund(config.fund_type) {
-                Text("\(formatPercent(config.target_apy ?? 0)) target")
-                Text("\(config.interval_days ?? 7)d")
-                if let min = config.input_min_usd, let mid = config.input_mid_usd, let max = config.input_max_usd {
-                    Text("$\(Int(min))/\(Int(mid))/\(Int(max))")
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Text(features.label)
+                    .fontWeight(.medium)
+                if let cat = config.category, let catInfo = categoryConfig[cat] {
+                    Text(catInfo.shortLabel)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Color.forCategory(cat).opacity(0.2))
+                        .cornerRadius(4)
+                }
+                if config.status == .closed {
+                    Text("Closed")
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Color.bgInput).cornerRadius(4)
+                }
+                if let acc = config.accumulate {
+                    Text(acc ? "Accumulate" : "Harvest")
+                        .foregroundColor(acc ? .mint : .orange)
+                }
+                Spacer()
+                if config.status == .closed, let lastCash = fund.entries.last?.cash {
+                    Text("Cash: \(formatCurrency(lastCash))")
+                        .fontWeight(.medium)
                 }
             }
-            Spacer()
-            if config.status == .closed, let lastCash = fund.entries.last?.cash {
-                Text("Cash: \(formatCurrency(lastCash))")
-                    .fontWeight(.medium)
+            if !isCashFund(config.fund_type) {
+                HStack(spacing: 8) {
+                    Text("\(formatPercent(config.target_apy ?? 0)) target")
+                    Text("\(config.interval_days ?? 7)d interval")
+                    if let min = config.input_min_usd, let mid = config.input_mid_usd, let max = config.input_max_usd {
+                        Text("DCA $\(Int(min))/$\(Int(mid))/$\(Int(max))")
+                    }
+                }
             }
         }
         .font(.caption)
