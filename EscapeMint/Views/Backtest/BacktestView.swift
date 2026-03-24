@@ -46,24 +46,26 @@ struct BacktestView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 8) {
-                header
-                if !introCompleted {
-                    introCard
+        GeometryReader { geo in
+            ScrollView {
+                VStack(spacing: 8) {
+                    header
+                    if !introCompleted {
+                        introCard
+                    }
+                    BacktestConfigPanel(
+                        config: $config,
+                        selectedPreset: $selectedPreset,
+                        onConfigChanged: runBacktestAsync
+                    )
+                    metricsGrid
+                    chartsGrid
+                    entriesTable
                 }
-                BacktestConfigPanel(
-                    config: $config,
-                    selectedPreset: $selectedPreset,
-                    onConfigChanged: runBacktestAsync
-                )
-                metricsGrid
-                chartsGrid
-                entriesTable
+                .padding()
+                .frame(maxWidth: geo.size.width)
             }
-            .padding()
         }
-        .clipped()
         .background(Color.bg.ignoresSafeArea())
         #if os(iOS)
         .navigationTitle("Backtest")
