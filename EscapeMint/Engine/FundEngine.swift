@@ -1033,8 +1033,18 @@ struct ActionableFund: Identifiable {
     let fund: FundData
     let daysOverdue: Int      // positive = overdue, 0 = due today, negative = upcoming
     let intervalDays: Int
+    let needsCashDeposit: Bool // true = this is a cash fund that needs funding
+
+    init(id: String, fund: FundData, daysOverdue: Int, intervalDays: Int, needsCashDeposit: Bool = false) {
+        self.id = id
+        self.fund = fund
+        self.daysOverdue = daysOverdue
+        self.intervalDays = intervalDays
+        self.needsCashDeposit = needsCashDeposit
+    }
 
     var urgency: Urgency {
+        if needsCashDeposit { return .overdue }
         if daysOverdue > 0 { return .overdue }
         if daysOverdue == 0 { return .dueToday }
         return .upcoming
@@ -1047,31 +1057,63 @@ struct ActionableFund: Identifiable {
 
 func computeActionableFunds(_ funds: [FundData], asOfDate: String? = nil) -> [ActionableFund] {
     let today = asOfDate ?? todayString()
+    let fundById = Dictionary(uniqueKeysWithValues: funds.map { ($0.id, $0) })
 
+    var results: [ActionableFund] = []
+    var cashFundsNeeded: Set<String> = [] // platform cash fund IDs that need deposits
 
-    return funds.compactMap { fund -> ActionableFund? in
+    // First pass: find trading funds that are actionable
+    for fund in funds {
         let config = fund.config
-        // Skip closed, cash, derivatives, and funds without intervals
         guard config.status != .closed,
               !isCashFund(config.fund_type),
               config.fund_type != .derivatives,
               let intervalDays = config.interval_days,
-              intervalDays > 0 else { return nil }
+              intervalDays > 0 else { continue }
 
-        // New funds with no entries are always actionable (need first action)
-        guard let lastEntry = fund.entries.last else {
-            return ActionableFund(id: fund.id, fund: fund, daysOverdue: 0, intervalDays: intervalDays)
+        // Check if due
+        let isDue: Bool
+        let daysOverdue: Int
+        if let lastEntry = fund.entries.last {
+            let daysSince = daysBetween(lastEntry.date, today)
+            daysOverdue = daysSince - intervalDays
+            isDue = daysOverdue >= 0
+        } else {
+            // New fund with no entries — always due
+            daysOverdue = 0
+            isDue = true
+        }
+        guard isDue else { continue }
+
+        // Check if this fund needs platform cash
+        if config.manage_cash == false {
+            let cashFundId = resolveCashFundId(config: config, platform: fund.platform)
+            if let cashFund = fundById[cashFundId] {
+                let cashBalance = cashFund.entries.max(by: { $0.date < $1.date })?.cash
+                    ?? cashFund.entries.max(by: { $0.date < $1.date })?.value ?? 0
+                if cashBalance < 0.01 {
+                    cashFundsNeeded.insert(cashFundId)
+                }
+            } else {
+                // No cash fund exists at all
+                cashFundsNeeded.insert(resolveCashFundId(config: config, platform: fund.platform))
+            }
         }
 
-        let daysSinceLastEntry = daysBetween(lastEntry.date, today)
-        let daysOverdue = daysSinceLastEntry - intervalDays
-
-        // Only show if due today or overdue
-        guard daysOverdue >= 0 else { return nil }
-
-        return ActionableFund(id: fund.id, fund: fund, daysOverdue: daysOverdue, intervalDays: intervalDays)
+        results.append(ActionableFund(id: fund.id, fund: fund, daysOverdue: daysOverdue, intervalDays: intervalDays))
     }
-    .sorted { $0.daysOverdue > $1.daysOverdue } // Most overdue first
+
+    // Second pass: add cash funds that need deposits (at the top)
+    var cashActions: [ActionableFund] = []
+    for cashId in cashFundsNeeded {
+        if let cashFund = fundById[cashId] {
+            cashActions.append(ActionableFund(id: cashFund.id, fund: cashFund, daysOverdue: 0, intervalDays: 1, needsCashDeposit: true))
+        }
+    }
+
+    // Cash funds needing deposits first, then trading funds sorted by overdue
+    return cashActions.sorted { $0.fund.platform < $1.fund.platform }
+        + results.sorted { $0.daysOverdue > $1.daysOverdue }
 }
 
 // MARK: - Per-Entry Computed Data (for entries table columns)

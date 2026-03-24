@@ -63,6 +63,7 @@ struct ActionableFundCard: View {
     }
 
     private var statusText: String {
+        if actionableFund.needsCashDeposit { return "Deposit cash to start DCA" }
         switch actionableFund.urgency {
         case .overdue: return "\(actionableFund.daysOverdue)d overdue"
         case .dueToday: return "Due today"
@@ -103,9 +104,11 @@ struct ActionableFundCard: View {
                 .buttonStyle(.plain)
             }
             Text(statusText)
-                .font(.caption).foregroundColor(.textSecondary)
-            Text("\(actionableFund.intervalDays)d interval")
-                .font(.caption2).foregroundColor(.textMuted)
+                .font(.caption).foregroundColor(actionableFund.needsCashDeposit ? .orange : .textSecondary)
+            if !actionableFund.needsCashDeposit {
+                Text("\(actionableFund.intervalDays)d interval")
+                    .font(.caption2).foregroundColor(.textMuted)
+            }
         }
         .padding(10)
         .frame(minWidth: 160)

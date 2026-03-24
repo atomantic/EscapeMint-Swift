@@ -429,7 +429,9 @@ final class FundMetricsTests: XCTestCase {
         let fund = FundData(platform: "test", ticker: "AAPL", config: config, entries: [])
 
         let actionable = computeActionableFunds([fund], asOfDate: "2025-03-15")
-        XCTAssertEqual(actionable.count, 0)
+        // New funds with no entries are immediately actionable (need first action)
+        XCTAssertEqual(actionable.count, 1)
+        XCTAssertEqual(actionable.first?.fund.id, fund.id)
     }
 
     func testActionableFundsNotYetDue() {
