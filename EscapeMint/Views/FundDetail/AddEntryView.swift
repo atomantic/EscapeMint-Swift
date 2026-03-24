@@ -250,8 +250,23 @@ struct AddEntryView: View {
                     if rec.amount > 0 {
                         amount = String(format: "%.2f", rec.amount)
                     }
+                    // Default equity to last entry's value, or 0 for new funds
+                    if value.isEmpty {
+                        if let last = existingEntries.last {
+                            value = String(format: "%.2f", last.value)
+                        } else {
+                            value = "0.00"
+                        }
+                    }
                 } else {
                     action = .BUY
+                    if value.isEmpty {
+                        if let last = existingEntries.last {
+                            value = String(format: "%.2f", last.value)
+                        } else {
+                            value = "0.00"
+                        }
+                    }
                 }
             }
             .onChange(of: showOptional) { _, newValue in
@@ -325,7 +340,14 @@ struct AddEntryView: View {
             NumericFieldRow(label: "Withdrawal ($)", text: $withdrawal, sign: "-")
             TextField("Notes", text: $notes)
         } header: {
-            Text("Optional")
+            HStack {
+                Text("Optional")
+                Spacer()
+                Image(systemName: showOptional ? "chevron.up" : "chevron.down")
+                    .font(.caption2).foregroundColor(.textMuted)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { showOptional.toggle() }
         }
     }
 
