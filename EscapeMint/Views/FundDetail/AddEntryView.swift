@@ -203,7 +203,8 @@ struct AddEntryView: View {
         self.existingEntries = existingEntries
         self.recommendation = recommendation
         self.onSaved = onSaved
-        _showOptional = State(initialValue: UserDefaults.standard.bool(forKey: "addEntry_showOptional_\(fundId)"))
+        let key = "addEntry_showOptional_\(fundId)"
+        _showOptional = State(initialValue: UserDefaults.standard.object(forKey: key) == nil ? true : UserDefaults.standard.bool(forKey: key))
     }
 
     private var isCash: Bool { isCashFund(fundType) }
