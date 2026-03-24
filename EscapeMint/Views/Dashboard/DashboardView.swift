@@ -179,6 +179,7 @@ struct DashboardView: View {
                     }
                 }
                 fundList
+                    .padding(.horizontal)
             }
             .padding(.bottom, 32)
         }
@@ -227,6 +228,7 @@ struct DashboardView: View {
             }
         }
         .padding(.horizontal)
+        .padding(.top, 4)
     }
 
     // MARK: - iOS Metrics Grid
