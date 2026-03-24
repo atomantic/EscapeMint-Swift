@@ -85,6 +85,13 @@ actor FundStore {
         guard !isICloud else { return false }
 
         let fm = FileManager.default
+
+        // If no iCloud account is signed in at all, don't waste time retrying
+        guard fm.ubiquityIdentityToken != nil else {
+            print("[FundStore] ☁️ no iCloud account, skipping retry")
+            return false
+        }
+
         for attempt in 1...5 {
             print("[FundStore] ☁️ iCloud retry \(attempt)/5")
             try? await Task.sleep(for: .seconds(1))
