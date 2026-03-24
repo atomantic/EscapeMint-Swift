@@ -460,7 +460,7 @@ struct MacContentView: View {
             // Version
             HStack {
                 Spacer()
-                Text("v1.0.0")
+                Text("v1.1.0")
                     .font(.caption2)
                     .foregroundColor(.textMuted)
                 Spacer()
