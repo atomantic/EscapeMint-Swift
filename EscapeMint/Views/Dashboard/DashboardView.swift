@@ -47,6 +47,11 @@ struct DashboardView: View {
 
     var platforms: [String] { store.platforms }
 
+    /// True when at least one fund has entry data worth showing metrics for
+    private var hasEntryData: Bool {
+        store.funds.contains { !$0.entries.isEmpty }
+    }
+
     var body: some View {
         Group {
         #if os(macOS)
@@ -127,9 +132,11 @@ struct DashboardView: View {
                     if !store.actionableFunds.isEmpty {
                         ActionableFundsBanner(actionableFunds: store.actionableFunds, dismissedIds: $dismissedAlertIds)
                     }
-                    metricsGrid
+                    if hasEntryData {
+                        metricsGrid
+                    }
                 }
-                if showCharts && !store.funds.isEmpty {
+                if showCharts && hasEntryData {
                     if cache.isComputingDashboard && cache.dashboardTimeSeries.isEmpty {
                         chartLoadingIndicator
                     } else {
@@ -160,9 +167,11 @@ struct DashboardView: View {
                         ActionableFundsBanner(actionableFunds: store.actionableFunds, dismissedIds: $dismissedAlertIds)
                             .padding(.horizontal)
                     }
-                    iosMetricsGrid
+                    if hasEntryData {
+                        iosMetricsGrid
+                    }
                 }
-                if showCharts && !store.funds.isEmpty {
+                if showCharts && hasEntryData {
                     if cache.isComputingDashboard && cache.dashboardTimeSeries.isEmpty {
                         chartLoadingIndicator
                     } else {

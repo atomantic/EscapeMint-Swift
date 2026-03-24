@@ -17,9 +17,21 @@ struct CreateFundView: View {
     @State private var maxAtPct = "-25"
     @State private var accumulate = true
     @State private var manageCash = false
+    @State private var cashBalance = ""
 
     private var canCreate: Bool {
         !platform.isEmpty && !ticker.isEmpty
+    }
+
+    /// Whether this fund needs a platform cash fund created alongside it
+    private var needsPlatformCash: Bool {
+        fundType != .cash && !manageCash
+    }
+
+    /// Whether a cash fund already exists for the entered platform
+    private var platformCashExists: Bool {
+        let p = platform.lowercased().trimmingCharacters(in: .whitespaces)
+        return FundDataStore.shared.funds.contains { $0.platform.lowercased() == p && $0.config.fund_type == .cash }
     }
 
     var body: some View {
@@ -211,6 +223,16 @@ struct CreateFundView: View {
                     Text("Accumulate mode sells only the DCA amount. Manage cash maintains a dedicated cash pile in this fund.")
                 }
             }
+
+            if needsPlatformCash && !platformCashExists && !platform.isEmpty {
+                Section {
+                    labeledField("Cash balance ($)", text: $cashBalance, prompt: "0")
+                } header: {
+                    Text("Platform Cash")
+                } footer: {
+                    Text("A cash fund will be created for \(platform) to track your available cash for DCA purchases.")
+                }
+            }
         }
         .formStyle(.grouped)
         .navigationTitle("Create Fund")
@@ -300,6 +322,31 @@ struct CreateFundView: View {
 
         Task {
             await FundDataStore.shared.addFund(fund)
+
+            // Auto-create platform cash fund if needed
+            if needsPlatformCash && !platformCashExists {
+                let cashPlatform = fund.platform
+                var cashConfig = fundTypeDefaults[.cash] ?? FundConfig()
+                cashConfig.fund_type = .cash
+                cashConfig.status = .active
+                cashConfig.category = .liquidity
+                let balance = Double(cashBalance) ?? 0
+                var cashFund = FundData(
+                    platform: cashPlatform,
+                    ticker: "cash",
+                    config: cashConfig,
+                    entries: []
+                )
+                if balance > 0 {
+                    cashFund.entries = [FundEntry(date: {
+                        let df = DateFormatter()
+                        df.dateFormat = "yyyy-MM-dd"
+                        return df.string(from: Date())
+                    }(), value: balance, cash: balance, action: .DEPOSIT, amount: balance, fund_size: balance)]
+                }
+                await FundDataStore.shared.addFund(cashFund)
+            }
+
             onCreated()
             dismiss()
         }

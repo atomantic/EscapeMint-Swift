@@ -8,12 +8,14 @@ private struct EditTarget: Identifiable {
 }
 
 struct FundDetailView: View {
+    @Environment(\.dismiss) private var dismiss
     let fundId: String
     var autoShowAddEntry: Bool = false
     private var store: FundDataStore { .shared }
     private var cache: ViewCache { .shared }
     @State private var showAddEntry = false
     @State private var showEditFund = false
+    @State private var wasDeleted = false
     @State private var editTarget: EditTarget?
     @State private var visibleColumns: Set<String> = []
     @State private var columnOrder: [String] = []
@@ -37,8 +39,14 @@ struct FundDetailView: View {
 
     var body: some View {
         Group {
-            if let fund, let summary {
+            if wasDeleted {
+                Color.bg.ignoresSafeArea()
+            } else if let fund, let summary {
                 fundContent(fund, summary: summary)
+            } else if store.isLoaded {
+                // Fund doesn't exist (was deleted externally)
+                Color.bg.ignoresSafeArea()
+                    .onAppear { dismiss() }
             } else {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -74,7 +82,9 @@ struct FundDetailView: View {
                 EditFundView(fund: fund, onSaved: {
                     Task { await store.reload() }
                 }, onDeleted: {
+                    wasDeleted = true
                     NotificationCenter.default.post(name: .selectDashboard, object: nil)
+                    dismiss()
                 })
             }
         }
