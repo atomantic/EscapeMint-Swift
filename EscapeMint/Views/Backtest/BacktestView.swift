@@ -63,6 +63,7 @@ struct BacktestView: View {
             }
             .padding()
         }
+        .clipped()
         .background(Color.bg.ignoresSafeArea())
         #if os(iOS)
         .navigationTitle("Backtest")
