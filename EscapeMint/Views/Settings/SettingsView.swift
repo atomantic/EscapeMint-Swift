@@ -8,7 +8,6 @@ struct SettingsView: View {
     @State private var dataSize = "..."
     @State private var storageLocation = "..."
     @State private var showImportJSON = false
-    @State private var showImportFolder = false
     @State private var statusMessage = ""
     @State private var showStatus = false
     @State private var showClearConfirm = false
@@ -61,11 +60,7 @@ struct SettingsView: View {
 
                 Section("Import / Export") {
                     Button("Import from Backup (.json)") { pickAndImportJSON() }
-                    Button("Import from Folder (TSV+JSON)") { pickAndImport() }
                     Button("Export Backup (.json)") { exportBackup() }
-                    #if os(macOS)
-                    Button("Export to Folder") { pickAndExport() }
-                    #endif
                 }
 
                 Section("Actions") {
@@ -146,11 +141,6 @@ struct SettingsView: View {
                     importBackupJSON(from: url)
                 }
             }
-            .fileImporter(isPresented: $showImportFolder, allowedContentTypes: [.folder]) { result in
-                if case .success(let url) = result {
-                    importFunds(from: url)
-                }
-            }
     }
 
     @State private var toastTask: Task<Void, Never>?
@@ -214,33 +204,6 @@ struct SettingsView: View {
         }
     }
 
-    private func pickAndImport() {
-        #if os(macOS)
-        let panel = NSOpenPanel()
-        panel.title = "Select funds directory"
-        panel.message = "Choose the folder containing your .tsv and .json fund files (e.g. data/funds/)"
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = false
-        panel.treatsFilePackagesAsDirectories = true
-        guard let window = NSApp.keyWindow else {
-            // Fallback: run as standalone panel
-            if panel.runModal() == .OK, let url = panel.url {
-                importFunds(from: url)
-            }
-            return
-        }
-        panel.beginSheetModal(for: window) { response in
-            if response == .OK, let url = panel.url {
-                self.importFunds(from: url)
-            }
-        }
-        #else
-        showImportFolder = true
-        #endif
-    }
-
     private func exportBackup() {
         Task {
             do {
@@ -268,55 +231,6 @@ struct SettingsView: View {
             } catch {
                 showToast("Export failed")
             }
-        }
-    }
-
-    #if os(macOS)
-    private func pickAndExport() {
-        let panel = NSOpenPanel()
-        panel.title = "Select export destination"
-        panel.message = "Choose a folder to export your fund data to"
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = true
-        guard let window = NSApp.keyWindow else {
-            if panel.runModal() == .OK, let url = panel.url {
-                exportFunds(to: url)
-            }
-            return
-        }
-        panel.beginSheetModal(for: window) { response in
-            if response == .OK, let url = panel.url {
-                self.exportFunds(to: url)
-            }
-        }
-    }
-
-    private func exportFunds(to url: URL) {
-        Task {
-            do {
-                let count = try await FundStore.shared.exportToDirectory(url)
-                showToast("Exported \(count) fund(s)")
-            } catch {
-                showToast("Export failed. Please check folder permissions.")
-            }
-        }
-    }
-    #endif
-
-    private func importFunds(from url: URL) {
-        Task {
-            let gotAccess = url.startAccessingSecurityScopedResource()
-            defer { if gotAccess { url.stopAccessingSecurityScopedResource() } }
-            do {
-                let count = try await FundStore.shared.importFromDirectory(url)
-                showToast("Imported \(count) fund(s)")
-            } catch {
-                showToast("Import failed. Please check the folder contents.")
-            }
-            await refreshStats()
-            await FundDataStore.shared.reload()
         }
     }
 
