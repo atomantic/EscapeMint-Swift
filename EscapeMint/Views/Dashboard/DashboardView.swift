@@ -173,6 +173,7 @@ struct DashboardView: View {
             }
             .padding(.bottom, 32)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.bg.ignoresSafeArea())
         #if os(iOS)
         .toolbarBackground(Color.bgCard, for: .navigationBar)
@@ -600,6 +601,7 @@ struct DashboardView: View {
     private var emptyState: some View {
         if store.funds.isEmpty {
             VStack(spacing: 12) {
+                Spacer()
                 Image(systemName: "leaf.fill")
                     .font(.largeTitle).foregroundColor(.mint)
                     .accessibilityHidden(true)
@@ -621,8 +623,10 @@ struct DashboardView: View {
                     .tint(.textSecondary)
                 }
                 .padding(.top, 4)
+                Spacer()
+                Spacer()
             }
-            .padding(.top, 60)
+            .frame(maxWidth: .infinity, minHeight: 400)
         }
     }
 
