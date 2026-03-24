@@ -205,13 +205,16 @@ struct DashboardView: View {
                 Text("\(store.portfolio.activeFunds) active \u{2022} \(store.portfolio.closedFunds) closed")
                     .font(.caption).foregroundColor(.textSecondary)
                 Spacer()
-                Toggle(isOn: $showCharts) {
+                if hasEntryData {
+                    Toggle(isOn: $showCharts) {
+                        EmptyView()
+                    }
+                    .toggleStyle(.switch)
+                    .tint(.mint)
+                    .labelsHidden()
                     Text("Charts")
                         .font(.caption).foregroundColor(.textSecondary)
                 }
-                .toggleStyle(.switch)
-                .tint(.mint)
-                .frame(minWidth: 100)
             }
             if platforms.count > 1 {
                 Picker("Platform", selection: $platformFilter) {
