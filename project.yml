@@ -67,8 +67,6 @@ targets:
           - iCloud.net.shadowpuppet.EscapeMint
         com.apple.developer.icloud-services:
           - CloudDocuments
-        com.apple.security.application-groups:
-          - group.net.shadowpuppet.EscapeMint
     dependencies:
       - target: EscapeMintWidget_iOS
         embed: true
