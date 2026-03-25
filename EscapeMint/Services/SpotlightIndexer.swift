@@ -10,7 +10,6 @@ final class SpotlightIndexer: Sendable {
 
     private init() {}
 
-    /// Index all funds in Spotlight. Called after each recompute.
     func indexFunds(_ funds: [FundData]) {
         var items: [CSSearchableItem] = []
 
@@ -33,7 +32,6 @@ final class SpotlightIndexer: Sendable {
                 domainIdentifier: Self.domainId,
                 attributeSet: attrs
             )
-            // Keep items in index for 30 days
             item.expirationDate = Calendar.current.date(byAdding: .day, value: 30, to: Date())
             items.append(item)
         }
@@ -45,7 +43,6 @@ final class SpotlightIndexer: Sendable {
         }
     }
 
-    /// Remove all indexed items
     func deindexAll() {
         CSSearchableIndex.default().deleteSearchableItems(withDomainIdentifiers: [Self.domainId]) { error in
             if let error {
@@ -54,7 +51,6 @@ final class SpotlightIndexer: Sendable {
         }
     }
 
-    /// Remove a single fund from the index
     func deindexFund(id: String) {
         CSSearchableIndex.default().deleteSearchableItems(withIdentifiers: [id]) { _ in }
     }

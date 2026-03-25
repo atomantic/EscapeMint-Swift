@@ -1,4 +1,5 @@
 import SwiftUI
+import LocalAuthentication
 
 struct LockScreenView: View {
     @State private var auth = AuthManager.shared
@@ -39,11 +40,11 @@ struct LockScreenView: View {
     }
 
     private var biometryIcon: String {
-        switch auth.biometryName {
-        case "Face ID": return "faceid"
-        case "Touch ID": return "touchid"
-        case "Optic ID": return "opticid"
-        default: return "lock.open.fill"
+        switch auth.biometryType {
+        case .faceID: return "faceid"
+        case .touchID: return "touchid"
+        case .opticID: return "opticid"
+        @unknown default: return "lock.open.fill"
         }
     }
 }

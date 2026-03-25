@@ -9,41 +9,27 @@ struct EscapeMintTimelineProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (PortfolioEntry) -> Void) {
-        let entry = loadEntry()
-        completion(entry)
+        completion(loadEntry())
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<PortfolioEntry>) -> Void) {
         let entry = loadEntry()
-        // Refresh every 30 minutes
         let nextUpdate = Calendar.current.date(byAdding: .minute, value: 30, to: Date()) ?? Date()
-        let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
-        completion(timeline)
+        completion(Timeline(entries: [entry], policy: .after(nextUpdate)))
     }
 
     private func loadEntry() -> PortfolioEntry {
-        guard let snapshot = readSnapshot() else {
-            return PortfolioEntry.placeholder
-        }
-        return PortfolioEntry(
-            date: snapshot.updatedAt,
-            totalValue: snapshot.totalValue,
-            totalGainUsd: snapshot.totalGainUsd,
-            totalGainPct: snapshot.totalGainPct,
-            activeFunds: snapshot.activeFunds,
-            actionableCount: snapshot.actionableCount,
-            topFunds: snapshot.topFunds,
-            isPlaceholder: false
-        )
+        guard let snapshot = readSnapshot() else { return .placeholder }
+        return PortfolioEntry(snapshot: snapshot)
     }
 
+    // Must match WidgetDataProvider.appGroupId and .snapshotFileName in main app
+    private static let appGroupId = "group.net.shadowpuppet.EscapeMint"
+    private static let snapshotFileName = "widget-snapshot.json"
+
     private func readSnapshot() -> WidgetSnapshotData? {
-        let appGroupId = "group.net.shadowpuppet.EscapeMint"
-        guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) else {
-            return nil
-        }
-        let fileURL = containerURL.appendingPathComponent("widget-snapshot.json")
-        guard let data = try? Data(contentsOf: fileURL) else { return nil }
+        guard let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupId) else { return nil }
+        guard let data = try? Data(contentsOf: url.appendingPathComponent(Self.snapshotFileName)) else { return nil }
         return try? JSONDecoder().decode(WidgetSnapshotData.self, from: data)
     }
 }
@@ -60,23 +46,36 @@ struct PortfolioEntry: TimelineEntry {
     let topFunds: [WidgetFundData]
     let isPlaceholder: Bool
 
-    static let placeholder = PortfolioEntry(
-        date: Date(),
-        totalValue: 12345.67,
-        totalGainUsd: 1234.56,
-        totalGainPct: 11.1,
-        activeFunds: 5,
-        actionableCount: 2,
-        topFunds: [
+    init(snapshot: WidgetSnapshotData) {
+        self.date = snapshot.updatedAt
+        self.totalValue = snapshot.totalValue
+        self.totalGainUsd = snapshot.totalGainUsd
+        self.totalGainPct = snapshot.totalGainPct
+        self.activeFunds = snapshot.activeFunds
+        self.actionableCount = snapshot.actionableCount
+        self.topFunds = snapshot.topFunds
+        self.isPlaceholder = false
+    }
+
+    private init(placeholder: Bool) {
+        self.date = Date()
+        self.totalValue = 12345.67
+        self.totalGainUsd = 1234.56
+        self.totalGainPct = 11.1
+        self.activeFunds = 5
+        self.actionableCount = 2
+        self.topFunds = [
             WidgetFundData(ticker: "BTC", platform: "Coinbase", value: 5000, gainPct: 15.2, isDueForAction: true, recommendedAction: "BUY", recommendedAmount: 150),
             WidgetFundData(ticker: "TQQQ", platform: "Robinhood", value: 3000, gainPct: 8.5, isDueForAction: false, recommendedAction: nil, recommendedAmount: nil),
             WidgetFundData(ticker: "SPXL", platform: "Robinhood", value: 2500, gainPct: 5.3, isDueForAction: true, recommendedAction: "BUY", recommendedAmount: 100),
-        ],
-        isPlaceholder: true
-    )
+        ]
+        self.isPlaceholder = true
+    }
+
+    static let placeholder = PortfolioEntry(placeholder: true)
 }
 
-// MARK: - Shared data (mirrors main app types, decoded from JSON)
+// MARK: - Shared Data (field names must match WidgetSnapshot/WidgetFundSnapshot in main app)
 
 struct WidgetSnapshotData: Codable {
     let totalValue: Double
@@ -98,6 +97,59 @@ struct WidgetFundData: Codable {
     let recommendedAmount: Double?
 }
 
+// MARK: - Shared Components
+
+private struct WidgetBranding: View {
+    var font: Font = .caption2
+    var body: some View {
+        HStack {
+            Image(systemName: "leaf.fill")
+                .foregroundColor(.mint)
+                .font(.caption)
+            Text("EscapeMint")
+                .font(font).fontWeight(.semibold)
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+private struct GainChangeView: View {
+    let pct: Double
+    var font: Font = .caption
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: pct >= 0 ? "arrow.up.right" : "arrow.down.right")
+                .font(.caption2)
+            Text(String(format: "%.1f%%", pct))
+                .font(font).fontWeight(.medium)
+        }
+        .foregroundColor(pct >= 0 ? .green : .red)
+    }
+}
+
+// MARK: - Currency Formatter (cached)
+
+private let currencyFormatterFull: NumberFormatter = {
+    let f = NumberFormatter()
+    f.numberStyle = .currency
+    f.currencyCode = "USD"
+    f.maximumFractionDigits = 2
+    return f
+}()
+
+private let currencyFormatterCompact: NumberFormatter = {
+    let f = NumberFormatter()
+    f.numberStyle = .currency
+    f.currencyCode = "USD"
+    f.maximumFractionDigits = 0
+    return f
+}()
+
+private func formatCurrency(_ value: Double) -> String {
+    let formatter = value >= 1000 ? currencyFormatterCompact : currencyFormatterFull
+    return formatter.string(from: NSNumber(value: value)) ?? "$\(Int(value))"
+}
+
 // MARK: - Widget Views
 
 struct SmallWidgetView: View {
@@ -105,27 +157,13 @@ struct SmallWidgetView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Image(systemName: "leaf.fill")
-                    .foregroundColor(.mint)
-                    .font(.caption)
-                Text("EscapeMint")
-                    .font(.caption2).fontWeight(.semibold)
-                    .foregroundColor(.secondary)
-            }
+            WidgetBranding()
             Spacer()
             Text(formatCurrency(entry.totalValue))
                 .font(.title2).fontWeight(.bold)
                 .minimumScaleFactor(0.7)
                 .lineLimit(1)
-            HStack(spacing: 4) {
-                Image(systemName: entry.totalGainPct >= 0 ? "arrow.up.right" : "arrow.down.right")
-                    .font(.caption2)
-                Text(String(format: "%.1f%%", entry.totalGainPct))
-                    .font(.caption).fontWeight(.medium)
-            }
-            .foregroundColor(entry.totalGainPct >= 0 ? .green : .red)
-
+            GainChangeView(pct: entry.totalGainPct)
             if entry.actionableCount > 0 {
                 Text("\(entry.actionableCount) action\(entry.actionableCount == 1 ? "" : "s") due")
                     .font(.caption2)
@@ -142,34 +180,19 @@ struct MediumWidgetView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Left: portfolio summary
             VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Image(systemName: "leaf.fill")
-                        .foregroundColor(.mint)
-                        .font(.caption)
-                    Text("EscapeMint")
-                        .font(.caption2).fontWeight(.semibold)
-                        .foregroundColor(.secondary)
-                }
+                WidgetBranding()
                 Spacer()
                 Text(formatCurrency(entry.totalValue))
                     .font(.title2).fontWeight(.bold)
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
-                HStack(spacing: 4) {
-                    Image(systemName: entry.totalGainPct >= 0 ? "arrow.up.right" : "arrow.down.right")
-                        .font(.caption2)
-                    Text(String(format: "%.1f%%", entry.totalGainPct))
-                        .font(.caption).fontWeight(.medium)
-                }
-                .foregroundColor(entry.totalGainPct >= 0 ? .green : .red)
+                GainChangeView(pct: entry.totalGainPct)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Divider()
 
-            // Right: top funds
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(Array(entry.topFunds.prefix(3).enumerated()), id: \.offset) { _, fund in
                     HStack {
@@ -201,12 +224,8 @@ struct LargeWidgetView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Header
             HStack {
-                Image(systemName: "leaf.fill")
-                    .foregroundColor(.mint)
-                Text("EscapeMint")
-                    .font(.headline).fontWeight(.semibold)
+                WidgetBranding(font: .headline)
                 Spacer()
                 if entry.actionableCount > 0 {
                     Text("\(entry.actionableCount) due")
@@ -217,7 +236,6 @@ struct LargeWidgetView: View {
                 }
             }
 
-            // Portfolio value
             Text(formatCurrency(entry.totalValue))
                 .font(.title).fontWeight(.bold)
             HStack(spacing: 4) {
@@ -232,7 +250,6 @@ struct LargeWidgetView: View {
 
             Divider()
 
-            // Fund list
             ForEach(Array(entry.topFunds.prefix(5).enumerated()), id: \.offset) { _, fund in
                 HStack {
                     VStack(alignment: .leading, spacing: 1) {
@@ -273,16 +290,6 @@ struct LargeWidgetView: View {
     }
 }
 
-// MARK: - Currency Formatter
-
-private func formatCurrency(_ value: Double) -> String {
-    let formatter = NumberFormatter()
-    formatter.numberStyle = .currency
-    formatter.currencyCode = "USD"
-    formatter.maximumFractionDigits = value >= 1000 ? 0 : 2
-    return formatter.string(from: NSNumber(value: value)) ?? "$\(Int(value))"
-}
-
 // MARK: - Widget Configuration
 
 struct EscapeMintWidget: Widget {
@@ -292,10 +299,10 @@ struct EscapeMintWidget: Widget {
         StaticConfiguration(kind: kind, provider: EscapeMintTimelineProvider()) { entry in
             Group {
                 if #available(iOSApplicationExtension 17.0, macOSApplicationExtension 14.0, *) {
-                    widgetContent(for: entry)
+                    WidgetContentView(entry: entry)
                         .containerBackground(.fill.tertiary, for: .widget)
                 } else {
-                    widgetContent(for: entry)
+                    WidgetContentView(entry: entry)
                         .padding()
                         .background()
                 }
@@ -305,12 +312,6 @@ struct EscapeMintWidget: Widget {
         .description("Track your portfolio value and DCA actions.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
-
-    @ViewBuilder
-    private func widgetContent(for entry: PortfolioEntry) -> some View {
-        // Use a ViewThatFits approach via environment
-        WidgetContentView(entry: entry)
-    }
 }
 
 struct WidgetContentView: View {
@@ -319,14 +320,10 @@ struct WidgetContentView: View {
 
     var body: some View {
         switch family {
-        case .systemSmall:
-            SmallWidgetView(entry: entry)
-        case .systemMedium:
-            MediumWidgetView(entry: entry)
-        case .systemLarge:
-            LargeWidgetView(entry: entry)
-        default:
-            SmallWidgetView(entry: entry)
+        case .systemSmall: SmallWidgetView(entry: entry)
+        case .systemMedium: MediumWidgetView(entry: entry)
+        case .systemLarge: LargeWidgetView(entry: entry)
+        default: SmallWidgetView(entry: entry)
         }
     }
 }

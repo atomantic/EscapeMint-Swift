@@ -321,15 +321,20 @@ final class FundDataStore {
         // Pre-compute chart data in background so fund detail pages load instantly
         ViewCache.shared.precomputeFundCharts(fundsSnapshot)
 
-        // Reschedule DCA notifications when data changes
-        Task { await DCANotificationManager.shared.rescheduleAll() }
-
-        // Update Spotlight index
-        Task { SpotlightIndexer.shared.indexFunds(funds) }
-
-        // Update widget data
-        WidgetDataProvider.shared.updateSnapshot()
+        // Debounce expensive side effects (notifications, Spotlight, widget)
+        // so rapid recomputes during progressive load don't trigger them repeatedly
+        sideEffectTask?.cancel()
+        let currentFunds = funds
+        sideEffectTask = Task {
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            await DCANotificationManager.shared.rescheduleAll()
+            Task.detached { SpotlightIndexer.shared.indexFunds(currentFunds) }
+            WidgetDataProvider.shared.updateSnapshot()
+        }
     }
+
+    private var sideEffectTask: Task<Void, Never>?
 
     static func buildAuditEntries(from funds: [FundData]) -> [AuditEntry] {
         var entries: [AuditEntry] = []

@@ -47,7 +47,7 @@ struct EscapeMintApp: App {
         }
         #endif
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .background || newPhase == .inactive {
+            if newPhase == .background {
                 AuthManager.shared.lock()
             }
         }

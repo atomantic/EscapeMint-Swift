@@ -16,7 +16,6 @@ final class DCANotificationManager {
 
     private init() {}
 
-    /// Toggle notifications on/off. Requests permission if enabling for the first time.
     func setEnabled(_ enabled: Bool) async {
         if enabled {
             let granted = await requestPermission()
@@ -33,7 +32,6 @@ final class DCANotificationManager {
         }
     }
 
-    /// Request notification authorization. Returns true if granted.
     func requestPermission() async -> Bool {
         let center = UNUserNotificationCenter.current()
         do {
@@ -46,13 +44,11 @@ final class DCANotificationManager {
         }
     }
 
-    /// Check current authorization status
     func checkAuthorization() async {
         let settings = await UNUserNotificationCenter.current().notificationSettings()
         isAuthorized = settings.authorizationStatus == .authorized
     }
 
-    /// Cancel all scheduled DCA notifications
     func cancelAll() {
         UNUserNotificationCenter.current().removePendingNotificationRequests(
             withIdentifiers: pendingIdentifiers
@@ -62,7 +58,6 @@ final class DCANotificationManager {
 
     private var pendingIdentifiers: [String] = []
 
-    /// Reschedule notifications for all active funds based on their DCA intervals
     func rescheduleAll() async {
         guard isEnabled else { return }
         await checkAuthorization()
@@ -112,35 +107,27 @@ final class DCANotificationManager {
         pendingIdentifiers = identifiers
     }
 
-    /// Compute the next DCA date based on last entry + interval
     func computeNextDCADate(fund: FundData, intervalDays: Int) -> Date? {
         let calendar = Calendar.current
         let now = Date()
 
-        if let lastEntry = fund.entries.last {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd"
-            if let lastDate = formatter.date(from: lastEntry.date) {
-                let nextDate = calendar.date(byAdding: .day, value: intervalDays, to: lastDate) ?? now
-                // If next date is in the past, schedule for tomorrow at 9 AM
-                if nextDate <= now {
-                    var components = calendar.dateComponents([.year, .month, .day], from: calendar.date(byAdding: .day, value: 1, to: now) ?? now)
-                    components.hour = 9
-                    components.minute = 0
-                    return calendar.date(from: components)
-                }
-                // Schedule at 9 AM on the computed date
-                var components = calendar.dateComponents([.year, .month, .day], from: nextDate)
-                components.hour = 9
-                components.minute = 0
-                return calendar.date(from: components)
+        if let lastEntry = fund.entries.last,
+           let lastDate = isoDateFormatter.date(from: lastEntry.date) {
+            let nextDate = calendar.date(byAdding: .day, value: intervalDays, to: lastDate) ?? now
+            if nextDate <= now {
+                return atNineAM(calendar.date(byAdding: .day, value: 1, to: now) ?? now)
             }
+            return atNineAM(nextDate)
         }
 
-        // No entries — schedule for tomorrow at 9 AM
-        var components = calendar.dateComponents([.year, .month, .day], from: calendar.date(byAdding: .day, value: 1, to: now) ?? now)
+        // No entries — schedule for tomorrow
+        return atNineAM(calendar.date(byAdding: .day, value: 1, to: now) ?? now)
+    }
+
+    private func atNineAM(_ date: Date) -> Date? {
+        var components = Calendar.current.dateComponents([.year, .month, .day], from: date)
         components.hour = 9
         components.minute = 0
-        return calendar.date(from: components)
+        return Calendar.current.date(from: components)
     }
 }

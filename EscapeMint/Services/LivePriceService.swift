@@ -12,12 +12,11 @@ final class LivePriceService {
     private(set) var isFetching = false
 
     private static let logger = Logger(subsystem: "net.shadowpuppet.EscapeMint", category: "LivePrice")
-    private static nonisolated(unsafe) let cacheTTL: TimeInterval = 300 // 5 minutes
-    private var fetchTask: Task<Void, Never>?
+    static let cacheTTLSeconds: TimeInterval = 300
 
     struct PriceData: Sendable {
         let price: Double
-        let change24h: Double  // percentage
+        let change24h: Double
         let fetchedAt: Date
 
         var isStale: Bool {
@@ -27,7 +26,6 @@ final class LivePriceService {
 
     private init() {}
 
-    /// Known crypto ticker → CoinGecko ID mapping
     private static let cryptoMap: [String: String] = [
         "btc": "bitcoin", "eth": "ethereum", "sol": "solana",
         "ada": "cardano", "dot": "polkadot", "avax": "avalanche-2",
@@ -37,10 +35,9 @@ final class LivePriceService {
         "sui": "sui", "arb": "arbitrum", "op": "optimism",
     ]
 
-    /// Fetch prices for all active funds. Skips cash and derivatives funds.
     func fetchPrices(for funds: [FundData]) async {
         guard !isFetching else { return }
-        if let last = lastFetched, Date().timeIntervalSince(last) < Self.cacheTTL { return }
+        if let last = lastFetched, Date().timeIntervalSince(last) < Self.cacheTTLSeconds { return }
 
         isFetching = true
         defer { isFetching = false }
@@ -63,7 +60,6 @@ final class LivePriceService {
             }
         }
 
-        // Fetch sequentially to avoid Sendable issues with MainActor
         if !cryptoIds.isEmpty {
             await fetchCryptoPrices(cryptoIds)
         }
@@ -74,12 +70,10 @@ final class LivePriceService {
         lastFetched = Date()
     }
 
-    /// Get cached price for a ticker (case-insensitive)
     func price(for ticker: String) -> PriceData? {
         prices[ticker.lowercased()]
     }
 
-    /// Compute unrealized P&L using live price vs last entry price
     func unrealizedPnL(for fund: FundData) -> Double? {
         guard let pd = price(for: fund.ticker) else { return nil }
         guard let lastEntry = fund.entries.last else { return nil }
@@ -111,7 +105,7 @@ final class LivePriceService {
         }
     }
 
-    // MARK: - Yahoo Finance (via query API)
+    // MARK: - Yahoo Finance
 
     private func fetchStockPrices(_ tickers: [String]) async {
         for ticker in tickers {
