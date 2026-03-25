@@ -320,6 +320,15 @@ final class FundDataStore {
 
         // Pre-compute chart data in background so fund detail pages load instantly
         ViewCache.shared.precomputeFundCharts(fundsSnapshot)
+
+        // Reschedule DCA notifications when data changes
+        Task { await DCANotificationManager.shared.rescheduleAll() }
+
+        // Update Spotlight index
+        Task { SpotlightIndexer.shared.indexFunds(funds) }
+
+        // Update widget data
+        WidgetDataProvider.shared.updateSnapshot()
     }
 
     static func buildAuditEntries(from funds: [FundData]) -> [AuditEntry] {

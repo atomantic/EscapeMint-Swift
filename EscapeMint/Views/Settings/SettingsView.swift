@@ -19,6 +19,8 @@ struct SettingsView: View {
     @State private var showIntroGuide = false
     @State private var backupFileURL: URL?
     @State private var showShareSheet = false
+    @State private var auth = AuthManager.shared
+    @State private var notifications = DCANotificationManager.shared
 
     var body: some View {
         settingsContent
@@ -27,6 +29,31 @@ struct SettingsView: View {
     @ViewBuilder
     private var settingsContent: some View {
         List {
+                Section("Security") {
+                    if auth.biometryAvailable {
+                        Toggle("Require \(auth.biometryName)", isOn: Binding(
+                            get: { auth.isEnabled },
+                            set: { auth.setEnabled($0) }
+                        ))
+                    } else {
+                        LabeledContent("Biometric Auth", value: "Not Available")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Section {
+                    Toggle("DCA Reminders", isOn: Binding(
+                        get: { notifications.isEnabled },
+                        set: { enabled in
+                            Task { await notifications.setEnabled(enabled) }
+                        }
+                    ))
+                } header: {
+                    Text("Notifications")
+                } footer: {
+                    Text("Get notified when a fund is due for its next DCA action based on its interval setting.")
+                }
+
                 Section("Intro Guide") {
                     Toggle("Show intro on launch", isOn: $showIntroOnLaunch)
                     Button("Show Intro Guide") {

@@ -1,7 +1,10 @@
 import SwiftUI
+import CoreSpotlight
 
 @main
 struct EscapeMintApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+
     init() {
         // Handle -loadTestData synchronously before any views load
         if CommandLine.arguments.contains("-loadTestData") {
@@ -43,11 +46,17 @@ struct EscapeMintApp: App {
             }
         }
         #endif
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .background || newPhase == .inactive {
+                AuthManager.shared.lock()
+            }
+        }
     }
 }
 
 struct ContentView: View {
     @State private var appearance = AppearanceManager.shared
+    @State private var auth = AuthManager.shared
     @AppStorage("escapemint-intro-completed") private var introCompleted = false
     @AppStorage("escapemint-show-intro-on-launch") private var showIntroOnLaunch = false
     @State private var showIntroGuide = false
@@ -64,7 +73,9 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if !store.isConfigLoaded {
+            if auth.isEnabled && !auth.isUnlocked {
+                LockScreenView()
+            } else if !store.isConfigLoaded {
                 loadingView
             } else {
                 #if os(macOS)
@@ -80,6 +91,11 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .privacySensitive()
+        .onContinueUserActivity(CSSearchableItemActionType) { activity in
+            guard let fundId = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String else { return }
+            NotificationCenter.default.post(name: .selectFund, object: fundId)
+        }
         .sheet(isPresented: $showIntroGuide) {
             IntroGuideView(isPresented: $showIntroGuide)
         }

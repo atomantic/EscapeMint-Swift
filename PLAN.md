@@ -9,6 +9,56 @@ Native SwiftUI app for iOS, iPadOS, and macOS. Same bundle ID as the App Store C
 3. **Phase 4: Polish & Submission** — screenshots, App Store review
 4. **Test coverage** — address deferred test quality findings from audits
 
+## High-Impact Feature Ideas
+
+### 1. Home Screen Widgets (WidgetKit)
+Show portfolio value, daily gain/loss %, and next DCA action at a glance without opening the app. Finance apps live or die by how quickly users can check their numbers — widgets make that instant.
+- **Small widget**: Total portfolio value + daily change (green/red)
+- **Medium widget**: Top 3 funds by value with sparkline mini-charts
+- **Large widget**: Actionable funds list (which funds need a BUY/DEPOSIT today)
+- **Lock Screen widget**: Portfolio value + % change
+- Timeline refresh on fund data changes via `WidgetCenter.shared.reloadAllTimelines()`
+- Shared data via App Group container (FundStore writes summary JSON for widget to read)
+
+### 2. Local Push Notifications for DCA Timing
+The app already computes `interval_days` per fund and knows exactly when the next DCA action is due — surface that as scheduled local notifications so users never miss a buy window. Zero server infrastructure needed.
+- Schedule `UNNotificationRequest` per fund based on last entry date + interval_days
+- "Time to DCA into BTC — $150 recommended" with fund-specific amounts from the recommendation engine
+- Reschedule on each new entry (entry added = timer resets)
+- Settings toggle per-fund and global on/off
+- Deep link notification tap → fund detail view
+- Badge count = number of overdue DCA actions (already computed for dock badge)
+
+### 3. Live Price Integration (CoinGecko / Yahoo Finance)
+Transform from manual-entry tracking to live portfolio valuation. Currently users only see values as of their last entry — live prices would show real-time portfolio value and unrealized gain/loss between entries.
+- Free tier APIs: CoinGecko (crypto, no key needed), Yahoo Finance (stocks)
+- Map fund tickers to API symbols (BTC→bitcoin, AAPL→AAPL)
+- Show live price + change on dashboard cards and fund detail header
+- Compute real-time unrealized P&L: `(livePrice - lastEntryPrice) * shares`
+- Cache prices locally with 5-min TTL to stay within rate limits
+- Optional — doesn't replace manual entries, just enriches between-entry visibility
+- Graceful degradation: works fully offline with last-cached prices
+
+### 4. Biometric Authentication (Face ID / Touch ID)
+Financial data is sensitive — a biometric lock is table stakes for any finance app on the App Store. Users expect it and reviewers look for it.
+- `LAContext` with `.deviceOwnerAuthenticationWithBiometrics` on app foreground
+- Fallback to device passcode
+- Settings toggle: "Require Face ID / Touch ID"
+- Blur/hide content in app switcher (`.privacySensitive()` or overlay in `scenePhase == .inactive`)
+- `@AppStorage` flag — no server, no accounts, just local biometric gate
+- Minimal code (~50 lines for the auth manager + a gate view)
+
+### 5. Spotlight Search & Siri Shortcuts
+Let users find funds instantly from the iOS home screen and ask Siri for portfolio status — makes the app feel like a first-class citizen on the platform.
+- **Spotlight**: Index funds via `CSSearchableIndex` — search "BTC" or "Coinbase" from home screen, deep link to fund detail
+- Update index on fund create/delete/rename
+- **Siri Shortcuts**: Donate `INInteraction` for common actions
+  - "What's my portfolio value?" → spoken response with total value + daily change
+  - "Show my top performer" → opens fund detail for highest-gain fund
+  - Shortcuts app integration for automation (e.g., morning portfolio summary)
+- **App Intents** (iOS 16+): `AppIntent` protocol for type-safe Siri integration
+- Low effort, high perceived quality — signals a polished, native app
+
 ## Known Issues
 
 - [ ] iOS 26 liquid glass TabView — using traditional `tabItem` API instead, but appearance still not ideal
