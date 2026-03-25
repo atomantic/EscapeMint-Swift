@@ -247,7 +247,8 @@ struct DashboardView: View {
             MetricCard(label: "Liquid", value: formatCurrency(p.totalGainUsd), color: p.totalGainUsd >= 0 ? .mint : .red)
             MetricCard(label: "L.APY", value: formatPercent(p.liquidAPY), color: p.liquidAPY > 0 ? .mint : .red)
             MetricCard(label: "Projected", value: formatCurrency(p.projectedAnnualReturn), color: p.projectedAnnualReturn > 0 ? .mint : .red)
-            MetricCard(label: "Cash", value: formatCurrency(p.cashBalance), sub: "Int: \(formatCurrency(p.totalInterest))")
+            MetricCard(label: "Cash", value: formatCurrency(p.cashBalance), sub: "\(store.summaries.filter { $0.isCash }.count) cash funds")
+            MetricCard(label: "Interest", value: formatCurrency(p.totalInterest), sub: "Earned to date")
         }
         .padding(.horizontal)
     }
