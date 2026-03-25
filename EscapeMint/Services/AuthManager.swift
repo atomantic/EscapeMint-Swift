@@ -35,35 +35,41 @@ final class AuthManager {
     func authenticate() {
         guard isEnabled, !isUnlocked, !isEvaluating else { return }
 
-        let context = LAContext()
-        // Hide the "Use Passcode" fallback button — we handle fallback ourselves
-        context.localizedFallbackTitle = ""
-
         isEvaluating = true
         Task {
             defer {
                 isEvaluating = false
                 refreshBiometry()
             }
-            do {
-                // Try biometrics first (Face ID / Touch ID)
-                let success = try await context.evaluatePolicy(
-                    .deviceOwnerAuthenticationWithBiometrics,
-                    localizedReason: "Unlock EscapeMint to view your portfolio"
-                )
-                if success { isUnlocked = true }
-            } catch let error as LAError where error.code == .biometryLockout || error.code == .biometryNotAvailable {
-                // Biometrics locked out or unavailable — fall back to device passcode
-                let fallbackContext = LAContext()
+
+            // Skip biometrics if hardware isn't available — go straight to passcode
+            if biometryAvailable {
+                let context = LAContext()
+                // We handle passcode fallback ourselves rather than showing system's button
+                context.localizedFallbackTitle = ""
+
                 do {
-                    let success = try await fallbackContext.evaluatePolicy(
-                        .deviceOwnerAuthentication,
-                        localizedReason: "Unlock EscapeMint with your passcode"
+                    try await context.evaluatePolicy(
+                        .deviceOwnerAuthenticationWithBiometrics,
+                        localizedReason: "Unlock EscapeMint to view your portfolio"
                     )
-                    if success { isUnlocked = true }
+                    isUnlocked = true
+                    return
+                } catch let error as LAError where error.code == .biometryLockout || error.code == .biometryNotAvailable || error.code == .userFallback {
+                    // Fall through to passcode
                 } catch {
-                    Self.logger.info("Passcode fallback failed: \(error.localizedDescription)")
+                    Self.logger.info("Auth cancelled: \(error.localizedDescription)")
+                    return
                 }
+            }
+
+            // Passcode fallback (or primary if no biometrics)
+            do {
+                try await LAContext().evaluatePolicy(
+                    .deviceOwnerAuthentication,
+                    localizedReason: "Unlock EscapeMint with your passcode"
+                )
+                isUnlocked = true
             } catch {
                 Self.logger.info("Auth failed: \(error.localizedDescription)")
             }
