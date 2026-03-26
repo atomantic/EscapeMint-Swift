@@ -1,11 +1,15 @@
 import SwiftUI
 import CoreSpotlight
+import UserNotifications
 
 @main
 struct EscapeMintApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        // Set notification delegate before any pending responses are delivered
+        UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
+
         // Handle -loadTestData synchronously before any views load
         if CommandLine.arguments.contains("-loadTestData") {
             UserDefaults.standard.set(true, forKey: "escapemint-intro-completed")

@@ -2,6 +2,32 @@ import Foundation
 import UserNotifications
 import os
 
+/// Handles notification tap responses — must be NSObject for UNUserNotificationCenterDelegate.
+/// Set as delegate before any notifications can arrive (in EscapeMintApp.init).
+final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, Sendable {
+    static let shared = NotificationDelegate()
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let userInfo = response.notification.request.content.userInfo
+        if let fundId = userInfo[NotificationUserInfoKey.fundId] as? String {
+            NotificationCenter.default.post(name: .selectFund, object: fundId)
+        }
+        completionHandler()
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound, .badge])
+    }
+}
+
 @MainActor @Observable
 final class DCANotificationManager {
     static let shared = DCANotificationManager()
@@ -86,7 +112,7 @@ final class DCANotificationManager {
             content.body = "Time to DCA into \(fund.ticker.uppercased()) on \(fund.platform.capitalized)\(amountStr)"
             content.sound = .default
             content.categoryIdentifier = Self.categoryId
-            content.userInfo = ["fundId": fund.id]
+            content.userInfo = [NotificationUserInfoKey.fundId: fund.id]
 
             let calendar = Calendar.current
             let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)

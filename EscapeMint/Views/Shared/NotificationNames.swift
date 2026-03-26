@@ -7,3 +7,7 @@ extension Notification.Name {
     static let selectPlatform = Notification.Name("selectPlatform")
     static let showAddEntry = Notification.Name("showAddEntry")
 }
+
+enum NotificationUserInfoKey {
+    static let fundId = "fundId"
+}
