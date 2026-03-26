@@ -1,6 +1,9 @@
 import SwiftUI
 import Charts
 import UniformTypeIdentifiers
+import os
+
+private let dashboardLogger = Logger(subsystem: "net.shadowpuppet.EscapeMint", category: "Dashboard")
 
 struct DashboardView: View {
     private var store: FundDataStore { .shared }
@@ -715,7 +718,7 @@ struct DashboardView: View {
                 let count = try await FundStore.shared.importFromDirectory(url)
                 if count > 0 { await store.reload() }
             } catch {
-                print("Import failed: \(error.localizedDescription)")
+                dashboardLogger.error("Import failed: \(error.localizedDescription)")
             }
         }
     }

@@ -1,4 +1,7 @@
 import SwiftUI
+import os
+
+private let addEntryLogger = Logger(subsystem: "net.shadowpuppet.EscapeMint", category: "AddEntry")
 
 struct NumericFieldRow: View {
     let label: String
@@ -156,7 +159,7 @@ func autoSyncCashFund(fundId: String, entry: FundEntry, config: FundConfig) asyn
     let manageCash = config.manage_cash != false
     guard !manageCash, let amt = entry.amount, amt > 0,
           (entry.action == .BUY || entry.action == .SELL) else {
-        print("[autoSyncCashFund] skipped for \(fundId): manageCash=\(config.manage_cash != false), amount=\(entry.amount ?? 0), action=\(entry.action?.rawValue ?? "nil")")
+        addEntryLogger.debug("autoSyncCashFund skipped for \(fundId, privacy: .private): manageCash=\(config.manage_cash != false), amount=\(entry.amount ?? 0), action=\(entry.action?.rawValue ?? "nil")")
         return
     }
 
@@ -164,7 +167,7 @@ func autoSyncCashFund(fundId: String, entry: FundEntry, config: FundConfig) asyn
     let cashFundId = "\(platform)-cash"
     let store = FundDataStore.shared
     guard let cashFund = store.funds.first(where: { $0.id == cashFundId }) else {
-        print("[autoSyncCashFund] no cash fund found for platform '\(platform)' (expected \(cashFundId))")
+        addEntryLogger.debug("autoSyncCashFund no cash fund found for platform '\(platform, privacy: .private)' (expected \(cashFundId, privacy: .private))")
         return
     }
 

@@ -12,7 +12,7 @@ final class LivePriceService {
     private(set) var isFetching = false
 
     private static let logger = Logger(subsystem: "net.shadowpuppet.EscapeMint", category: "LivePrice")
-    static let cacheTTLSeconds: TimeInterval = 300
+    static nonisolated let cacheTTLSeconds: TimeInterval = 300
 
     struct PriceData: Sendable {
         let price: Double
@@ -20,7 +20,7 @@ final class LivePriceService {
         let fetchedAt: Date
 
         var isStale: Bool {
-            Date().timeIntervalSince(fetchedAt) > 300
+            Date().timeIntervalSince(fetchedAt) > LivePriceService.cacheTTLSeconds
         }
     }
 

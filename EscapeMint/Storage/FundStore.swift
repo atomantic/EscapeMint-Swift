@@ -1,10 +1,17 @@
 import Foundation
+import os
 
 actor FundStore {
     static let shared = FundStore()
 
     private let fileManager = FileManager.default
     private static let iCloudContainerId = "iCloud.net.shadowpuppet.EscapeMint"
+    private static let logger = Logger(subsystem: "net.shadowpuppet.EscapeMint", category: "FundStore")
+    private static let backupDateFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd-HHmmss"
+        return df
+    }()
 
     nonisolated(unsafe) private(set) var fundsDirectory: URL
     nonisolated(unsafe) private(set) var isICloud: Bool
@@ -33,15 +40,15 @@ actor FundStore {
             if iCloudWorks {
                 resolvedDir = funds
                 resolvedICloud = true
-                print("[FundStore] ☁️ using iCloud: \(funds.path)")
+                Self.logger.info("☁️ using iCloud: \(funds.path, privacy: .public)")
             } else if let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first {
                 let local = docs.appendingPathComponent("funds")
                 try? fm.createDirectory(at: local, withIntermediateDirectories: true)
                 resolvedDir = local
                 resolvedICloud = false
-                print("[FundStore] ⚠️ iCloud container exists but inaccessible, using local")
+                Self.logger.warning("⚠️ iCloud container exists but inaccessible, using local")
             } else {
-                print("[FundStore] ⚠️ documentDirectory unavailable, using temp directory")
+                Self.logger.warning("⚠️ documentDirectory unavailable, using temp directory")
                 let local = fm.temporaryDirectory.appendingPathComponent("funds")
                 try? fm.createDirectory(at: local, withIntermediateDirectories: true)
                 resolvedDir = local
@@ -49,7 +56,7 @@ actor FundStore {
             }
         } else if !skipICloud {
             // iCloud URL returned nil — may be temporarily unavailable (e.g. after reboot)
-            print("[FundStore] ⚠️ iCloud unavailable at init, will retry during load")
+            Self.logger.info("⚠️ iCloud unavailable at init, will retry during load")
             if let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first {
                 let funds = docs.appendingPathComponent("funds")
                 try? fm.createDirectory(at: funds, withIntermediateDirectories: true)
@@ -88,12 +95,12 @@ actor FundStore {
 
         // If no iCloud account is signed in at all, don't waste time retrying
         guard fm.ubiquityIdentityToken != nil else {
-            print("[FundStore] ☁️ no iCloud account, skipping retry")
+            Self.logger.info("☁️ no iCloud account, skipping retry")
             return false
         }
 
         for attempt in 1...5 {
-            print("[FundStore] ☁️ iCloud retry \(attempt)/5")
+            Self.logger.info("☁️ iCloud retry \(attempt)/5")
             try? await Task.sleep(for: .seconds(1))
 
             guard let iCloudURL = fm.url(forUbiquityContainerIdentifier: Self.iCloudContainerId) else {
@@ -103,7 +110,7 @@ actor FundStore {
             do {
                 try fm.createDirectory(at: funds, withIntermediateDirectories: true)
                 _ = try fm.contentsOfDirectory(at: funds, includingPropertiesForKeys: nil)
-                print("[FundStore] ☁️ iCloud recovered on attempt \(attempt)")
+                Self.logger.info("☁️ iCloud recovered on attempt \(attempt)")
                 fundsDirectory = funds
                 isICloud = true
                 return true
@@ -111,7 +118,7 @@ actor FundStore {
                 continue
             }
         }
-        print("[FundStore] ☁️ iCloud unavailable after 5 retries, using local storage")
+        Self.logger.warning("☁️ iCloud unavailable after 5 retries, using local storage")
         return false
     }
 
@@ -243,8 +250,8 @@ actor FundStore {
         let configURL = fundsDirectory.appendingPathComponent("\(fundId).json")
         guard fileManager.fileExists(atPath: configURL.path) else { return }
 
-        guard let existing = try? Data(contentsOf: configURL),
-              let existingConfig = try? JSONDecoder().decode(FundConfig.self, from: existing) else { return }
+        let existing = try Data(contentsOf: configURL)
+        let existingConfig = try JSONDecoder().decode(FundConfig.self, from: existing)
 
         var updated = config
         updated.platform = existingConfig.platform
@@ -256,15 +263,19 @@ actor FundStore {
     func deleteFund(id: String) throws {
         let tsvURL = fundsDirectory.appendingPathComponent("\(id).tsv")
         let configURL = fundsDirectory.appendingPathComponent("\(id).json")
-        try? fileManager.removeItem(at: tsvURL)
-        try? fileManager.removeItem(at: configURL)
+        if fileManager.fileExists(atPath: tsvURL.path) {
+            try fileManager.removeItem(at: tsvURL)
+        }
+        if fileManager.fileExists(atPath: configURL.path) {
+            try fileManager.removeItem(at: configURL)
+        }
     }
 
     func deleteAllFunds() throws {
         let dir = fundsDirectory
-        guard let files = try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else { return }
+        let files = try fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
         for file in files {
-            try? fileManager.removeItem(at: file)
+            try fileManager.removeItem(at: file)
         }
 
         // When using iCloud, also clear the local Documents/funds/ directory
@@ -273,7 +284,7 @@ actor FundStore {
             let localFunds = localDocs.appendingPathComponent("funds")
             if let localFiles = try? fileManager.contentsOfDirectory(at: localFunds, includingPropertiesForKeys: nil) {
                 for file in localFiles {
-                    try? fileManager.removeItem(at: file)
+                    try fileManager.removeItem(at: file)
                 }
             }
         }
@@ -384,7 +395,7 @@ actor FundStore {
 
             // Validate fund ID contains only safe characters for file paths
             guard id.wholeMatch(of: safeFundIdPattern) != nil else {
-                print("[FundStore] skipping fund with unsafe id: \(id)")
+                Self.logger.warning("skipping fund with unsafe id: \(id, privacy: .private)")
                 continue
             }
 
@@ -545,9 +556,7 @@ actor FundStore {
 
         let data = try JSONSerialization.data(withJSONObject: backup, options: [.prettyPrinted, .sortedKeys])
 
-        let df = DateFormatter()
-        df.dateFormat = "yyyy-MM-dd-HHmmss"
-        let filename = "escapemint-backup-\(df.string(from: Date())).json"
+        let filename = "escapemint-backup-\(Self.backupDateFormatter.string(from: Date())).json"
 
         let exportDir = FileManager.default.temporaryDirectory.appendingPathComponent("escapemint-export")
         try? FileManager.default.createDirectory(at: exportDir, withIntermediateDirectories: true)
@@ -567,17 +576,19 @@ actor FundStore {
         let backupDir = fundsDirectory.deletingLastPathComponent().appendingPathComponent("backups")
         try fm.createDirectory(at: backupDir, withIntermediateDirectories: true)
 
-        let df = DateFormatter()
-        df.dateFormat = "yyyy-MM-dd-HHmmss"
-        let timestamp = df.string(from: Date())
+        let timestamp = Self.backupDateFormatter.string(from: Date())
         let fundBackupDir = backupDir.appendingPathComponent("\(id)_\(timestamp)")
         try fm.createDirectory(at: fundBackupDir, withIntermediateDirectories: true)
 
         let tsvSrc = fundsDirectory.appendingPathComponent("\(id).tsv")
         let jsonSrc = fundsDirectory.appendingPathComponent("\(id).json")
 
-        try? fm.copyItem(at: tsvSrc, to: fundBackupDir.appendingPathComponent("\(id).tsv"))
-        try? fm.copyItem(at: jsonSrc, to: fundBackupDir.appendingPathComponent("\(id).json"))
+        if fm.fileExists(atPath: tsvSrc.path) {
+            try fm.copyItem(at: tsvSrc, to: fundBackupDir.appendingPathComponent("\(id).tsv"))
+        }
+        if fm.fileExists(atPath: jsonSrc.path) {
+            try fm.copyItem(at: jsonSrc, to: fundBackupDir.appendingPathComponent("\(id).json"))
+        }
         return fundBackupDir
     }
 
