@@ -16,6 +16,10 @@ final class WidgetDataProvider {
 
     /// Write current portfolio state to the shared container
     func updateSnapshot() {
+        guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupId) else {
+            return
+        }
+
         let store = FundDataStore.shared
         let portfolio = store.portfolio
         let actionable = store.actionableFunds
@@ -44,11 +48,6 @@ final class WidgetDataProvider {
             topFunds: topFunds,
             updatedAt: Date()
         )
-
-        guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupId) else {
-            Self.logger.warning("App Group container not available")
-            return
-        }
 
         let fileURL = containerURL.appendingPathComponent(Self.snapshotFileName)
         do {

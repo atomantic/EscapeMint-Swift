@@ -45,6 +45,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDisplayName: EscapeMint
         LSApplicationCategoryType: public.app-category.finance
+        NSFaceIDUsageDescription: EscapeMint uses Face ID to protect your portfolio data.
         UILaunchScreen: {}
         ITSAppUsesNonExemptEncryption: false
         UISupportedInterfaceOrientations:
@@ -86,9 +87,6 @@ targets:
         INFOPLIST_FILE: EscapeMintWidget/Info.plist
     entitlements:
       path: EscapeMintWidget/EscapeMintWidget.entitlements
-      properties:
-        com.apple.security.application-groups:
-          - group.net.shadowpuppet.EscapeMint
 
   EscapeMintTests_iOS:
     type: bundle.unit-test

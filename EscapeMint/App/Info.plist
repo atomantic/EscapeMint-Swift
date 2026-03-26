@@ -24,6 +24,8 @@
 	<false/>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.finance</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>EscapeMint uses Face ID to protect your portfolio data.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>
