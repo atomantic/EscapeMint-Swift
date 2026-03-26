@@ -7,6 +7,16 @@ struct NumericFieldRow: View {
     var hint: String? = nil
     var sign: String? = nil
 
+    private var formulaHint: String? {
+        guard isFormula(text) else { return nil }
+        let result = parseFormulaValue(text)
+        if result == 0 && !text.contains("0") { return nil }
+        let formatted = result.truncatingRemainder(dividingBy: 1) == 0
+            ? String(format: "%.0f", result)
+            : String(format: "%.2f", result)
+        return "= \(formatted)"
+    }
+
     var body: some View {
         HStack {
             Text(label)
@@ -18,7 +28,7 @@ struct NumericFieldRow: View {
                     .font(.callout)
             }
             TextField("", text: $text, prompt: Text(placeholder).foregroundColor(.textMuted.opacity(0.5)))
-                .numericKeyboard()
+                .formulaKeyboard()
                 .multilineTextAlignment(.trailing)
                 #if os(macOS)
                 .frame(maxWidth: 200)
@@ -29,7 +39,12 @@ struct NumericFieldRow: View {
                         text = newValue.replacingOccurrences(of: "-", with: "")
                     }
                 }
-            if let hint {
+            if let formulaHint {
+                Text(formulaHint)
+                    .font(.caption)
+                    .foregroundColor(.mint)
+                    .frame(minWidth: 60, alignment: .trailing)
+            } else if let hint {
                 Text(hint)
                     .font(.caption)
                     .foregroundColor(.textMuted)
@@ -353,8 +368,9 @@ struct AddEntryView: View {
     }
 
     private func calcPriceEquity() {
-        guard let amountVal = Double(amount), amountVal > 0,
-              let sharesVal = Double(shares), sharesVal > 0 else { return }
+        let amountVal = parseFormulaValue(amount)
+        let sharesVal = parseFormulaValue(shares)
+        guard amountVal > 0, sharesVal > 0 else { return }
 
         let selectedDate = isoDateFormatter.string(from: date)
         let calculatedPrice = amountVal / abs(sharesVal)
@@ -370,8 +386,8 @@ struct AddEntryView: View {
     private func saveCash() {
         guard !isSaving else { return }
         isSaving = true
-        let cashBalance = Double(value) ?? 0
-        let amt = Double(amount) ?? 0
+        let cashBalance = parseFormulaValue(value)
+        let amt = parseFormulaValue(amount)
         // Adjust cash balance by the amount (positive = deposit, negative = withdraw)
         let adjustedCash = max(0, cashBalance + amt)
         let entryAction: FundAction? = amt > 0 ? .DEPOSIT : amt < 0 ? .WITHDRAW : nil
@@ -382,12 +398,12 @@ struct AddEntryView: View {
             action: entryAction,
             amount: amt != 0 ? abs(amt) : nil
         )
-        if let ci = Double(cashInterest), ci != 0 { entry.cash_interest = ci }
-        if let f = Double(fee), f != 0 { entry.expense = f }
-        if let ma = Double(marginAvailable), ma != 0 { entry.margin_available = ma }
-        if let mb = Double(marginBorrowed), mb != 0 { entry.margin_borrowed = mb }
+        let ci = parseFormulaValue(cashInterest); if ci != 0 { entry.cash_interest = ci }
+        let f = parseFormulaValue(fee); if f != 0 { entry.expense = f }
+        let ma = parseFormulaValue(marginAvailable); if ma != 0 { entry.margin_available = ma }
+        let mb = parseFormulaValue(marginBorrowed); if mb != 0 { entry.margin_borrowed = mb }
         if !notes.isEmpty { entry.notes = notes }
-        if let fs = Double(fundSizeOverride), fs >= 0 {
+        let fs = parseFormulaValue(fundSizeOverride); if fs > 0 {
             entry.fund_size = fs
         } else {
             entry.fund_size = computeFundSizeForEntry(entry, existingEntries: existingEntries, config: fundConfig)
@@ -405,24 +421,23 @@ struct AddEntryView: View {
         isSaving = true
         var entry = FundEntry(
             date: isoDateFormatter.string(from: date),
-            value: Double(value) ?? 0,
+            value: parseFormulaValue(value),
             action: action
         )
-        if let amt = Double(amount), amt != 0 { entry.amount = amt }
-        if let s = Double(shares), s != 0 { entry.shares = s }
-        if let p = Double(price), p != 0 { entry.price = p }
-        if let d = Double(deposit), d != 0 {
-            // Store deposit in notes if no dedicated field
+        let amt = parseFormulaValue(amount); if amt != 0 { entry.amount = amt }
+        let s = parseFormulaValue(shares); if s != 0 { entry.shares = s }
+        let p = parseFormulaValue(price); if p != 0 { entry.price = p }
+        let d = parseFormulaValue(deposit); if d != 0 {
             let depNote = "Deposit: $\(String(format: "%.2f", d))"
             notes = notes.isEmpty ? depNote : "\(notes) | \(depNote)"
         }
-        if let w = Double(withdrawal), w != 0 {
+        let w = parseFormulaValue(withdrawal); if w != 0 {
             let wNote = "Withdrawal: $\(String(format: "%.2f", w))"
             notes = notes.isEmpty ? wNote : "\(notes) | \(wNote)"
         }
-        if let dv = Double(dividend), dv != 0 { entry.dividend = dv }
-        if let ma = Double(marginAvailable), ma != 0 { entry.margin_available = ma }
-        if let mb = Double(marginBorrowed), mb != 0 { entry.margin_borrowed = mb }
+        let dv = parseFormulaValue(dividend); if dv != 0 { entry.dividend = dv }
+        let ma = parseFormulaValue(marginAvailable); if ma != 0 { entry.margin_available = ma }
+        let mb = parseFormulaValue(marginBorrowed); if mb != 0 { entry.margin_borrowed = mb }
         if !notes.isEmpty { entry.notes = notes }
 
         // Compute fund_size

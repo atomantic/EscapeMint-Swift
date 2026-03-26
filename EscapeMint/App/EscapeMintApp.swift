@@ -140,12 +140,19 @@ struct ContentView: View {
     }
 
     #if os(iOS)
+    @State private var dashboardPath = NavigationPath()
+
     @ViewBuilder
     private var tabContent: some View {
         if #available(iOS 18.0, *) {
             TabView(selection: $selectedTab) {
                 Tab("Dashboard", systemImage: "chart.bar.fill", value: 0) {
-                    NavigationStack { DashboardView() }
+                    NavigationStack(path: $dashboardPath) {
+                        DashboardView()
+                            .navigationDestination(for: String.self) { fundId in
+                                FundDetailView(fundId: fundId)
+                            }
+                    }
                 }
                 Tab("Backtest", systemImage: "waveform.path.ecg", value: 1) {
                     NavigationStack { BacktestView() }
@@ -160,9 +167,21 @@ struct ContentView: View {
                     NavigationStack { SettingsView() }
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .selectFund)) { note in
+                if let id = note.object as? String {
+                    selectedTab = 0
+                    dashboardPath = NavigationPath()
+                    dashboardPath.append(id)
+                }
+            }
         } else {
             TabView(selection: $selectedTab) {
-                NavigationStack { DashboardView() }
+                NavigationStack(path: $dashboardPath) {
+                    DashboardView()
+                        .navigationDestination(for: String.self) { fundId in
+                            FundDetailView(fundId: fundId)
+                        }
+                }
                     .tabItem { Label("Dashboard", systemImage: "chart.bar.fill") }
                     .tag(0)
                 NavigationStack { BacktestView() }
@@ -177,6 +196,13 @@ struct ContentView: View {
                 NavigationStack { SettingsView() }
                     .tabItem { Label("Settings", systemImage: "gear") }
                     .tag(4)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .selectFund)) { note in
+                if let id = note.object as? String {
+                    selectedTab = 0
+                    dashboardPath = NavigationPath()
+                    dashboardPath.append(id)
+                }
             }
         }
     }

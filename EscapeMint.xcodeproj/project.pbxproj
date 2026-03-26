@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		00C69901BFC3ED1EB67B856D /* FundMetricsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD7045F4A08A28EE158CB394 /* FundMetricsTests.swift */; };
+		00CF1D256E98CC6CDB47E710 /* FormulaParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A67F19978F79577997C81D /* FormulaParser.swift */; };
 		028FBE500288EC70FBD20E9A /* ServicesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA953739D75435BB66AB189B /* ServicesTests.swift */; };
 		05E6EE7E9E935792AFD0637E /* coinbasetest-cash.tsv in Resources */ = {isa = PBXBuildFile; fileRef = E0E8FFADDDBD64D9D18EDA3F /* coinbasetest-cash.tsv */; };
 		09D7080C269F01DE77D73ADE /* ViewCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2164A2148317851922E92087 /* ViewCache.swift */; };
@@ -107,6 +108,7 @@
 		B69B8BE99B11E76130C914D5 /* AdvancedToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43EA0A1D7008E27E20D07B13 /* AdvancedToolsTests.swift */; };
 		B78CF5602C037D36B8704885 /* EngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DEB29D5F7AD42857B739CEE /* EngineTests.swift */; };
 		B8047AE46A726EDA9BADE48D /* robinhoodtest-spxl.json in Resources */ = {isa = PBXBuildFile; fileRef = 2324DA91E49C3F0CD95CE1DE /* robinhoodtest-spxl.json */; };
+		B979633DC473F06CC992BEDC /* FormulaParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A67F19978F79577997C81D /* FormulaParser.swift */; };
 		BA705DF3CCF3E382D2289B65 /* AppearanceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0653A0CB7C81F563F38D00C1 /* AppearanceManager.swift */; };
 		BCBDF87F48F3742996392369 /* spxl-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = A1CDA29D3BC058B300AC82EA /* spxl-weekly.json */; };
 		BE54A8C9C11054F4DE6F27D5 /* AdvancedTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE306CC057A54F1DBFC1B1CA /* AdvancedTools.swift */; };
@@ -256,6 +258,7 @@
 		CD7045F4A08A28EE158CB394 /* FundMetricsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundMetricsTests.swift; sourceTree = "<group>"; };
 		D069B36344092C759389B19F /* EscapeMintWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = EscapeMintWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		D4948BA46E25035E9E656E36 /* IntroCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroCharts.swift; sourceTree = "<group>"; };
+		D8A67F19978F79577997C81D /* FormulaParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormulaParser.swift; sourceTree = "<group>"; };
 		DE273771E41052451E80DD9F /* BacktestCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacktestCharts.swift; sourceTree = "<group>"; };
 		E0E8FFADDDBD64D9D18EDA3F /* coinbasetest-cash.tsv */ = {isa = PBXFileReference; path = "coinbasetest-cash.tsv"; sourceTree = "<group>"; };
 		E725D16A17E4F0835D06D981 /* BacktestEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacktestEngine.swift; sourceTree = "<group>"; };
@@ -522,6 +525,7 @@
 				EE306CC057A54F1DBFC1B1CA /* AdvancedTools.swift */,
 				E725D16A17E4F0835D06D981 /* BacktestEngine.swift */,
 				15B673A9482FD463F5027CA9 /* Converters.swift */,
+				D8A67F19978F79577997C81D /* FormulaParser.swift */,
 				ADF82E9F62C6337CA018D70F /* FundEngine.swift */,
 			);
 			path = Engine;
@@ -750,6 +754,7 @@
 				3FF9F76DC70C4D2D2AAA77E2 /* EditEntryView.swift in Sources */,
 				952FF89A615E2D3D7D2B804A /* EditFundView.swift in Sources */,
 				42536F85618CDA7693CC33F2 /* EscapeMintApp.swift in Sources */,
+				00CF1D256E98CC6CDB47E710 /* FormulaParser.swift in Sources */,
 				F85646C4B05938C26C193E81 /* FundCardView.swift in Sources */,
 				D4AA378DD170290DE9E65AD4 /* FundCharts.swift in Sources */,
 				4CC387AE5BD815C7DCE6AC66 /* FundDataStore.swift in Sources */,
@@ -810,6 +815,7 @@
 				B2458A2217463775A1EE26B3 /* EditEntryView.swift in Sources */,
 				4410F30862490B374CCE6632 /* EditFundView.swift in Sources */,
 				CFF07BF43EECAB7A8E1A4ECB /* EscapeMintApp.swift in Sources */,
+				B979633DC473F06CC992BEDC /* FormulaParser.swift in Sources */,
 				192442462A6FE331F8E495C3 /* FundCardView.swift in Sources */,
 				788AEA7348838EC514180C76 /* FundCharts.swift in Sources */,
 				881770F19680895E015AC2CE /* FundDataStore.swift in Sources */,

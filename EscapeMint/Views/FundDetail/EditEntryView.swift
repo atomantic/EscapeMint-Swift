@@ -132,8 +132,9 @@ struct EditEntryView: View {
     }
 
     private func calcPriceEquity() {
-        guard let amountVal = Double(amount), amountVal > 0,
-              let sharesVal = Double(shares), sharesVal > 0 else { return }
+        let amountVal = parseFormulaValue(amount)
+        let sharesVal = parseFormulaValue(shares)
+        guard amountVal > 0, sharesVal > 0 else { return }
 
         let selectedDate = isoDateFormatter.string(from: date)
         let calculatedPrice = amountVal / abs(sharesVal)
@@ -151,18 +152,18 @@ struct EditEntryView: View {
         isSaving = true
         var updated = entry
         updated.date = isoDateFormatter.string(from: date)
-        updated.value = Double(value) ?? 0
+        updated.value = parseFormulaValue(value)
         updated.action = action
-        updated.amount = Double(amount)
-        updated.shares = Double(shares)
-        updated.price = Double(price)
-        updated.dividend = Double(dividend)
-        updated.expense = Double(expense)
-        updated.margin_available = Double(marginAvailable)
-        updated.margin_borrowed = Double(marginBorrowed)
+        let amt = parseFormulaValue(amount); updated.amount = amt != 0 ? amt : nil
+        let sh = parseFormulaValue(shares); updated.shares = sh != 0 ? sh : nil
+        let pr = parseFormulaValue(price); updated.price = pr != 0 ? pr : nil
+        let div = parseFormulaValue(dividend); updated.dividend = div != 0 ? div : nil
+        let exp = parseFormulaValue(expense); updated.expense = exp != 0 ? exp : nil
+        let mav = parseFormulaValue(marginAvailable); updated.margin_available = mav != 0 ? mav : nil
+        let mbr = parseFormulaValue(marginBorrowed); updated.margin_borrowed = mbr != 0 ? mbr : nil
         updated.notes = notes.isEmpty ? nil : notes
 
-        updated.fund_size = Double(fundSizeText)
+        let fs = parseFormulaValue(fundSizeText); updated.fund_size = fs != 0 ? fs : nil
 
         dismiss()
         Task {

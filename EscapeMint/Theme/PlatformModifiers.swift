@@ -10,6 +10,17 @@ extension View {
         #endif
     }
 
+    /// Keyboard for numeric fields that also support formula input (+, -, *, /).
+    @ViewBuilder
+    func formulaKeyboard() -> some View {
+        #if os(iOS)
+        self.keyboardType(.numbersAndPunctuation)
+            .autocorrectionDisabled()
+        #else
+        self
+        #endif
+    }
+
     @ViewBuilder
     func numberKeyboard() -> some View {
         #if os(iOS)

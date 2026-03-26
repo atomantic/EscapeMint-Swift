@@ -75,16 +75,12 @@ struct FundDetailView: View {
         }
         .sheet(isPresented: $showAddEntry) {
             if let fund {
-                AddEntryView(fundId: fund.id, fundType: fund.config.fund_type ?? .stock, fundConfig: fund.config, existingEntries: fund.entries, recommendation: summary?.isDueForAction == true ? summary?.recommendation : nil) {
-                    Task { await store.reload() }
-                }
+                AddEntryView(fundId: fund.id, fundType: fund.config.fund_type ?? .stock, fundConfig: fund.config, existingEntries: fund.entries, recommendation: summary?.isDueForAction == true ? summary?.recommendation : nil) {}
             }
         }
         .sheet(isPresented: $showEditFund) {
             if let fund {
-                EditFundView(fund: fund, onSaved: {
-                    Task { await store.reload() }
-                }, onDeleted: {
+                EditFundView(fund: fund, onSaved: {}, onDeleted: {
                     wasDeleted = true
                     NotificationCenter.default.post(name: .selectDashboard, object: nil)
                     dismiss()
@@ -92,9 +88,7 @@ struct FundDetailView: View {
             }
         }
         .sheet(item: $editTarget) { target in
-            EditEntryView(entry: target.entry, entryIndex: target.index, fundId: fundId, fundType: fund?.config.fund_type ?? .stock, fundConfig: fund?.config ?? FundConfig(), existingEntries: fund?.entries ?? []) {
-                Task { await store.reload() }
-            }
+            EditEntryView(entry: target.entry, entryIndex: target.index, fundId: fundId, fundType: fund?.config.fund_type ?? .stock, fundConfig: fund?.config ?? FundConfig(), existingEntries: fund?.entries ?? []) {}
         }
     }
 

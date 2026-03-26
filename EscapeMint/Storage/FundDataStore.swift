@@ -146,83 +146,83 @@ final class FundDataStore {
         summaryMap[id]
     }
 
-    // MARK: - Mutations (update memory + disk)
+    // MARK: - Mutations (memory first for instant UI, then persist to disk)
 
     func addFund(_ fund: FundData) async {
+        funds.append(fund)
+        loadedFundCount = funds.count
+        await recompute()
         do {
             try await FundStore.shared.writeFund(fund)
             ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
             Self.logger.error("addFund disk write failed: \(error)")
         }
-        funds.append(fund)
-        loadedFundCount = funds.count
-        await recompute()
     }
 
     func updateFund(_ fund: FundData) async {
+        if let idx = funds.firstIndex(where: { $0.id == fund.id }) {
+            funds[idx] = fund
+            await recompute()
+        }
         do {
             try await FundStore.shared.writeFund(fund)
             ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
             Self.logger.error("updateFund disk write failed: \(error)")
         }
-        if let idx = funds.firstIndex(where: { $0.id == fund.id }) {
-            funds[idx] = fund
-        }
-        await recompute()
     }
 
     func deleteFund(id: String) async {
+        funds.removeAll { $0.id == id }
+        loadedFundCount = funds.count
+        await recompute()
         do {
             try await FundStore.shared.deleteFund(id: id)
             ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
             Self.logger.error("deleteFund disk delete failed: \(error)")
         }
-        funds.removeAll { $0.id == id }
-        loadedFundCount = funds.count
-        await recompute()
     }
 
     func appendEntry(fundId: String, entry: FundEntry) async {
+        if let idx = funds.firstIndex(where: { $0.id == fundId }) {
+            funds[idx].entries.append(entry)
+            ViewCache.shared.invalidateFundCache(fundId: fundId)
+            await recompute()
+        }
         do {
             try await FundStore.shared.appendEntry(fundId: fundId, entry: entry)
             ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
             Self.logger.error("appendEntry disk write failed: \(error)")
         }
-        if let idx = funds.firstIndex(where: { $0.id == fundId }) {
-            funds[idx].entries.append(entry)
-            ViewCache.shared.invalidateFundCache(fundId: fundId)
-            await recompute()
-        }
     }
 
     func replaceEntries(fundId: String, entries: [FundEntry]) async {
+        if let idx = funds.firstIndex(where: { $0.id == fundId }) {
+            funds[idx].entries = entries
+            ViewCache.shared.invalidateFundCache(fundId: fundId)
+            await recompute()
+        }
         do {
             try await FundStore.shared.replaceEntries(fundId: fundId, entries: entries)
             ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
             Self.logger.error("replaceEntries disk write failed: \(error)")
         }
-        if let idx = funds.firstIndex(where: { $0.id == fundId }) {
-            funds[idx].entries = entries
-            ViewCache.shared.invalidateFundCache(fundId: fundId)
-            await recompute()
-        }
     }
 
     func updateConfig(fundId: String, config: FundConfig) async {
+        if let idx = funds.firstIndex(where: { $0.id == fundId }) {
+            funds[idx].config = config
+            await recompute()
+        }
         do {
             try await FundStore.shared.updateConfig(fundId: fundId, config: config)
             ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
             Self.logger.error("updateConfig disk write failed: \(error)")
-        }
-        if let idx = funds.firstIndex(where: { $0.id == fundId }) {
-            funds[idx].config = config
-            await recompute()
         }
     }
 
