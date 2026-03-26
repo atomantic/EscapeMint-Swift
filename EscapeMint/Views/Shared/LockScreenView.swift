@@ -44,6 +44,7 @@ struct LockScreenView: View {
         case .faceID: return "faceid"
         case .touchID: return "touchid"
         case .opticID: return "opticid"
+        case .none: return "lock.open.fill"
         @unknown default: return "lock.open.fill"
         }
     }
