@@ -63,15 +63,24 @@ xcodegen generate
 
 if ! $SKIP_TESTS; then
     echo "🧪 Running tests..."
-    DESTINATION=$(
-        if xcrun simctl list devices available | grep -q "iPhone 17 Pro"; then
-            echo "platform=iOS Simulator,name=iPhone 17 Pro"
-        elif xcrun simctl list devices available | grep -q "iPhone 16"; then
-            echo "platform=iOS Simulator,name=iPhone 16"
-        else
-            echo "platform=iOS Simulator,name=iPhone 15"
-        fi
-    )
+    # Find a suitable iPhone simulator by device ID to avoid OS:latest mismatch
+    DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+preferred = ['iPhone 16 Pro', 'iPhone 16', 'iPhone 17 Pro', 'iPhone 15']
+for name in preferred:
+    for runtime, devices in data.get('devices', {}).items():
+        for d in devices:
+            if d['name'] == name and d.get('isAvailable', False):
+                print(d['udid']); sys.exit(0)
+# fallback: any available iPhone
+for runtime, devices in data.get('devices', {}).items():
+    for d in devices:
+        if 'iPhone' in d['name'] and d.get('isAvailable', False):
+            print(d['udid']); sys.exit(0)
+" 2>/dev/null)
+    DESTINATION="platform=iOS Simulator,id=$DEVICE_ID"
+    echo "📱 Test destination: $DESTINATION"
     xcodebuild test \
         -project "$PROJECT" \
         -scheme EscapeMintTests_iOS \
