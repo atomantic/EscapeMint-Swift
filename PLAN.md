@@ -62,7 +62,7 @@ Let users find funds instantly from the iOS home screen and ask Siri for portfol
 ## Known Issues
 
 - [ ] iOS 26 liquid glass TabView — using traditional `tabItem` API instead, but appearance still not ideal
-- [ ] DRY: identical `calcPriceEquity()` in AddEntryView + EditEntryView (deferred: extract to Engine)
+- [x] ~~DRY: identical `calcPriceEquity()` in AddEntryView + EditEntryView~~ — extracted to `EntryFormHelpers.swift`
 - [ ] Architecture: DashboardView:622 direct FundStore access for import (needs FundDataStore wrapper)
 - [x] ~~Dashboard metric values differ from webapp~~ — fixed: derivatives fund metrics, portfolioDays, endDate, fundSize
 - [ ] DRY: derivatives entry-processing switch duplicated 3x (FundEngine metrics, FundEngine entry rows, DerivativesCharts) — extract shared accumulator
@@ -72,6 +72,42 @@ Let users find funds instantly from the iOS home screen and ask Siri for portfol
 - [ ] Weak assertion patterns in EngineTests (XCTAssertNotNil + force unwrap, try!, re-implemented logic, loose accuracy)
 - [ ] Missing test coverage: FundStore actor, FundDataStore, import/export, computeFundSizeForEntry, FundEntry Codable round-trips
 - [ ] Missing edge case tests: BacktestEngine (negative prices, zero dividends), FundEngine (margin/derivatives)
+
+---
+
+## Better Swift Audit - 2026-03-26
+
+Summary: 35+ findings across 20+ files. 16 fixed, remainder deferred.
+Platforms: iOS 17+, macOS 14+ | Build system: XcodeGen
+
+### Fixed
+- [x] **FundStore**: `deleteFund`, `deleteAllFunds`, `updateConfig`, `backupFund` — replaced `try?` with proper error propagation
+- [x] **FundStore**: migrated all `print()` to `os.Logger` with privacy annotations
+- [x] **FundStore**: deduplicated backup DateFormatter to shared static property
+- [x] **LivePriceService**: `PriceData.isStale` now references `cacheTTLSeconds` constant instead of hardcoded 300
+- [x] **AddEntryView/DashboardView**: replaced `print()` with `os.Logger`
+- [x] **DRY**: extracted `calcPriceAndEquity()` to shared `EntryFormHelpers.swift` (was duplicated in AddEntryView + EditEntryView)
+- [x] **DRY**: extracted `dcaTipField`/`dcaTipToggle` to shared helpers (was duplicated in EditFundView + CreateFundView)
+- [x] **DRY**: added `Color.backgroundForAction()` to Theme.swift (was duplicated in FundCardView + EscapeMintApp)
+- [x] **DRY**: replaced inline DateFormatter in CreateFundView with `todayString()`, AdvancedTools with `isoDateFormatter`
+- [x] **Architecture**: moved formatting functions from Engine/FundEngine.swift to Theme/Formatters.swift (SRP: Engine should be pure computation, not presentation)
+- [x] **Warnings**: added missing `.none` case to LABiometryType switches (eliminates build warnings)
+
+### Deferred (tracked for future audits)
+- [ ] **[HIGH]** `FundStore.swift:9-10` — `nonisolated(unsafe)` data race on `fundsDirectory`/`isICloud`
+- [ ] **[HIGH]** `FundEngine.swift` — god file at 1327 lines (split into focused modules)
+- [ ] **[HIGH]** `MacContentView` (334 lines) embedded in EscapeMintApp.swift — extract to separate file
+- [ ] **[HIGH]** `FundDataStore` directly references `FundStore.shared` singleton — inject via protocol
+- [ ] **[HIGH]** No `#Preview` macros — views can't be previewed without live app environment
+- [ ] **[HIGH]** `importFromBackupJSON` uses `JSONSerialization` instead of `Codable` (fragile, stringly-typed)
+- [ ] **[MEDIUM]** `ViewCache` stores `Any` with `@unchecked Sendable` — use typed dictionaries
+- [ ] **[MEDIUM]** Biometric auth preference in UserDefaults (bypassable on jailbroken devices)
+- [ ] **[MEDIUM]** Widget snapshot missing file protection + App Group entitlements
+- [ ] **[MEDIUM]** `isWide` computed property repeated in 4 views
+- [ ] **[MEDIUM]** NSOpenPanel boilerplate duplicated in DashboardView + SettingsView
+- [ ] **[MEDIUM]** Toast/debounce state duplicated in SettingsView + FundDetailView
+- [ ] **[MEDIUM]** `computePortfolioTimeSeries` engine logic in PortfolioCharts.swift — move to Engine
+- [ ] **[MEDIUM]** `compute*Points` engine functions in FundCharts.swift — move to Engine
 
 ---
 
