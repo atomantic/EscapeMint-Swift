@@ -97,4 +97,12 @@ extension Color {
         default: return .orange
         }
     }
+
+    static func backgroundForAction(_ action: FundAction?) -> Color {
+        switch action {
+        case .BUY, .DEPOSIT: return .mintDark
+        case .SELL, .WITHDRAW: return .red
+        default: return .bgInput
+        }
+    }
 }

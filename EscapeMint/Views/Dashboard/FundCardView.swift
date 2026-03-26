@@ -38,7 +38,7 @@ struct FundCardView: View {
                         .font(.caption2).fontWeight(.semibold)
                         .foregroundColor(isHold ? .textMuted : .white)
                         .padding(.horizontal, 8).padding(.vertical, 4)
-                        .background(rec.action == .BUY ? Color.mintDark : rec.action == .SELL ? Color.red : Color.bgInput)
+                        .background(Color.backgroundForAction(rec.action))
                         .cornerRadius(6)
                 }
             }

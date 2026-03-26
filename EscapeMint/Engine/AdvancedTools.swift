@@ -143,22 +143,20 @@ func interpolateColumn(_ column: InterpolatableColumn, entries: [FundEntry]) -> 
     }
 
     var interpolated = 0
-    let df = DateFormatter()
-    df.dateFormat = "yyyy-MM-dd"
 
     for i in 0..<indexed.count {
         if getValue(indexed[i].entry, column: column) != nil {
             continue
         }
 
-        let entryTime = df.date(from: indexed[i].entry.date)?.timeIntervalSince1970 ?? 0
+        let entryTime = isoDateFormatter.date(from: indexed[i].entry.date)?.timeIntervalSince1970 ?? 0
 
         // Find surrounding known values
         var prevKnown: (time: Double, value: Double)?
         var nextKnown: (time: Double, value: Double)?
 
         for ki in knownIndices {
-            let knownTime = df.date(from: indexed[ki].entry.date)?.timeIntervalSince1970 ?? 0
+            let knownTime = isoDateFormatter.date(from: indexed[ki].entry.date)?.timeIntervalSince1970 ?? 0
             let knownValue = getValue(indexed[ki].entry, column: column) ?? 0
 
             if knownTime <= entryTime {

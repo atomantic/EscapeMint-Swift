@@ -132,19 +132,9 @@ struct EditEntryView: View {
     }
 
     private func calcPriceEquity() {
-        let amountVal = parseFormulaValue(amount)
-        let sharesVal = parseFormulaValue(shares)
-        guard amountVal > 0, sharesVal > 0 else { return }
-
-        let selectedDate = isoDateFormatter.string(from: date)
-        let calculatedPrice = amountVal / abs(sharesVal)
-        price = String(format: "%.8f", calculatedPrice)
-
-        let prior = getCumulativeShares(entries: existingEntries, beforeDate: selectedDate)
-        if prior > 0 {
-            let equity = prior * calculatedPrice
-            value = String(format: "%.2f", equity)
-        }
+        guard let result = calcPriceAndEquity(amount: amount, shares: shares, existingEntries: existingEntries, date: date) else { return }
+        price = result.price
+        if !result.value.isEmpty { value = result.value }
     }
 
     private func save() {

@@ -441,7 +441,7 @@ struct MacContentView: View {
                                         .font(.caption2).fontWeight(.semibold)
                                         .foregroundColor(isHold ? .textMuted : .white)
                                         .padding(.horizontal, 4).padding(.vertical, 1)
-                                        .background(rec.action == .BUY ? Color.mintDark : rec.action == .SELL ? Color.red : Color.bgInput)
+                                        .background(Color.backgroundForAction(rec.action))
                                         .cornerRadius(3)
                                 }
                             }

@@ -194,27 +194,27 @@ struct CreateFundView: View {
 
             if fundType != .cash && fundType != .derivatives {
                 Section("DCA Strategy") {
-                    tipField("Target APY (%)", tip: DCAHelp.targetApy, text: $targetApy, prompt: "10")
-                    tipField("Interval (days)", tip: DCAHelp.interval, text: $intervalDays, prompt: "7")
+                    dcaTipField("Target APY (%)", tip: DCAHelp.targetApy, text: $targetApy, prompt: "10")
+                    dcaTipField("Interval (days)", tip: DCAHelp.interval, text: $intervalDays, prompt: "7")
                 }
 
                 Section("DCA Amounts") {
-                    tipField("Min ($) — at/above target", tip: DCAHelp.minDCA, text: $inputMin, prompt: "100")
-                    tipField("Mid ($) — below target", tip: DCAHelp.midDCA, text: $inputMid, prompt: "150")
-                    tipField("Max ($) — significant loss", tip: DCAHelp.maxDCA, text: $inputMax, prompt: "200")
-                    tipField("Max threshold (%)", tip: DCAHelp.maxThreshold, text: $maxAtPct, prompt: "-25")
+                    dcaTipField("Min ($) — at/above target", tip: DCAHelp.minDCA, text: $inputMin, prompt: "100")
+                    dcaTipField("Mid ($) — below target", tip: DCAHelp.midDCA, text: $inputMid, prompt: "150")
+                    dcaTipField("Max ($) — significant loss", tip: DCAHelp.maxDCA, text: $inputMax, prompt: "200")
+                    dcaTipField("Max threshold (%)", tip: DCAHelp.maxThreshold, text: $maxAtPct, prompt: "-25")
                 }
 
                 Section("Sell & Cash") {
-                    tipField("Min profit ($) to sell", tip: DCAHelp.minProfit, text: $minProfit, prompt: "100")
-                    tipToggle("Accumulate mode", tip: DCAHelp.accumulate, isOn: $accumulate)
-                    tipToggle("Manage cash in fund", tip: DCAHelp.manageCash, isOn: $manageCash)
+                    dcaTipField("Min profit ($) to sell", tip: DCAHelp.minProfit, text: $minProfit, prompt: "100")
+                    dcaTipToggle("Accumulate mode", tip: DCAHelp.accumulate, isOn: $accumulate)
+                    dcaTipToggle("Manage cash in fund", tip: DCAHelp.manageCash, isOn: $manageCash)
                 }
             }
 
             if needsPlatformCash && !platformCashExists && !platform.isEmpty {
                 Section {
-                    tipField("Cash balance ($)", tip: "Starting cash available for DCA purchases on this platform.", text: $cashBalance, prompt: "0")
+                    dcaTipField("Cash balance ($)", tip: "Starting cash available for DCA purchases on this platform.", text: $cashBalance, prompt: "0")
                 } header: {
                     Text("Platform Cash")
                 } footer: {
@@ -237,24 +237,6 @@ struct CreateFundView: View {
 
     // MARK: - Shared helpers
 
-    @ViewBuilder
-    private func tipField(_ label: String, tip: String, text: Binding<String>, prompt: String) -> some View {
-        HStack {
-            InfoTipLabel(label: label, tip: tip)
-            Spacer()
-            TextField(prompt, text: text)
-                .multilineTextAlignment(.trailing)
-                .frame(width: 100)
-                .numericKeyboard()
-        }
-    }
-
-    @ViewBuilder
-    private func tipToggle(_ label: String, tip: String, isOn: Binding<Bool>) -> some View {
-        Toggle(isOn: isOn) {
-            InfoTipLabel(label: label, tip: tip)
-        }
-    }
 
     @ViewBuilder
     private func formSection(_ title: String, @ViewBuilder content: () -> some View) -> some View {
@@ -332,11 +314,7 @@ struct CreateFundView: View {
                     entries: []
                 )
                 if balance > 0 {
-                    cashFund.entries = [FundEntry(date: {
-                        let df = DateFormatter()
-                        df.dateFormat = "yyyy-MM-dd"
-                        return df.string(from: Date())
-                    }(), value: balance, cash: balance, action: .DEPOSIT, amount: balance, fund_size: balance)]
+                    cashFund.entries = [FundEntry(date: todayString(), value: balance, cash: balance, action: .DEPOSIT, amount: balance, fund_size: balance)]
                 }
                 await FundDataStore.shared.addFund(cashFund)
             }
