@@ -77,7 +77,7 @@ Let users find funds instantly from the iOS home screen and ask Siri for portfol
 
 ## Better Swift Audit - 2026-03-26
 
-Summary: 35+ findings across 20+ files. 16 fixed, remainder deferred.
+Summary: 80+ findings across 30+ files from 7 agents. 16 fixed, remainder deferred.
 Platforms: iOS 17+, macOS 14+ | Build system: XcodeGen
 
 ### Fixed
@@ -93,7 +93,7 @@ Platforms: iOS 17+, macOS 14+ | Build system: XcodeGen
 - [x] **Architecture**: moved formatting functions from Engine/FundEngine.swift to Theme/Formatters.swift (SRP: Engine should be pure computation, not presentation)
 - [x] **Warnings**: added missing `.none` case to LABiometryType switches (eliminates build warnings)
 
-### Deferred (tracked for future audits)
+### Deferred — Architecture & Code Quality
 - [ ] **[HIGH]** `FundStore.swift:9-10` — `nonisolated(unsafe)` data race on `fundsDirectory`/`isICloud`
 - [ ] **[HIGH]** `FundEngine.swift` — god file at 1327 lines (split into focused modules)
 - [ ] **[HIGH]** `MacContentView` (334 lines) embedded in EscapeMintApp.swift — extract to separate file
@@ -101,13 +101,47 @@ Platforms: iOS 17+, macOS 14+ | Build system: XcodeGen
 - [ ] **[HIGH]** No `#Preview` macros — views can't be previewed without live app environment
 - [ ] **[HIGH]** `importFromBackupJSON` uses `JSONSerialization` instead of `Codable` (fragile, stringly-typed)
 - [ ] **[MEDIUM]** `ViewCache` stores `Any` with `@unchecked Sendable` — use typed dictionaries
-- [ ] **[MEDIUM]** Biometric auth preference in UserDefaults (bypassable on jailbroken devices)
-- [ ] **[MEDIUM]** Widget snapshot missing file protection + App Group entitlements
+- [ ] **[MEDIUM]** `computePortfolioTimeSeries` engine logic in PortfolioCharts.swift — move to Engine
+- [ ] **[MEDIUM]** `compute*Points` engine functions in FundCharts.swift — move to Engine
+
+### Deferred — Bugs & Performance
+- [ ] **[HIGH]** O(n²) in `computePLPoints`/`computeAPYPoints` — inner `.filter` per sample point; use incremental cursor
+- [ ] **[HIGH]** `MacContentView` body recomputes `activeFunds`/`groupedActive` every render — use pre-computed `store.summaries`
+- [ ] **[MEDIUM]** `AuthManager.authenticate()` task not cancelled on `lock()` — can block re-auth
+- [ ] **[MEDIUM]** `ViewCache.startLoading` task has no stored handle and cannot be cancelled
+- [ ] **[MEDIUM]** `FundEntry.id` uses `UUID()` — unstable IDs cause full SwiftUI table re-renders on reload
+- [ ] **[MEDIUM]** Unbounded in-memory chart cache — no LRU eviction or memory-warning response
+- [ ] **[MEDIUM]** `FundSummary.isDueForAction` calls `todayString()` on every access — pre-compute once
+
+### Deferred — Platform & Accessibility
+- [ ] **[CRITICAL]** `preferredColorScheme(.dark)` hard-coded — `AppearanceManager` wired but never connected
+- [ ] **[HIGH]** Missing macOS `Settings` scene (no Cmd+, shortcut)
+- [ ] **[HIGH]** `.foregroundColor(.white)` on colored backgrounds — not adaptive for light mode (10+ instances)
+- [ ] **[HIGH]** IntroCharts/BacktestTransactions animations ignore `accessibilityReduceMotion`
+- [ ] **[HIGH]** macOS interactive rows use `.onTapGesture` without `.accessibilityAddTraits(.isButton)`
+- [ ] **[MEDIUM]** `@AppStorage` keys scattered as raw strings — extract to `AppStorageKeys` enum
+- [ ] **[MEDIUM]** Missing macOS keyboard shortcuts (Cmd+N, Cmd+R, Cmd+E)
+- [ ] **[MEDIUM]** Hardcoded font sizes (7-10pt) in BacktestTransactions/IntroCharts — no Dynamic Type scaling
+
+### Deferred — DRY
+- [ ] **[HIGH]** IntroCharts: `.padding(12).background(Color.bgCard).cornerRadius(12)` repeated 6x — use `.cardStyle()`
 - [ ] **[MEDIUM]** `isWide` computed property repeated in 4 views
 - [ ] **[MEDIUM]** NSOpenPanel boilerplate duplicated in DashboardView + SettingsView
 - [ ] **[MEDIUM]** Toast/debounce state duplicated in SettingsView + FundDetailView
-- [ ] **[MEDIUM]** `computePortfolioTimeSeries` engine logic in PortfolioCharts.swift — move to Engine
-- [ ] **[MEDIUM]** `compute*Points` engine functions in FundCharts.swift — move to Engine
+- [ ] **[MEDIUM]** miniStat/statColumn/StatBox — 3 variants of same component
+
+### Deferred — Security
+- [ ] **[MEDIUM]** Biometric auth preference in UserDefaults (bypassable on jailbroken devices)
+- [ ] **[MEDIUM]** Widget snapshot missing file protection + App Group entitlements
+- [ ] **[MEDIUM]** File protection not re-applied after atomic writes in `replaceEntries`
+
+### Deferred — Tests
+- [ ] **[CRITICAL]** `FormulaParser.swift` — 0 tests for user input parsing (trivially testable pure functions)
+- [ ] **[CRITICAL]** `FundStore` actor methods — 0 integration tests for I/O layer
+- [ ] **[HIGH]** `BacktestEngine.runBacktest` — only 1 happy-path test, no decline/harvest/dividend scenarios
+- [ ] **[HIGH]** `importFromBackupJSON` — test parses raw JSON, never calls actual actor method
+- [ ] **[MEDIUM]** Vacuous assertions: `XCTAssertGreaterThan` where exact values are known (5+ instances)
+- [ ] **[MEDIUM]** `computeEntryRows` harvest-mode sell path untested
 
 ---
 
