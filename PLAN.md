@@ -77,23 +77,56 @@ Let users find funds instantly from the iOS home screen and ask Siri for portfol
 
 ## Better Swift Audit - 2026-03-26
 
-Summary: 80+ findings across 30+ files from 7 agents. 16 fixed, remainder deferred.
+Summary: 80+ findings across 30+ files from 7 agents. 43 fixed across 8 commits.
 Platforms: iOS 17+, macOS 14+ | Build system: XcodeGen
 
-### Fixed
-- [x] **FundStore**: `deleteFund`, `deleteAllFunds`, `updateConfig`, `backupFund` — replaced `try?` with proper error propagation
-- [x] **FundStore**: migrated all `print()` to `os.Logger` with privacy annotations
-- [x] **FundStore**: deduplicated backup DateFormatter to shared static property
-- [x] **LivePriceService**: `PriceData.isStale` now references `cacheTTLSeconds` constant instead of hardcoded 300
-- [x] **AddEntryView/DashboardView**: replaced `print()` with `os.Logger`
-- [x] **DRY**: extracted `calcPriceAndEquity()` to shared `EntryFormHelpers.swift` (was duplicated in AddEntryView + EditEntryView)
-- [x] **DRY**: extracted `dcaTipField`/`dcaTipToggle` to shared helpers (was duplicated in EditFundView + CreateFundView)
-- [x] **DRY**: added `Color.backgroundForAction()` to Theme.swift (was duplicated in FundCardView + EscapeMintApp)
-- [x] **DRY**: replaced inline DateFormatter in CreateFundView with `todayString()`, AdvancedTools with `isoDateFormatter`
-- [x] **Architecture**: moved formatting functions from Engine/FundEngine.swift to Theme/Formatters.swift (SRP: Engine should be pure computation, not presentation)
-- [x] **Warnings**: added missing `.none` case to LABiometryType switches (eliminates build warnings)
+### Fixed — Code Quality & Error Handling
+- [x] `FundStore`: `deleteFund`, `deleteAllFunds`, `updateConfig`, `backupFund` — replaced `try?` with proper error propagation
+- [x] `FundStore`: migrated all `print()` to `os.Logger` with privacy annotations
+- [x] `FundStore`: deduplicated backup DateFormatter to shared static property
+- [x] `LivePriceService.PriceData.isStale` — references `cacheTTLSeconds` constant instead of hardcoded 300
+- [x] `AddEntryView/DashboardView`: replaced `print()` with `os.Logger`
+- [x] Warnings: added missing `.none` case to LABiometryType switches
 
-### Deferred — Architecture & Code Quality
+### Fixed — Architecture
+- [x] Moved formatting functions from `Engine/FundEngine.swift` to `Theme/Formatters.swift` (SRP)
+
+### Fixed — Platform & Accessibility
+- [x] **CRITICAL**: Wired `AppearanceManager` to `.preferredColorScheme()` (was hard-coded `.dark`)
+- [x] Added macOS `Settings` scene (Cmd+, shortcut)
+- [x] Added macOS keyboard shortcuts: Cmd+N (New Fund), Cmd+R (Refresh)
+- [x] IntroCharts/BacktestTransactions: animations respect `accessibilityReduceMotion`
+- [x] macOS interactive rows: added `.accessibilityAddTraits(.isButton)` to DashboardView, ActionableFundsBanner, FundDetailView
+- [x] IntroGuideView: progress dots have `.accessibilityLabel("Step N of M")`
+- [x] Centralized `@AppStorage` keys to `AppStorageKeys` enum (7 files updated)
+
+### Fixed — Bugs & Performance
+- [x] `AuthManager.lock()` now cancels in-progress auth task and resets `isEvaluating`
+- [x] `ViewCache.startLoading` stores task handle for cancellation
+- [x] `ViewCache` responds to iOS memory pressure by clearing chart/row caches
+- [x] `FundSummary.isDueForAction` pre-computed at init (was computed on every access)
+- [x] `replaceEntries` re-applies file protection after atomic write (iOS)
+
+### Fixed — DRY
+- [x] Extracted `calcPriceAndEquity()` to `EntryFormHelpers.swift` (AddEntryView + EditEntryView)
+- [x] Extracted `dcaTipField`/`dcaTipToggle` to shared helpers (EditFundView + CreateFundView)
+- [x] Added `Color.backgroundForAction()` to Theme.swift (FundCardView + EscapeMintApp)
+- [x] Replaced inline DateFormatters with `todayString()`/`isoDateFormatter`
+- [x] IntroCharts: replaced 6x `.padding(12).background(Color.bgCard).cornerRadius(12)` with `.cardStyle()`
+- [x] Extracted `computeIsWide()` to PlatformModifiers.swift (4 views)
+- [x] Extracted `ToastModifier` — SettingsView + FundDetailView now use `.toast(isPresented:message:)`
+- [x] Extracted NSOpenPanel helper — shared between DashboardView + SettingsView
+- [x] Consolidated miniStat/statColumn → shared `StatBox` component
+
+### Fixed — Tests
+- [x] **CRITICAL**: Added FormulaParserTests.swift (plain numbers, formulas, edge cases)
+- [x] Strengthened vacuous assertions in FundMetricsTests (exact values instead of `> 0`)
+- [x] Added `testRunBacktestDecliningMarket` scenario
+- [x] Added `testRunBacktestHarvestMode` scenario
+- [x] Added `testComputeAvailableDateRangeSingleAsset` and empty boundary tests
+- [x] Added `testComputeEntryRowsHarvestPartialSell` for harvest-mode sell path
+
+### Remaining — Architecture (deferred to future audit)
 - [ ] **[HIGH]** `FundStore.swift:9-10` — `nonisolated(unsafe)` data race on `fundsDirectory`/`isICloud`
 - [ ] **[HIGH]** `FundEngine.swift` — god file at 1327 lines (split into focused modules)
 - [ ] **[HIGH]** `MacContentView` (334 lines) embedded in EscapeMintApp.swift — extract to separate file
@@ -101,47 +134,24 @@ Platforms: iOS 17+, macOS 14+ | Build system: XcodeGen
 - [ ] **[HIGH]** No `#Preview` macros — views can't be previewed without live app environment
 - [ ] **[HIGH]** `importFromBackupJSON` uses `JSONSerialization` instead of `Codable` (fragile, stringly-typed)
 - [ ] **[MEDIUM]** `ViewCache` stores `Any` with `@unchecked Sendable` — use typed dictionaries
-- [ ] **[MEDIUM]** `computePortfolioTimeSeries` engine logic in PortfolioCharts.swift — move to Engine
-- [ ] **[MEDIUM]** `compute*Points` engine functions in FundCharts.swift — move to Engine
+- [ ] **[MEDIUM]** `computePortfolioTimeSeries`/`compute*Points` engine logic in view files — move to Engine
 
-### Deferred — Bugs & Performance
-- [ ] **[HIGH]** O(n²) in `computePLPoints`/`computeAPYPoints` — inner `.filter` per sample point; use incremental cursor
-- [ ] **[HIGH]** `MacContentView` body recomputes `activeFunds`/`groupedActive` every render — use pre-computed `store.summaries`
-- [ ] **[MEDIUM]** `AuthManager.authenticate()` task not cancelled on `lock()` — can block re-auth
-- [ ] **[MEDIUM]** `ViewCache.startLoading` task has no stored handle and cannot be cancelled
-- [ ] **[MEDIUM]** `FundEntry.id` uses `UUID()` — unstable IDs cause full SwiftUI table re-renders on reload
-- [ ] **[MEDIUM]** Unbounded in-memory chart cache — no LRU eviction or memory-warning response
-- [ ] **[MEDIUM]** `FundSummary.isDueForAction` calls `todayString()` on every access — pre-compute once
+### Remaining — Performance (deferred)
+- [ ] **[HIGH]** O(n²) in `computePLPoints`/`computeAPYPoints` — use incremental cursor
+- [ ] **[HIGH]** `MacContentView` body recomputes `activeFunds` every render — use `store.summaries`
+- [ ] **[MEDIUM]** `FundEntry.id` uses `UUID()` — unstable IDs cause full SwiftUI re-renders on reload
 
-### Deferred — Platform & Accessibility
-- [ ] **[CRITICAL]** `preferredColorScheme(.dark)` hard-coded — `AppearanceManager` wired but never connected
-- [ ] **[HIGH]** Missing macOS `Settings` scene (no Cmd+, shortcut)
-- [ ] **[HIGH]** `.foregroundColor(.white)` on colored backgrounds — not adaptive for light mode (10+ instances)
-- [ ] **[HIGH]** IntroCharts/BacktestTransactions animations ignore `accessibilityReduceMotion`
-- [ ] **[HIGH]** macOS interactive rows use `.onTapGesture` without `.accessibilityAddTraits(.isButton)`
-- [ ] **[MEDIUM]** `@AppStorage` keys scattered as raw strings — extract to `AppStorageKeys` enum
-- [ ] **[MEDIUM]** Missing macOS keyboard shortcuts (Cmd+N, Cmd+R, Cmd+E)
-- [ ] **[MEDIUM]** Hardcoded font sizes (7-10pt) in BacktestTransactions/IntroCharts — no Dynamic Type scaling
+### Remaining — Platform (deferred)
+- [ ] **[HIGH]** `.foregroundColor(.white)` not adaptive for light mode (10+ instances)
+- [ ] **[MEDIUM]** Hardcoded font sizes (7-10pt) — no Dynamic Type scaling
 
-### Deferred — DRY
-- [ ] **[HIGH]** IntroCharts: `.padding(12).background(Color.bgCard).cornerRadius(12)` repeated 6x — use `.cardStyle()`
-- [ ] **[MEDIUM]** `isWide` computed property repeated in 4 views
-- [ ] **[MEDIUM]** NSOpenPanel boilerplate duplicated in DashboardView + SettingsView
-- [ ] **[MEDIUM]** Toast/debounce state duplicated in SettingsView + FundDetailView
-- [ ] **[MEDIUM]** miniStat/statColumn/StatBox — 3 variants of same component
-
-### Deferred — Security
+### Remaining — Security (deferred)
 - [ ] **[MEDIUM]** Biometric auth preference in UserDefaults (bypassable on jailbroken devices)
 - [ ] **[MEDIUM]** Widget snapshot missing file protection + App Group entitlements
-- [ ] **[MEDIUM]** File protection not re-applied after atomic writes in `replaceEntries`
 
-### Deferred — Tests
-- [ ] **[CRITICAL]** `FormulaParser.swift` — 0 tests for user input parsing (trivially testable pure functions)
+### Remaining — Tests (deferred)
 - [ ] **[CRITICAL]** `FundStore` actor methods — 0 integration tests for I/O layer
-- [ ] **[HIGH]** `BacktestEngine.runBacktest` — only 1 happy-path test, no decline/harvest/dividend scenarios
-- [ ] **[HIGH]** `importFromBackupJSON` — test parses raw JSON, never calls actual actor method
-- [ ] **[MEDIUM]** Vacuous assertions: `XCTAssertGreaterThan` where exact values are known (5+ instances)
-- [ ] **[MEDIUM]** `computeEntryRows` harvest-mode sell path untested
+- [ ] **[HIGH]** `importFromBackupJSON` — test never calls actual actor method
 
 ---
 
