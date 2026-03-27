@@ -25,6 +25,7 @@ struct EditFundView: View {
     @State private var expenseFromFund: Bool
     @State private var showDeleteConfirm = false
     @State private var isSaving = false
+    @State private var selectedTab = 0
 
     init(fund: FundData, onSaved: @escaping () -> Void, onDeleted: (() -> Void)? = nil) {
         self.fund = fund
@@ -32,13 +33,13 @@ struct EditFundView: View {
         self.onDeleted = onDeleted
         _platform = State(initialValue: fund.platform)
         _ticker = State(initialValue: fund.ticker)
-        _targetApy = State(initialValue: String((fund.config.target_apy ?? 0) * 100))
-        _inputMin = State(initialValue: String(fund.config.input_min_usd ?? 0))
-        _inputMid = State(initialValue: String(fund.config.input_mid_usd ?? 0))
-        _inputMax = State(initialValue: String(fund.config.input_max_usd ?? 0))
+        _targetApy = State(initialValue: cleanNum((fund.config.target_apy ?? 0) * 100))
+        _inputMin = State(initialValue: cleanNum(fund.config.input_min_usd))
+        _inputMid = State(initialValue: cleanNum(fund.config.input_mid_usd))
+        _inputMax = State(initialValue: cleanNum(fund.config.input_max_usd))
         _intervalDays = State(initialValue: String(fund.config.interval_days ?? 7))
-        _maxAtPct = State(initialValue: String((fund.config.max_at_pct ?? 0) * 100))
-        _minProfitUsd = State(initialValue: String(fund.config.min_profit_usd ?? 0))
+        _maxAtPct = State(initialValue: cleanNum((fund.config.max_at_pct ?? 0) * 100))
+        _minProfitUsd = State(initialValue: cleanNum(fund.config.min_profit_usd))
         _category = State(initialValue: fund.config.category ?? .volatility)
         _status = State(initialValue: fund.config.status ?? .active)
         _accumulate = State(initialValue: fund.config.accumulate ?? true)
@@ -50,7 +51,7 @@ struct EditFundView: View {
     }
 
     private var isTradingFund: Bool {
-        fund.config.fund_type == .stock || fund.config.fund_type == .crypto
+        fund.config.fund_type?.isTradingType ?? false
     }
 
     private var features: FundTypeFeatures {
@@ -60,48 +61,22 @@ struct EditFundView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Identity") {
-                    TextField("Platform", text: $platform)
-                        .autocorrectionDisabled()
-                        .noAutoCapitalization()
-                    TextField("Ticker", text: $ticker)
-                        .autocorrectionDisabled()
-                        .noAutoCapitalization()
-                        .onChange(of: ticker) { _, newValue in
-                            ticker = newValue.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "-" }
-                        }
-                }
-
-                Section("Status") {
-                    Picker("Status", selection: $status) {
-                        Text("Active").tag(FundStatus.active)
-                        Text("Closed").tag(FundStatus.closed)
-                    }
-                    Picker("Category", selection: $category) {
-                        ForEach(FundCategory.allCases, id: \.self) { cat in
-                            Text(categoryConfig[cat]?.label ?? cat.rawValue).tag(cat)
-                        }
-                    }
-                }
-
                 if isTradingFund {
-                    Section("DCA Strategy") {
-                        dcaTipField("Target APY (%)", tip: DCAHelp.targetApy, text: $targetApy)
-                        dcaTipField("Interval (days)", tip: DCAHelp.interval, text: $intervalDays)
+                    Picker("", selection: $selectedTab) {
+                        Text("General").tag(0)
+                        Text("DCA").tag(1)
+                        Text("Options").tag(2)
                     }
+                    .pickerStyle(.segmented)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                }
 
-                    Section("DCA Amounts") {
-                        dcaTipField("Min ($) — at/above target", tip: DCAHelp.minDCA, text: $inputMin)
-                        dcaTipField("Mid ($) — below target", tip: DCAHelp.midDCA, text: $inputMid)
-                        dcaTipField("Max ($) — significant loss", tip: DCAHelp.maxDCA, text: $inputMax)
-                        dcaTipField("Max threshold (%)", tip: DCAHelp.maxThreshold, text: $maxAtPct)
-                    }
-
-                    Section("Sell & Cash") {
-                        dcaTipField("Min profit ($) to sell", tip: DCAHelp.minProfit, text: $minProfitUsd)
-                        dcaTipToggle("Accumulate mode", tip: DCAHelp.accumulate, isOn: $accumulate)
-                        dcaTipToggle("Manage cash in fund", tip: DCAHelp.manageCash, isOn: $manageCash)
-                    }
+                switch selectedTab {
+                case 0: generalTab
+                case 1: dcaTab
+                case 2: optionsTab
+                default: generalTab
                 }
 
                 Section {
@@ -112,6 +87,9 @@ struct EditFundView: View {
             }
             .formStyle(.grouped)
             .navigationTitle("Edit \(fund.ticker.uppercased())")
+            #if os(macOS)
+            .frame(minWidth: 420)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -125,6 +103,62 @@ struct EditFundView: View {
                 Button("Delete", role: .destructive) { deleteFund() }
             } message: {
                 Text("This will permanently delete all entries and configuration.")
+            }
+        }
+    }
+
+    // MARK: - Tabs
+
+    @ViewBuilder
+    private var generalTab: some View {
+        Section("Identity") {
+            TextField("Platform", text: $platform)
+                .autocorrectionDisabled()
+                .noAutoCapitalization()
+            TextField("Ticker", text: $ticker)
+                .autocorrectionDisabled()
+                .noAutoCapitalization()
+                .onChange(of: ticker) { _, newValue in
+                    ticker = newValue.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "-" }
+                }
+        }
+
+        Section("Status") {
+            Picker("Status", selection: $status) {
+                Text("Active").tag(FundStatus.active)
+                Text("Closed").tag(FundStatus.closed)
+            }
+            Picker("Category", selection: $category) {
+                ForEach(FundCategory.allCases, id: \.self) { cat in
+                    Text(categoryConfig[cat]?.label ?? cat.rawValue).tag(cat)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var dcaTab: some View {
+        Section("DCA Strategy") {
+            dcaTipField("Target APY (%)", tip: DCAHelp.targetApy, text: $targetApy)
+            dcaTipField("Interval (days)", tip: DCAHelp.interval, text: $intervalDays)
+        }
+
+        Section("DCA Amounts") {
+            dcaTipField("Min ($) — at/above target", tip: DCAHelp.minDCA, text: $inputMin)
+            dcaTipField("Mid ($) — below target", tip: DCAHelp.midDCA, text: $inputMid)
+            dcaTipField("Max ($) — significant loss", tip: DCAHelp.maxDCA, text: $inputMax)
+            dcaTipField("Max threshold (%)", tip: DCAHelp.maxThreshold, text: $maxAtPct)
+        }
+    }
+
+    @ViewBuilder
+    private var optionsTab: some View {
+        Section("Sell & Cash") {
+            dcaTipField("Min profit ($) to sell", tip: DCAHelp.minProfit, text: $minProfitUsd)
+            dcaTipToggle("Accumulate mode", tip: DCAHelp.accumulate, isOn: $accumulate)
+            dcaTipToggle("Manage cash in fund", tip: DCAHelp.manageCash, isOn: $manageCash)
+            if features.supportsMargin {
+                dcaTipToggle("Margin enabled", tip: "Enable margin tracking for this fund", isOn: $marginEnabled)
             }
         }
     }

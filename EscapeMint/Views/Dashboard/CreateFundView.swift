@@ -8,7 +8,7 @@ struct CreateFundView: View {
     @State private var ticker = ""
     @State private var fundType: FundType = .stock
     @State private var category: FundCategory = .volatility
-    @State private var targetApy = "10"
+    @State private var targetApy = "25"
     @State private var inputMin = "100"
     @State private var inputMid = "150"
     @State private var inputMax = "200"
@@ -17,10 +17,16 @@ struct CreateFundView: View {
     @State private var maxAtPct = "-25"
     @State private var accumulate = true
     @State private var manageCash = false
+    @State private var marginEnabled = false
     @State private var cashBalance = ""
+    @State private var selectedTab = 0
 
     private var canCreate: Bool {
         !platform.isEmpty && !ticker.isEmpty
+    }
+
+    private var isTradingFund: Bool {
+        fundType.isTradingType
     }
 
     /// Whether this fund needs a platform cash fund created alongside it
@@ -52,6 +58,97 @@ struct CreateFundView: View {
         return .volatility
     }
 
+    // MARK: - Shared Form Content
+
+    @ViewBuilder
+    private var identitySection: some View {
+        Section("Fund Identity") {
+            TextField("Platform (e.g. robinhood)", text: $platform)
+                .noAutoCapitalization()
+                .autocorrectionDisabled()
+            TextField("Ticker (e.g. TQQQ)", text: $ticker)
+                .uppercaseCapitalization()
+                .autocorrectionDisabled()
+                .onChange(of: ticker) { _, newTicker in
+                    category = autoCategory(for: newTicker)
+                }
+        }
+
+        Section("Type & Category") {
+            Picker("Fund Type", selection: $fundType) {
+                ForEach(FundType.creatableCases, id: \.self) { type in
+                    Text(getFeatures(type).label).tag(type)
+                }
+            }
+            .onChange(of: fundType) { _, newType in
+                applyDefaults(for: newType)
+                selectedTab = 0
+            }
+
+            if fundType != .cash {
+                Picker("Category", selection: $category) {
+                    ForEach(FundCategory.allCases, id: \.self) { cat in
+                        Text(categoryConfig[cat]?.label ?? cat.rawValue).tag(cat)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var dcaSection: some View {
+        Section("DCA Strategy") {
+            dcaTipField("Target APY (%)", tip: DCAHelp.targetApy, text: $targetApy, placeholder: "25")
+            dcaTipField("Interval (days)", tip: DCAHelp.interval, text: $intervalDays, placeholder: "7")
+        }
+
+        Section("DCA Amounts") {
+            dcaTipField("Min ($) — at/above target", tip: DCAHelp.minDCA, text: $inputMin, placeholder: "100")
+            dcaTipField("Mid ($) — below target", tip: DCAHelp.midDCA, text: $inputMid, placeholder: "150")
+            dcaTipField("Max ($) — significant loss", tip: DCAHelp.maxDCA, text: $inputMax, placeholder: "200")
+            dcaTipField("Max threshold (%)", tip: DCAHelp.maxThreshold, text: $maxAtPct, placeholder: "-25")
+        }
+    }
+
+    @ViewBuilder
+    private var optionsSection: some View {
+        Section("Sell & Cash") {
+            dcaTipField("Min profit ($) to sell", tip: DCAHelp.minProfit, text: $minProfit, placeholder: "100")
+            dcaTipToggle("Accumulate mode", tip: DCAHelp.accumulate, isOn: $accumulate)
+            dcaTipToggle("Manage cash in fund", tip: DCAHelp.manageCash, isOn: $manageCash)
+            if getFeatures(fundType).supportsMargin {
+                dcaTipToggle("Margin enabled", tip: "Enable margin tracking for this fund", isOn: $marginEnabled)
+            }
+        }
+
+        if needsPlatformCash && !platformCashExists && !platform.isEmpty {
+            Section {
+                dcaTipField("Cash balance ($)", tip: "Starting cash available for DCA purchases on this platform.", text: $cashBalance, placeholder: "0")
+            } header: {
+                Text("Platform Cash")
+            } footer: {
+                Text("A cash fund will be created for \(platform) to track available cash.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var tabbedDCAOptions: some View {
+        Picker("", selection: $selectedTab) {
+            Text("DCA").tag(0)
+            Text("Options").tag(1)
+        }
+        .pickerStyle(.segmented)
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+
+        switch selectedTab {
+        case 0: dcaSection
+        case 1: optionsSection
+        default: dcaSection
+        }
+    }
+
     // MARK: - macOS
 
     @ViewBuilder
@@ -71,72 +168,11 @@ struct CreateFundView: View {
 
             Divider().background(Color.bgInput)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    formSection("Fund Identity") {
-                        HStack(spacing: 12) {
-                            formField("Platform", placeholder: "e.g. robinhood", text: $platform)
-                                .noAutoCapitalization()
-                                .autocorrectionDisabled()
-                            formField("Ticker", placeholder: "e.g. TQQQ", text: $ticker)
-                                .uppercaseCapitalization()
-                                .autocorrectionDisabled()
-                                .onChange(of: ticker) { _, newTicker in
-                                    category = autoCategory(for: newTicker)
-                                }
-                        }
-                    }
-
-                    formSection("Type & Category") {
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Fund Type").font(.caption).foregroundColor(.textMuted)
-                                Picker("", selection: $fundType) {
-                                    ForEach(FundType.creatableCases, id: \.self) { type in
-                                        Text(getFeatures(type).label).tag(type)
-                                    }
-                                }
-                                .labelsHidden()
-                                .pickerStyle(.segmented)
-                            }
-                            .onChange(of: fundType) { _, newType in
-                                applyDefaults(for: newType)
-                            }
-
-                            if fundType != .cash {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Category").font(.caption).foregroundColor(.textMuted)
-                                    Picker("", selection: $category) {
-                                        ForEach(FundCategory.allCases, id: \.self) { cat in
-                                            Text(categoryConfig[cat]?.label ?? cat.rawValue).tag(cat)
-                                        }
-                                    }
-                                    .labelsHidden()
-                                }
-                            }
-                        }
-                    }
-
-                    if fundType != .cash && fundType != .derivatives {
-                        formSection("DCA Configuration") {
-                            HStack(spacing: 12) {
-                                formField("Target APY (%)", placeholder: "10", text: $targetApy)
-                                formField("Interval (days)", placeholder: "7", text: $intervalDays)
-                            }
-                            HStack(spacing: 12) {
-                                formField("Min DCA ($)", placeholder: "100", text: $inputMin)
-                                formField("Mid DCA ($)", placeholder: "150", text: $inputMid)
-                                formField("Max DCA ($)", placeholder: "200", text: $inputMax)
-                            }
-                            HStack(spacing: 12) {
-                                formField("Max Threshold (%)", placeholder: "-25", text: $maxAtPct)
-                                formField("Min Profit ($)", placeholder: "100", text: $minProfit)
-                            }
-                        }
-                    }
-                }
-                .padding(20)
+            Form {
+                identitySection
+                if isTradingFund { tabbedDCAOptions }
             }
+            .formStyle(.grouped)
 
             Divider().background(Color.bgInput)
 
@@ -152,7 +188,7 @@ struct CreateFundView: View {
             }
             .padding(16)
         }
-        .frame(minWidth: 520, idealWidth: 520, minHeight: 480, idealHeight: 480)
+        .frame(minWidth: 520, idealWidth: 520, minHeight: 520, idealHeight: 580)
         .background(Color.bg)
     }
 
@@ -161,66 +197,8 @@ struct CreateFundView: View {
     @ViewBuilder
     private var iosForm: some View {
         Form {
-            Section("Fund Identity") {
-                TextField("Platform (e.g. robinhood)", text: $platform)
-                    .noAutoCapitalization()
-                    .autocorrectionDisabled()
-                TextField("Ticker (e.g. TQQQ)", text: $ticker)
-                    .uppercaseCapitalization()
-                    .autocorrectionDisabled()
-                    .onChange(of: ticker) { _, newTicker in
-                        category = autoCategory(for: newTicker)
-                    }
-            }
-
-            Section("Type & Category") {
-                Picker("Fund Type", selection: $fundType) {
-                    ForEach(FundType.creatableCases, id: \.self) { type in
-                        Text(getFeatures(type).label).tag(type)
-                    }
-                }
-                .onChange(of: fundType) { _, newType in
-                    applyDefaults(for: newType)
-                }
-
-                if fundType != .cash {
-                    Picker("Category", selection: $category) {
-                        ForEach(FundCategory.allCases, id: \.self) { cat in
-                            Text(categoryConfig[cat]?.label ?? cat.rawValue).tag(cat)
-                        }
-                    }
-                }
-            }
-
-            if fundType != .cash && fundType != .derivatives {
-                Section("DCA Strategy") {
-                    dcaTipField("Target APY (%)", tip: DCAHelp.targetApy, text: $targetApy, prompt: "10")
-                    dcaTipField("Interval (days)", tip: DCAHelp.interval, text: $intervalDays, prompt: "7")
-                }
-
-                Section("DCA Amounts") {
-                    dcaTipField("Min ($) — at/above target", tip: DCAHelp.minDCA, text: $inputMin, prompt: "100")
-                    dcaTipField("Mid ($) — below target", tip: DCAHelp.midDCA, text: $inputMid, prompt: "150")
-                    dcaTipField("Max ($) — significant loss", tip: DCAHelp.maxDCA, text: $inputMax, prompt: "200")
-                    dcaTipField("Max threshold (%)", tip: DCAHelp.maxThreshold, text: $maxAtPct, prompt: "-25")
-                }
-
-                Section("Sell & Cash") {
-                    dcaTipField("Min profit ($) to sell", tip: DCAHelp.minProfit, text: $minProfit, prompt: "100")
-                    dcaTipToggle("Accumulate mode", tip: DCAHelp.accumulate, isOn: $accumulate)
-                    dcaTipToggle("Manage cash in fund", tip: DCAHelp.manageCash, isOn: $manageCash)
-                }
-            }
-
-            if needsPlatformCash && !platformCashExists && !platform.isEmpty {
-                Section {
-                    dcaTipField("Cash balance ($)", tip: "Starting cash available for DCA purchases on this platform.", text: $cashBalance, prompt: "0")
-                } header: {
-                    Text("Platform Cash")
-                } footer: {
-                    Text("A cash fund will be created for \(platform) to track your available cash for DCA purchases.")
-                }
-            }
+            identitySection
+            if isTradingFund { tabbedDCAOptions }
         }
         .formStyle(.grouped)
         .navigationTitle("Create Fund")
@@ -235,30 +213,7 @@ struct CreateFundView: View {
         }
     }
 
-    // MARK: - Shared helpers
-
-
-    @ViewBuilder
-    private func formSection(_ title: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.caption).fontWeight(.semibold).foregroundColor(.textSecondary)
-            content()
-        }
-    }
-
-    @ViewBuilder
-    private func formField(_ label: String, placeholder: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.caption).foregroundColor(.textMuted)
-            TextField(placeholder, text: text)
-                .textFieldStyle(.plain)
-                .padding(8)
-                .background(Color.bgInput)
-                .cornerRadius(6)
-                .foregroundColor(.textPrimary)
-        }
-    }
+    // MARK: - Helpers
 
     private func applyDefaults(for newType: FundType) {
         guard let defaults = fundTypeDefaults[newType] else { return }
@@ -288,6 +243,7 @@ struct CreateFundView: View {
         config.max_at_pct = (Double(maxAtPct) ?? 0) / 100
         config.accumulate = accumulate
         config.manage_cash = manageCash
+        config.margin_enabled = marginEnabled
 
         let fund = FundData(
             platform: platform.lowercased().trimmingCharacters(in: .whitespaces),

@@ -40,6 +40,16 @@ func formatPercent(_ value: Double) -> String {
     percentFormatter.string(from: NSNumber(value: value)) ?? "0%"
 }
 
+func formatPercentCompact(_ value: Double) -> String {
+    let pct = value * 100
+    let absPct = abs(pct)
+    let sign = pct < 0 ? "-" : ""
+    if absPct >= 10 {
+        return "\(sign)\(String(format: "%.0f", absPct))%"
+    }
+    return "\(sign)\(String(format: "%.1f", absPct))%"
+}
+
 func formatCurrencyCompact(_ value: Double) -> String {
     let absValue = abs(value)
     let sign = value < 0 ? "-" : ""

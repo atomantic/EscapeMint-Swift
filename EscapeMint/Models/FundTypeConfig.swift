@@ -15,7 +15,7 @@ let fundTypeFeatures: [FundType: FundTypeFeatures] = [
     .cash: FundTypeFeatures(
         allowsTrading: false, allowsRecommendations: false,
         supportsDividends: false, supportsCashInterest: true,
-        supportsShares: false, supportsMargin: true,
+        supportsShares: false, supportsMargin: false,
         label: "Cash", color: .blue
     ),
     .stock: FundTypeFeatures(
@@ -48,16 +48,16 @@ let fundTypeDefaults: [FundType: FundConfig] = [
     ),
     .stock: FundConfig(
         fund_type: .stock, status: .active,
-        target_apy: 0.10, interval_days: 7,
+        target_apy: 0.25, interval_days: 7,
         input_min_usd: 100, input_mid_usd: 150, input_max_usd: 200,
         max_at_pct: -0.25, min_profit_usd: 100, cash_apy: 0.044,
         manage_cash: true, accumulate: true
     ),
     .crypto: FundConfig(
         fund_type: .crypto, status: .active,
-        target_apy: 0.15, interval_days: 7,
+        target_apy: 0.25, interval_days: 7,
         input_min_usd: 100, input_mid_usd: 150, input_max_usd: 200,
-        max_at_pct: -0.30, min_profit_usd: 100, cash_apy: 0.05,
+        max_at_pct: -0.25, min_profit_usd: 100, cash_apy: 0.05,
         manage_cash: true, accumulate: true
     ),
     .derivatives: FundConfig(

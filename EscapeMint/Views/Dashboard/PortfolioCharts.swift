@@ -947,7 +947,6 @@ struct EMChartCard<Legend: View, ChartContent: View>: View {
                 HStack(spacing: 6) { legend() }
             }
             chart()
-                .clipped()
         }
         .padding(8)
         .cardStyle()

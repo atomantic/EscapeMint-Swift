@@ -340,13 +340,6 @@ struct DashboardView: View {
                 .frame(minWidth: 150)
             }
 
-            // Import
-            Button { pickAndImport() } label: {
-                Label("Import", systemImage: "square.and.arrow.down")
-                    .foregroundColor(.textSecondary)
-            }
-            .buttonStyle(.plain)
-
             // Add Fund
             Button { showCreateFund = true } label: {
                 Label("Add Fund", systemImage: "plus.circle.fill")

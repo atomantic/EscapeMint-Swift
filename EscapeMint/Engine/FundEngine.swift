@@ -462,6 +462,11 @@ func computeLinearAPY(_ gain: Double, _ basis: Double, _ days: Int) -> Double {
     return (gain / basis) * (365.0 / Double(days))
 }
 
+func computeCompoundAPY(_ returnPct: Double, _ days: Int) -> Double {
+    guard days > 0 else { return 0 }
+    return pow(1.0 + max(-0.99, returnPct), 365.0 / Double(days)) - 1.0
+}
+
 func computeProjectedAnnualReturn(_ currentValue: Double, _ realizedAPY: Double) -> Double {
     currentValue * realizedAPY
 }
@@ -562,12 +567,9 @@ private func computeDerivativesFundMetrics(_ fund: FundData, asOfDate: String) -
     var realizedAPY = 0.0
     var liquidAPY = 0.0
     if daysActive > 0 && denominator > 0 {
-        // Realized APY includes funding/interest/rebates (but not fees)
         let realizedPlusFunding = realized + cumFunding + cumInterest + cumRebates
-        let rPct = max(-0.99, realizedPlusFunding / denominator)
-        realizedAPY = pow(1.0 + rPct, 365.0 / Double(daysActive)) - 1.0
-        let lPct = max(-0.99, liquidPL / denominator)
-        liquidAPY = pow(1.0 + lPct, 365.0 / Double(daysActive)) - 1.0
+        realizedAPY = computeCompoundAPY(realizedPlusFunding / denominator, daysActive)
+        liquidAPY = computeCompoundAPY(liquidPL / denominator, daysActive)
     }
 
     let isClosed = config.status == .closed
@@ -799,22 +801,15 @@ func computeFundMetricsForFund(_ fund: FundData, asOfDate: String) -> (metrics: 
         let twab = Double(daysActive) > 0 ? twabNumerator / Double(daysActive) : 0
         let denominator = twab > 0 ? twab : (computedFundSize > 0 ? computedFundSize : 1)
         if abs(realized) >= 0.01 {
-            let returnPct = realized / denominator
-            let clampedPct = max(-0.99, returnPct)
-            realizedAPY = pow(1.0 + clampedPct, 365.0 / Double(daysActive)) - 1.0
+            realizedAPY = computeCompoundAPY(realized / denominator, daysActive)
             liquidAPY = realizedAPY
         }
     } else {
         let twap = Double(daysActive) > 0 ? twapNumerator / Double(daysActive) : 0
         let denominator = twap > 0 ? twap : (costBasis > 0 ? costBasis : 1)
         if denominator > 0 {
-            let realizedReturnPct = realized / denominator
-            let clampedRealizedPct = max(-0.99, realizedReturnPct)
-            realizedAPY = pow(1.0 + clampedRealizedPct, 365.0 / Double(daysActive)) - 1.0
-
-            let liquidReturnPct = liquidPnl / denominator
-            let clampedLiquidPct = max(-0.99, liquidReturnPct)
-            liquidAPY = pow(1.0 + clampedLiquidPct, 365.0 / Double(daysActive)) - 1.0
+            realizedAPY = computeCompoundAPY(realized / denominator, daysActive)
+            liquidAPY = computeCompoundAPY(liquidPnl / denominator, daysActive)
         }
     }
 
@@ -1203,8 +1198,8 @@ private func computeDerivativesEntryRows(entries: [FundEntry], config: FundConfi
         var liquidAPY = 0.0
         if days > 0 && denom > 0 {
             let realizedPlusFunding = realized + cumFunding + cumInterest + cumRebates
-            realizedAPY = pow(1.0 + max(-0.99, realizedPlusFunding / denom), 365.0 / days) - 1.0
-            liquidAPY = pow(1.0 + max(-0.99, liquidPL / denom), 365.0 / days) - 1.0
+            realizedAPY = computeCompoundAPY(realizedPlusFunding / denom, Int(days))
+            liquidAPY = computeCompoundAPY(liquidPL / denom, Int(days))
         }
 
         return ComputedEntryRow(
@@ -1234,17 +1229,27 @@ func computeEntryRows(entries: [FundEntry], config: FundConfig) -> [ComputedEntr
     var sumCashInterest = 0.0
     var sumExpenses = 0.0
     var twapNumerator = 0.0
-    var activeDays = 0
-    var lastDate = entries.first?.date ?? ""
+    var twapLastDate: String?
+    var cycleStartDate: String?
+    var cumulativeActiveDays = 0.0
+    let firstEntryDate = entries.first?.date ?? ""
 
-    return entries.map { entry in
-        let daysSinceLast = lastDate.isEmpty ? 0 : max(0, daysBetween(lastDate, entry.date))
-
-        // Accumulate TWAP using cost basis BEFORE this entry's action
-        if daysSinceLast > 0 && costBasis > 0 {
-            twapNumerator += costBasis * Double(daysSinceLast)
+    return entries.enumerated().map { index, entry in
+        // Accumulate TWAP only during active cycles (matches web app)
+        if let tld = twapLastDate, cycleStartDate != nil {
+            let daysBtw = max(0, Double(daysBetween(tld, entry.date)))
+            twapNumerator += costBasis * daysBtw
         }
-        activeDays += daysSinceLast
+        if cycleStartDate != nil { twapLastDate = entry.date }
+
+        // Active days: cycle-based (matches web app FundDetail.tsx)
+        let currentCycleDays = cycleStartDate.map { max(0.0, Double(daysBetween($0, entry.date))) } ?? 0
+        let hasAnyActiveHistory = cycleStartDate != nil || cumulativeActiveDays > 0
+        let calendarDays = max(1.0, Double(daysBetween(firstEntryDate, entry.date)))
+        let activeDays = max(1, Int(round(hasAnyActiveHistory
+            ? cumulativeActiveDays + currentCycleDays
+            : calendarDays)))
+        let isFirstEntry = index == 0
 
         // Accumulate income/expenses
         sumDividends += entry.dividend ?? 0
@@ -1258,6 +1263,10 @@ func computeEntryRows(entries: [FundEntry], config: FundConfig) -> [ComputedEntr
             totalBuys += amt
             costBasis += amt
             sumShares += abs(entry.shares ?? 0)
+            if cycleStartDate == nil {
+                cycleStartDate = entry.date
+                twapLastDate = entry.date
+            }
         } else if entry.action == .SELL, let amt = entry.amount {
             totalSells += amt
             sumShares -= abs(entry.shares ?? 0)
@@ -1270,6 +1279,12 @@ func computeEntryRows(entries: [FundEntry], config: FundConfig) -> [ComputedEntr
                 totalBuys = 0
                 totalSells = 0
                 sumShares = 0
+                // Freeze active days and TWAP on full liquidation
+                if let csd = cycleStartDate {
+                    cumulativeActiveDays += max(0, Double(daysBetween(csd, entry.date)))
+                    cycleStartDate = nil
+                    twapLastDate = nil
+                }
             } else if isAccumulate {
                 entryExtracted = amt
                 sumExtracted += entryExtracted
@@ -1297,21 +1312,17 @@ func computeEntryRows(entries: [FundEntry], config: FundConfig) -> [ComputedEntr
         let unrealized = postActionValue - costBasis
         let liquidPnl = unrealized + realized
 
-        // Compound APY (matches web app per-entry formula)
+        // Compound APY with cycle-based active days (matches web app per-entry formula)
         let twap = activeDays > 0 ? twapNumerator / Double(activeDays) : 0
         let basis = twap > 0 ? twap : costBasis
 
         var realizedApy = 0.0
         var liquidApy = 0.0
 
-        if activeDays > 0 && basis > 0 {
-            let rPct = max(-0.99, realized / basis)
-            realizedApy = pow(1.0 + rPct, 365.0 / Double(activeDays)) - 1.0
-            let lPct = max(-0.99, liquidPnl / basis)
-            liquidApy = pow(1.0 + lPct, 365.0 / Double(activeDays)) - 1.0
+        if !isFirstEntry && activeDays > 0 && basis > 0 {
+            realizedApy = computeCompoundAPY(realized / basis, activeDays)
+            liquidApy = computeCompoundAPY(liquidPnl / basis, activeDays)
         }
-
-        lastDate = entry.date
 
         return ComputedEntryRow(
             extracted: entryExtracted,

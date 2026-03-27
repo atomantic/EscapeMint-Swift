@@ -10,7 +10,7 @@ func calcPriceAndEquity(amount: String, shares: String, existingEntries: [FundEn
 
     let selectedDate = isoDateFormatter.string(from: date)
     let calculatedPrice = amountVal / abs(sharesVal)
-    let priceStr = String(format: "%.8f", calculatedPrice)
+    let priceStr = String(format: "%.2f", calculatedPrice)
 
     let prior = getCumulativeShares(entries: existingEntries, beforeDate: selectedDate)
     if prior > 0 {
@@ -20,15 +20,35 @@ func calcPriceAndEquity(amount: String, shares: String, existingEntries: [FundEn
     return (priceStr, "")
 }
 
+// MARK: - Number Formatting for Text Fields
+
+/// Format a currency Double for display in text fields — clean, no precision artifacts.
+/// Returns "" for 0 (treats zero as empty).
+func cleanNum(_ val: Double) -> String {
+    val == 0 ? "" : (val == val.rounded(.down) ? String(format: "%.0f", val) : String(format: "%.2f", val))
+}
+func cleanNum(_ val: Double?) -> String { val.map { cleanNum($0) } ?? "" }
+
+/// Format a quantity (shares/contracts) — up to 8 decimals, trailing zeros stripped.
+func cleanShares(_ val: Double?) -> String {
+    guard let v = val, v != 0 else { return "" }
+    if v == v.rounded(.down) { return String(format: "%.0f", v) }
+    let s = String(format: "%.8f", v)
+    var end = s.endIndex
+    while end > s.startIndex && s[s.index(before: end)] == "0" { end = s.index(before: end) }
+    if end > s.startIndex && s[s.index(before: end)] == "." { end = s.index(before: end) }
+    return String(s[s.startIndex..<end])
+}
+
 // MARK: - DCA Form Helpers
 
 /// A labeled text field with an info tip tooltip.
 @MainActor @ViewBuilder
-func dcaTipField(_ label: String, tip: String, text: Binding<String>, prompt: String = "0") -> some View {
+func dcaTipField(_ label: String, tip: String, text: Binding<String>, placeholder: String = "0") -> some View {
     HStack {
         InfoTipLabel(label: label, tip: tip)
         Spacer()
-        TextField(prompt, text: text)
+        TextField("", text: text, prompt: Text(placeholder))
             .multilineTextAlignment(.trailing)
             .frame(width: 100)
             .numericKeyboard()

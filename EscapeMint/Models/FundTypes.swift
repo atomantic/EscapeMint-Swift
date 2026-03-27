@@ -8,6 +8,9 @@ enum FundType: String, Codable, CaseIterable {
 
     /// Fund types available for user creation (derivatives is hidden/internal)
     static let creatableCases = allCases.filter { $0 != .derivatives }
+
+    /// Stock and crypto funds that support DCA trading configuration
+    var isTradingType: Bool { self == .stock || self == .crypto }
 }
 
 enum FundStatus: String, Codable {

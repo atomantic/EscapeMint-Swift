@@ -168,29 +168,18 @@ func computePLPoints(entries: [FundEntry], config: FundConfig) -> [PLPoint] {
 }
 
 func computeAPYPoints(entries: [FundEntry], config: FundConfig) -> [APYPoint] {
-    let cc = chartConfig(config)
     let isCash = isCashFund(config.fund_type)
 
     if isCash {
-        return computeCashAPYPoints(entries: entries, config: cc)
+        return computeCashAPYPoints(entries: entries, config: chartConfig(config))
     }
 
-    let sampled = sampleArray(entries)
-    return sampled.map { entry in
-        let prior = entries.filter { $0.date <= entry.date }
-        let trades = entriesToTrades(prior)
-        let cashflows = entriesToCashFlows(prior)
-        let dividends = entriesToDividends(prior)
-        let expenses = entriesToExpenses(prior)
-        let startDate = getFundStartDate(prior)
-        let days = max(1, daysBetween(startDate, entry.date))
-        let state = computeFundState(config: cc, trades: trades, cashflows: cashflows, dividends: dividends, expenses: expenses, actualValue: entry.value, asOfDate: entry.date)
-        let twfs = computeTimeWeightedFundSize(trades: trades, startDate: startDate, asOfDate: entry.date)
-        let basis = twfs > 0 ? twfs : state.startInputUsd
-        let rAPY = computeLinearAPY(state.realizedGainsUsd, basis, days)
-        let lGain = state.gainUsd + state.realizedGainsUsd
-        let lAPY = computeLinearAPY(lGain, basis, days)
-        return APYPoint(id: entry.date, date: entry.date, realizedAPY: rAPY, liquidAPY: lAPY)
+    // Use the same per-entry computation as the entries table (matches web app),
+    // then sample for chart display
+    let rows = computeEntryRows(entries: entries, config: config)
+    let sampled = sampleArray(zip(entries, rows).map { ($0, $1) })
+    return sampled.map { entry, row in
+        APYPoint(id: entry.date, date: entry.date, realizedAPY: row.realizedApy, liquidAPY: row.liquidApy)
     }
 }
 
@@ -219,7 +208,9 @@ private func computeCashAPYPoints(entries: [FundEntry], config: FundConfig) -> [
         let twab = Double(days) > 0 ? twabNumerator / Double(days) : 0
         let basis = twab > 0 ? twab : lastBalance
         let realized = sumInterest - sumExpenses
-        let apy = abs(realized) >= 0.01 ? computeLinearAPY(realized, basis, days) : 0
+        let apy = abs(realized) >= 0.01 && basis > 0
+            ? computeCompoundAPY(realized / basis, days)
+            : 0.0
         all.append(APYPoint(id: entry.date, date: entry.date, realizedAPY: apy, liquidAPY: apy))
     }
     return sampleArray(all)
@@ -639,7 +630,7 @@ struct CapturedProfitChartView: View {
 
 @AxisContentBuilder
 func emDateAxisTemporal() -> some AxisContent {
-    AxisMarks(values: .automatic(desiredCount: 5)) { value in
+    AxisMarks(values: .automatic(desiredCount: 4)) { value in
         AxisValueLabel {
             if let date = value.as(Date.self) {
                 Text(shortDateFormatter.string(from: date))
@@ -666,7 +657,7 @@ func emPercentAxis() -> some AxisContent {
     AxisMarks(position: .leading) { value in
         AxisValueLabel {
             if let v = value.as(Double.self) {
-                Text(formatPercent(v))
+                Text(formatPercentCompact(v))
                     .font(.caption2).foregroundColor(.textMuted)
             }
         }

@@ -1,20 +1,5 @@
 import SwiftUI
 
-/// Format a Double for display in text fields — clean, no precision artifacts
-private func cleanNum(_ val: Double) -> String {
-    val == 0 ? "" : (val == val.rounded(.down) ? String(format: "%.0f", val) : String(format: "%.2f", val))
-}
-private func cleanNum(_ val: Double?) -> String { val.map { cleanNum($0) } ?? "" }
-private func cleanShares(_ val: Double?) -> String {
-    guard let v = val, v != 0 else { return "" }
-    if v == v.rounded(.down) { return String(format: "%.0f", v) }
-    let s = String(format: "%.8f", v)
-    var end = s.endIndex
-    while end > s.startIndex && s[s.index(before: end)] == "0" { end = s.index(before: end) }
-    if end > s.startIndex && s[s.index(before: end)] == "." { end = s.index(before: end) }
-    return String(s[s.startIndex..<end])
-}
-
 struct EditEntryView: View {
     @Environment(\.dismiss) private var dismiss
     private var store: FundDataStore { .shared }
