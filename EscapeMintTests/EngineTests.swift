@@ -985,10 +985,16 @@ final class EngineTests: XCTestCase {
         if let result {
             XCTAssertEqual(result.entries.count, 52)
             XCTAssertGreaterThan(result.totalBuys, 0)
+            // Initial cash 10000 + 52 weekly DCA of 100 = at most 15200 invested
             XCTAssertGreaterThan(result.totalInvested, 0)
+            XCTAssertLessThanOrEqual(result.totalInvested, 15200)
             XCTAssertGreaterThanOrEqual(result.finalValue, 0)
             XCTAssertEqual(result.weeks, 52)
             XCTAssertGreaterThan(result.daysElapsed, 350)
+            // Monotonically increasing prices → no sell signals should fire
+            XCTAssertEqual(result.totalSells, 0)
+            // Drawdown is always non-negative
+            XCTAssertGreaterThanOrEqual(result.maxDrawdown, 0)
         }
     }
 
@@ -1177,6 +1183,161 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(optStr(nil), "")
         XCTAssertEqual(optStr(42.5), "42.5")
         XCTAssertEqual(optStr(0.0), "0.0")
+    }
+
+    // MARK: - BacktestEngine: Declining Market
+
+    func testRunBacktestDecliningMarket() {
+        // Price series monotonically declining → sell signals should fire
+        let prices = (0..<52).map { i in
+            HistoricalData.PricePoint(
+                date: dateByAddingWeeks(i, from: "2024-01-01"),
+                value: 200.0 - Double(i) * 2.0  // Steady downtrend: 200 → 98
+            )
+        }
+
+        let hist = HistoricalData(
+            ticker: "TEST", name: "Test Asset", type: "stock",
+            startDate: prices.first!.date, endDate: prices.last!.date,
+            dataPoints: prices.count, prices: prices, dividends: nil
+        )
+
+        var config = BacktestConfig()
+        config.spxlPct = 0; config.vtiPct = 0; config.brgnxPct = 0
+        config.tqqqPct = 0; config.btcPct = 1.0; config.gldPct = 0; config.slvPct = 0
+        config.initialCash = 10000
+        config.weeklyDCA = 100
+        config.targetAPY = 0.10
+        config.accumulate = true
+
+        let result = runBacktest(config: config, historicalData: ["BTC": hist])
+        XCTAssertNotNil(result)
+
+        if let result {
+            XCTAssertEqual(result.entries.count, 52)
+            // DCA buys every week regardless of price direction
+            XCTAssertGreaterThan(result.totalBuys, 0)
+            XCTAssertGreaterThan(result.totalInvested, 0)
+            // DCA in a declining market: final value reflects cost averaging effect
+            XCTAssertGreaterThan(result.finalValue, 0)
+            // maxDrawdown should be >= 0 (may be 0 if drawdown isn't measured this way)
+            XCTAssertGreaterThanOrEqual(result.maxDrawdown, 0)
+        }
+    }
+
+    // MARK: - BacktestEngine: Harvest Mode
+
+    func testRunBacktestHarvestMode() {
+        // Same price data as synthetic uptrend, but accumulate = false (harvest mode)
+        let prices = (0..<52).map { i in
+            HistoricalData.PricePoint(
+                date: dateByAddingWeeks(i, from: "2024-01-01"),
+                value: 100.0 + Double(i) * 2.0  // Uptrend
+            )
+        }
+
+        let hist = HistoricalData(
+            ticker: "TEST", name: "Test Asset", type: "stock",
+            startDate: prices.first!.date, endDate: prices.last!.date,
+            dataPoints: prices.count, prices: prices, dividends: nil
+        )
+
+        var configAccumulate = BacktestConfig()
+        configAccumulate.spxlPct = 0; configAccumulate.vtiPct = 0; configAccumulate.brgnxPct = 0
+        configAccumulate.tqqqPct = 0; configAccumulate.btcPct = 1.0; configAccumulate.gldPct = 0; configAccumulate.slvPct = 0
+        configAccumulate.initialCash = 10000
+        configAccumulate.weeklyDCA = 100
+        configAccumulate.targetAPY = 0.25
+        configAccumulate.accumulate = true
+
+        var configHarvest = configAccumulate
+        configHarvest.accumulate = false
+
+        let accResult = runBacktest(config: configAccumulate, historicalData: ["BTC": hist])
+        let harvestResult = runBacktest(config: configHarvest, historicalData: ["BTC": hist])
+
+        XCTAssertNotNil(accResult)
+        XCTAssertNotNil(harvestResult)
+
+        if let acc = accResult, let harvest = harvestResult {
+            // Harvest mode sells the entire position; accumulate only sells a portion.
+            // Harvest should therefore extract more or equal than accumulate.
+            XCTAssertGreaterThanOrEqual(harvest.totalExtracted, acc.totalExtracted)
+            // Both modes should see at least one buy on an uptrend
+            XCTAssertGreaterThan(harvest.totalBuys, 0)
+        }
+    }
+
+    // MARK: - computeAvailableDateRange: Edge Cases
+
+    func testComputeAvailableDateRangeSingleAsset() {
+        let hist = HistoricalData(
+            ticker: "A", name: "A", type: "stock",
+            startDate: "2020-01-01", endDate: "2025-01-01",
+            dataPoints: 10, prices: [], dividends: nil
+        )
+
+        let range = computeAvailableDateRange(
+            historicalData: ["A": hist],
+            allocations: [("A", 1.0)]
+        )
+
+        XCTAssertNotNil(range)
+        XCTAssertEqual(range?.start, "2020-01-01")
+        XCTAssertEqual(range?.end, "2025-01-01")
+    }
+
+    func testComputeAvailableDateRangeEmpty() {
+        let range = computeAvailableDateRange(
+            historicalData: [:],
+            allocations: []
+        )
+        XCTAssertNil(range)
+    }
+
+    func testComputeAvailableDateRangeAllZeroPct() {
+        let hist = HistoricalData(
+            ticker: "A", name: "A", type: "stock",
+            startDate: "2020-01-01", endDate: "2025-01-01",
+            dataPoints: 10, prices: [], dividends: nil
+        )
+
+        // All allocations are 0 pct — treated as no active allocations
+        let range = computeAvailableDateRange(
+            historicalData: ["A": hist],
+            allocations: [("A", 0.0)]
+        )
+        XCTAssertNil(range)
+    }
+
+    // MARK: - Harvest-Mode Partial Sell Cost Basis
+
+    func testComputeEntryRowsHarvestPartialSell() {
+        // Harvest mode (accumulate: false): partial sell reduces cost basis proportionally.
+        // value before sell = 800, sell amount = 200
+        // sellProportion = 200 / (800 + 200) = 0.20
+        // costBasisReturned = 1000 * 0.20 = 200
+        // entryExtracted = max(0, 200 - 200) = 0   (selling at cost, no profit yet)
+        // remaining costBasis = 1000 - 200 = 800
+        let config = makeStockConfig(accumulate: false)
+        let entries = [
+            FundEntry(date: "2024-01-01", value: 1000, action: .BUY, amount: 1000, shares: 20),
+            // value is pre-action remaining equity; sell 200 out of total (800 remaining + 200 sold)
+            FundEntry(date: "2024-06-01", value: 800, action: .SELL, amount: 200, shares: 4),
+        ]
+
+        let rows = computeEntryRows(entries: entries, config: config)
+        XCTAssertEqual(rows.count, 2)
+
+        let sellRow = rows[1]
+        // Cost basis after proportional reduction: 1000 * (1 - 0.20) = 800
+        XCTAssertEqual(sellRow.invested, 800, accuracy: 0.01)
+        // No profit yet (sold at cost)
+        XCTAssertEqual(sellRow.extracted, 0, accuracy: 0.01)
+        // Post-action equity = max(0, 800 - 200) = 600; unrealized = 600 - 800 = -200
+        XCTAssertEqual(sellRow.unrealized, -200, accuracy: 0.01)
+        // Not a closing entry (shares remain)
+        XCTAssertFalse(sellRow.isClosingEntry)
     }
 }
 

@@ -114,7 +114,8 @@ final class FundMetricsTests: XCTestCase {
 
         XCTAssertEqual(result.metrics.fundType, .cash)
         XCTAssertEqual(result.metrics.currentValue, 10200, accuracy: 0.01)
-        XCTAssertGreaterThanOrEqual(result.metrics.totalCashInterest, 200)
+        // The only cash_interest entry records exactly 200; totalCashInterest sums those entries
+        XCTAssertEqual(result.metrics.totalCashInterest, 200, accuracy: 0.01)
     }
 
     func testCashFundNoRecommendation() {
@@ -205,11 +206,11 @@ final class FundMetricsTests: XCTestCase {
     }
 
     func testRealizedGainsNoTrades() {
-        let config = makeConfig()
+        // cashApy: 0 so no interest accrues — realized gains must be exactly zero
+        let config = makeConfig(cashApy: 0)
         let cashflows = [CashFlow(date: "2024-01-01", amountUsd: 5000, type: .deposit)]
         let realized = computeRealizedGains(config: config, trades: [], cashflows: cashflows, dividends: [], expenses: [], asOfDate: "2025-01-01")
-        // Only cash interest
-        XCTAssertGreaterThanOrEqual(realized, 0)
+        XCTAssertEqual(realized, 0, accuracy: 0.01)
     }
 
     // MARK: - Cash Available
@@ -324,10 +325,12 @@ final class FundMetricsTests: XCTestCase {
         XCTAssertEqual(portfolio.closedFunds, 0)
         XCTAssertEqual(portfolio.funds.count, 3)
         XCTAssertEqual(portfolio.states.count, 3)
-        XCTAssertGreaterThan(portfolio.totalValue, 0)
-        XCTAssertGreaterThan(portfolio.totalFundSize, 0)
+        // fund1.currentValue=1200, fund2.currentValue=700, cashFund.currentValue=5000
+        XCTAssertEqual(portfolio.totalValue, 6900, accuracy: 0.01)
+        // fund1.fundSize=5000 (fund_size field), fund2.fundSize=3000, cashFund.fundSize=5000 (cash value)
+        XCTAssertEqual(portfolio.totalFundSize, 13000, accuracy: 0.01)
         // Cash balance should include the cash fund
-        XCTAssertGreaterThanOrEqual(portfolio.cashBalance, 5000)
+        XCTAssertEqual(portfolio.cashBalance, 5000, accuracy: 0.01)
     }
 
     func testPortfolioMetricsWithClosedFund() {
