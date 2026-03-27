@@ -118,6 +118,42 @@ final class FundMetricsTests: XCTestCase {
         XCTAssertEqual(result.metrics.totalCashInterest, 200, accuracy: 0.01)
     }
 
+    func testCashFundFallbackToFundSize() {
+        // When cash field is nil, engine should fall back to fund_size then value
+        let config = makeConfig(fundType: .cash, cashApy: 0.04, manageCash: true, accumulate: true)
+        let entries = [
+            FundEntry(date: "2023-01-01", value: 0, action: .HOLD, amount: 100, fund_size: 100),
+            FundEntry(date: "2023-06-01", value: 0, action: .HOLD, amount: 100, cash_interest: 50, fund_size: 245.55),
+            // Latest entry: user updated equity and fund_size but cash field is nil
+            FundEntry(date: "2026-03-26", value: 2012.41, action: .HOLD, amount: 100, fund_size: 2012.41),
+        ]
+
+        let fund = FundData(platform: "robinhood", ticker: "cash", config: config, entries: entries)
+        let result = computeFundMetricsForFund(fund, asOfDate: "2026-03-26")
+
+        // currentValue should use fund_size fallback (cash is nil)
+        XCTAssertEqual(result.metrics.currentValue, 2012.41, accuracy: 0.01, "currentValue should fall back to fund_size when cash is nil")
+        // state.startInputUsd for cash funds = cash = cashVal
+        XCTAssertEqual(result.state.startInputUsd, 2012.41, accuracy: 0.01, "startInput should equal cash balance for cash funds")
+        // cashAvailableUsd for cash funds = cash = cashVal
+        XCTAssertEqual(result.state.cashAvailableUsd, 2012.41, accuracy: 0.01, "cashAvailable should equal cash balance for cash funds")
+    }
+
+    func testCashFundFallbackToValue() {
+        // When both cash and fund_size are nil, engine should fall back to value
+        let config = makeConfig(fundType: .cash, cashApy: 0.04, manageCash: true)
+        let entries = [
+            FundEntry(date: "2023-01-01", value: 5000, action: .HOLD, amount: 5000),
+        ]
+
+        let fund = FundData(platform: "test", ticker: "cash", config: config, entries: entries)
+        let result = computeFundMetricsForFund(fund, asOfDate: "2025-01-01")
+
+        XCTAssertEqual(result.metrics.currentValue, 5000, accuracy: 0.01, "currentValue should fall back to value when cash and fund_size are nil")
+        XCTAssertEqual(result.state.startInputUsd, 5000, accuracy: 0.01)
+        XCTAssertEqual(result.state.cashAvailableUsd, 5000, accuracy: 0.01)
+    }
+
     func testCashFundNoRecommendation() {
         let config = makeConfig(fundType: .cash)
         let state = FundState(cashAvailableUsd: 5000, actualValueUsd: 5000)

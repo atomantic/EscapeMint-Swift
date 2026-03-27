@@ -201,9 +201,12 @@ final class FundDataStore {
 
     func replaceEntries(fundId: String, entries: [FundEntry]) async {
         if let idx = funds.firstIndex(where: { $0.id == fundId }) {
-            funds[idx].entries = entries
+            // Compute with updated entries BEFORE mutating funds,
+            // so the view never sees new entries with stale summaries
+            var snapshot = funds
+            snapshot[idx].entries = entries
             ViewCache.shared.invalidateFundCache(fundId: fundId)
-            await recompute()
+            await recomputeWith(snapshot)
         }
         do {
             try await FundStore.shared.replaceEntries(fundId: fundId, entries: entries)
@@ -215,8 +218,9 @@ final class FundDataStore {
 
     func updateConfig(fundId: String, config: FundConfig) async {
         if let idx = funds.firstIndex(where: { $0.id == fundId }) {
-            funds[idx].config = config
-            await recompute()
+            var snapshot = funds
+            snapshot[idx].config = config
+            await recomputeWith(snapshot)
         }
         do {
             try await FundStore.shared.updateConfig(fundId: fundId, config: config)
@@ -285,17 +289,22 @@ final class FundDataStore {
     }
 
     private func recompute() async {
-        let fundsSnapshot = funds
+        await recomputeWith(funds)
+    }
 
+    /// Compute derived state from the given snapshot and apply atomically.
+    /// When called from replaceEntries/updateConfig, the snapshot contains the
+    /// pending mutation so `funds` and summaries update in the same frame.
+    private func recomputeWith(_ snapshot: [FundData]) async {
         // Run all expensive engine computation off the main thread
         let result = await Task.detached(priority: .userInitiated) {
-            let portfolio = computePortfolioMetrics(fundsSnapshot)
-            let summaries = computeSummariesFromPortfolio(funds: fundsSnapshot, portfolio: portfolio)
+            let portfolio = computePortfolioMetrics(snapshot)
+            let summaries = computeSummariesFromPortfolio(funds: snapshot, portfolio: portfolio)
                 .sorted { $0.currentValue > $1.currentValue }
             var map: [String: FundSummary] = [:]
             for s in summaries { map[s.fund.id] = s }
-            let actionable = computeActionableFunds(fundsSnapshot)
-            let platforms = Array(Set(fundsSnapshot.map(\.platform))).sorted()
+            let actionable = computeActionableFunds(snapshot)
+            let platforms = Array(Set(snapshot.map(\.platform))).sorted()
             return ComputeResult(
                 portfolio: portfolio,
                 summaries: summaries,
@@ -305,7 +314,9 @@ final class FundDataStore {
             )
         }.value
 
-        // Apply results on main thread (cheap assignment)
+        // Apply funds + derived state atomically so the view never sees
+        // new entries with stale summaries
+        funds = snapshot
         portfolio = result.portfolio
         summaries = result.summaries
         summaryMap = result.summaryMap
@@ -319,7 +330,7 @@ final class FundDataStore {
         updateDockBadge(actionableFunds.count)
 
         // Pre-compute chart data in background so fund detail pages load instantly
-        ViewCache.shared.precomputeFundCharts(fundsSnapshot)
+        ViewCache.shared.precomputeFundCharts(snapshot)
 
         // Debounce expensive side effects (notifications, Spotlight, widget)
         // so rapid recomputes during progressive load don't trigger them repeatedly
