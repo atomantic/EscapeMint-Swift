@@ -156,6 +156,11 @@ struct EditEntryView: View {
 
         let fs = r(parseFormulaValue(fundSizeText)); updated.fund_size = fs != 0 ? fs : nil
 
+        // For cash funds, keep the cash field in sync with equity
+        if fundType == .cash {
+            updated.cash = updated.value > 0 ? updated.value : nil
+        }
+
         dismiss()
         Task {
             guard var fund = store.fund(byId: fundId) else { return }

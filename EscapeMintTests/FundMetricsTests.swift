@@ -131,11 +131,8 @@ final class FundMetricsTests: XCTestCase {
         let fund = FundData(platform: "robinhood", ticker: "cash", config: config, entries: entries)
         let result = computeFundMetricsForFund(fund, asOfDate: "2026-03-26")
 
-        // currentValue should use fund_size fallback (cash is nil)
         XCTAssertEqual(result.metrics.currentValue, 2012.41, accuracy: 0.01, "currentValue should fall back to fund_size when cash is nil")
-        // state.startInputUsd for cash funds = cash = cashVal
         XCTAssertEqual(result.state.startInputUsd, 2012.41, accuracy: 0.01, "startInput should equal cash balance for cash funds")
-        // cashAvailableUsd for cash funds = cash = cashVal
         XCTAssertEqual(result.state.cashAvailableUsd, 2012.41, accuracy: 0.01, "cashAvailable should equal cash balance for cash funds")
     }
 
@@ -152,6 +149,23 @@ final class FundMetricsTests: XCTestCase {
         XCTAssertEqual(result.metrics.currentValue, 5000, accuracy: 0.01, "currentValue should fall back to value when cash and fund_size are nil")
         XCTAssertEqual(result.state.startInputUsd, 5000, accuracy: 0.01)
         XCTAssertEqual(result.state.cashAvailableUsd, 5000, accuracy: 0.01)
+    }
+
+    func testCashFundExplicitZeroCashFallsThrough() {
+        // Bug: cash field is explicitly 0 (not nil) — ?? doesn't fall through
+        // Engine must treat 0 as "not set" and use fund_size/value instead
+        let config = makeConfig(fundType: .cash, cashApy: 0.04, manageCash: true, accumulate: true)
+        let entries = [
+            // cash is explicitly 0.0, but fund_size and value are set
+            FundEntry(date: "2026-03-26", value: 2012.41, cash: 0, action: .HOLD, amount: 100, fund_size: 2012.41),
+        ]
+
+        let fund = FundData(platform: "robinhood", ticker: "cash", config: config, entries: entries)
+        let result = computeFundMetricsForFund(fund, asOfDate: "2026-03-26")
+
+        XCTAssertEqual(result.metrics.currentValue, 2012.41, accuracy: 0.01, "Explicit cash=0 should fall through to fund_size")
+        XCTAssertEqual(result.state.startInputUsd, 2012.41, accuracy: 0.01)
+        XCTAssertEqual(result.state.cashAvailableUsd, 2012.41, accuracy: 0.01)
     }
 
     func testCashFundNoRecommendation() {

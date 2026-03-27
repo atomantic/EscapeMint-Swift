@@ -752,7 +752,12 @@ func computeFundMetricsForFund(_ fund: FundData, asOfDate: String) -> (metrics: 
         currentValue = 0
         cash = 0
     } else if isCash {
-        let cashVal = latestEntry?.cash ?? latestEntry?.fund_size ?? latestEntry?.value ?? 0
+        // Use first non-zero value: cash → fund_size → value
+        // (cash field may be explicitly 0 from older entries, so ?? alone won't fall through)
+        let cashVal: Double
+        if let c = latestEntry?.cash, c > 0 { cashVal = c }
+        else if let fs = latestEntry?.fund_size, fs > 0 { cashVal = fs }
+        else { cashVal = latestEntry?.value ?? 0 }
         cash = cashVal
         computedFundSize = latestEntry?.fund_size ?? cashVal
         currentValue = cashVal
