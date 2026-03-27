@@ -3,12 +3,27 @@ import CoreSpotlight
 import UserNotifications
 
 #if os(macOS)
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+    static var reopenWindow: (() -> Void)?
+
+    nonisolated func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {
-            sender.windows.first { $0.canBecomeMain }?.makeKeyAndOrderFront(nil)
+            DispatchQueue.main.async {
+                Self.showOrCreateMainWindow()
+            }
         }
         return true
+    }
+
+    static func showOrCreateMainWindow() {
+        for window in NSApp.windows where window.canBecomeMain {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        reopenWindow?()
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 #endif
@@ -50,7 +65,7 @@ struct EscapeMintApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: "main") {
             ContentView()
         }
         #if os(macOS)
@@ -75,10 +90,7 @@ struct EscapeMintApp: App {
                 .keyboardShortcut("r", modifiers: .command)
             }
             CommandGroup(after: .windowArrangement) {
-                Button("Show Main Window") {
-                    NSApp.windows.first { $0.canBecomeMain }?.makeKeyAndOrderFront(nil)
-                }
-                .keyboardShortcut("0", modifiers: .command)
+                ShowMainWindowCommand()
             }
         }
         #endif
@@ -96,6 +108,9 @@ struct EscapeMintApp: App {
 }
 
 struct ContentView: View {
+    #if os(macOS)
+    @Environment(\.openWindow) private var openWindow
+    #endif
     @State private var appearance = AppearanceManager.shared
     @State private var auth = AuthManager.shared
     @AppStorage(AppStorageKeys.introCompleted) private var introCompleted = false
@@ -159,6 +174,9 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            #if os(macOS)
+            AppDelegate.reopenWindow = { [openWindow] in openWindow(id: "main") }
+            #endif
             if CommandLine.arguments.contains("-loadTestData") { return }
             if !introCompleted || showIntroOnLaunch {
                 showIntroGuide = true
@@ -249,6 +267,22 @@ struct ContentView: View {
     }
     #endif
 }
+
+#if os(macOS)
+struct ShowMainWindowCommand: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Show Main Window") {
+            AppDelegate.showOrCreateMainWindow()
+        }
+        .keyboardShortcut("0", modifiers: .command)
+        .onAppear {
+            AppDelegate.reopenWindow = { [openWindow] in openWindow(id: "main") }
+        }
+    }
+}
+#endif
 
 #if os(macOS)
 struct MacContentView: View {
