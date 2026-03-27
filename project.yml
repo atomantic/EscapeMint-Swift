@@ -38,6 +38,9 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: false
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": EscapeMint/App/EscapeMint.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": EscapeMint/App/EscapeMint.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": EscapeMint/App/EscapeMint-macOS.entitlements
     info:
       path: EscapeMint/App/Info.plist
       properties:
@@ -57,18 +60,6 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-    entitlements:
-      path: EscapeMint/App/EscapeMint.entitlements
-      properties:
-        com.apple.security.app-sandbox: true
-        com.apple.security.files.user-selected.read-write: true
-        com.apple.security.files.bookmarks.app-scope: true
-        com.apple.developer.icloud-container-identifiers:
-          - iCloud.net.shadowpuppet.EscapeMint
-        com.apple.developer.icloud-services:
-          - CloudDocuments
-        com.apple.security.application-groups:
-          - group.net.shadowpuppet.EscapeMint
     dependencies:
       - target: EscapeMintWidget_iOS
         embed: true
