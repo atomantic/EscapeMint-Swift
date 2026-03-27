@@ -307,7 +307,6 @@ struct AddEntryView: View {
         }
 
         Section("Details") {
-            NumericFieldRow(label: "Fund Size ($)", placeholder: "Auto-calculated", text: $fundSizeOverride)
             NumericFieldRow(label: "Interest Earned ($)", text: $cashInterest)
             NumericFieldRow(label: "Fee ($)", text: $fee, sign: "-")
             if features.supportsMargin {
