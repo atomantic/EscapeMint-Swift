@@ -6,7 +6,22 @@ import SwiftUI
 @MainActor @Observable
 final class ViewCache {
     static let shared = ViewCache()
-    private init() {}
+    static let maxCachedFunds = 10
+
+    private init() {
+        #if os(iOS)
+        NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.clearNonEssentialCaches() }
+        }
+        #endif
+    }
+
+    /// Clear chart and row caches on memory pressure (historical data is kept)
+    func clearNonEssentialCaches() {
+        chartPointsCache.removeAll()
+        fundRowsCache.removeAll()
+        fundDerivCache.removeAll()
+    }
 
     /// Start loading historical data. Call early at app launch.
     /// Priority is boosted for first-time users (guide needs backtest data ASAP).
@@ -14,7 +29,7 @@ final class ViewCache {
         guard _historicalData == nil, !_loadingStarted else { return }
         _loadingStarted = true
         let priority: TaskPriority = prioritizeGuide ? .userInitiated : .utility
-        Task {
+        _loadingTask = Task {
             let data = await Task.detached(priority: priority) {
                 loadHistoricalData()
             }.value
@@ -26,6 +41,7 @@ final class ViewCache {
     }
 
     private var _loadingStarted = false
+    private var _loadingTask: Task<Void, Never>?
 
     // MARK: - Historical Data (static bundle data, loaded once)
 

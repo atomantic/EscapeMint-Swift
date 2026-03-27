@@ -244,6 +244,10 @@ actor FundStore {
         guard fileManager.fileExists(atPath: tsvURL.path) else { return }
         let tsv = buildTSV(entries)
         try tsv.write(to: tsvURL, atomically: true, encoding: .utf8)
+        // Re-apply file protection after atomic write (atomic creates a new file via rename)
+        #if os(iOS)
+        try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: tsvURL.path)
+        #endif
     }
 
     func updateConfig(fundId: String, config: FundConfig) throws {
