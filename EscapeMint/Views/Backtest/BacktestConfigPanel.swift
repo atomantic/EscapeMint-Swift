@@ -12,7 +12,7 @@ struct BacktestConfigPanel: View {
         #if os(macOS)
         true
         #else
-        sizeClass == .regular
+        computeIsWide(sizeClass: sizeClass)
         #endif
     }
 

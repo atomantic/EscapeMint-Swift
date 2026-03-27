@@ -101,24 +101,12 @@ struct PlatformDetailView: View {
 
         let cols = platformAdaptiveColumns(mac: 5, ios: 3)
         LazyVGrid(columns: cols, spacing: 10) {
-            miniStat("Cash", formatCurrency(totalCash))
-            miniStat("Dividends", formatCurrency(totalDividends), color: totalDividends > 0 ? .mint : .textMuted)
-            miniStat("Expenses", formatCurrency(totalExpenses), color: totalExpenses > 0 ? .red : .textMuted)
-            miniStat("Interest", formatCurrency(totalInterest), color: totalInterest > 0 ? .mint : .textMuted)
-            miniStat("Funds", "\(activeSummaries.count) / \(closedSummaries.count)")
+            StatBox(label: "Cash", value: formatCurrency(totalCash))
+            StatBox(label: "Dividends", value: formatCurrency(totalDividends), color: totalDividends > 0 ? .mint : .textMuted)
+            StatBox(label: "Expenses", value: formatCurrency(totalExpenses), color: totalExpenses > 0 ? .red : .textMuted)
+            StatBox(label: "Interest", value: formatCurrency(totalInterest), color: totalInterest > 0 ? .mint : .textMuted)
+            StatBox(label: "Funds", value: "\(activeSummaries.count) / \(closedSummaries.count)")
         }
-    }
-
-    @ViewBuilder
-    private func miniStat(_ label: String, _ value: String, color: Color = .textPrimary) -> some View {
-        VStack(spacing: 2) {
-            Text(label).font(.caption2).foregroundColor(.textMuted)
-            Text(value).font(.caption).fontWeight(.medium).foregroundColor(color)
-        }
-        .padding(8)
-        .frame(maxWidth: .infinity)
-        .background(Color.bgCard)
-        .cornerRadius(8)
     }
 
     // MARK: - macOS Funds Table

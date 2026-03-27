@@ -697,24 +697,16 @@ struct DashboardView: View {
 
     private func pickAndImport() {
         #if os(macOS)
-        let panel = NSOpenPanel()
-        panel.title = "Select funds directory"
-        panel.message = "Choose the folder containing your .tsv and .json fund files"
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = false
-        panel.treatsFilePackagesAsDirectories = true
-        guard let window = NSApp.keyWindow else {
-            if panel.runModal() == .OK, let url = panel.url {
-                importFunds(from: url)
-            }
-            return
-        }
-        panel.beginSheetModal(for: window) { response in
-            if response == .OK, let url = panel.url {
-                self.importFunds(from: url)
-            }
+        showOpenPanel(
+            title: "Select funds directory",
+            message: "Choose the folder containing your .tsv and .json fund files",
+            canChooseFiles: false,
+            canChooseDirectories: true,
+            allowedContentTypes: [],
+            canCreateDirectories: false,
+            treatsFilePackagesAsDirectories: true
+        ) { url in
+            self.importFunds(from: url)
         }
         #else
         showImport = true

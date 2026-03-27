@@ -2,7 +2,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct SettingsView: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appearance = AppearanceManager.shared
     @State private var fundCount = 0
     @State private var dataSize = "..."
@@ -128,19 +127,7 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .task { await refreshStats() }
-            .overlay(alignment: .bottom) {
-                if showStatus {
-                    Text(statusMessage)
-                        .font(.callout).fontWeight(.medium)
-                        .foregroundColor(.textPrimary)
-                        .padding(.horizontal, 16).padding(.vertical, 10)
-                        .background(Color.mint.cornerRadius(10))
-                        .shadow(radius: 4)
-                        .padding(.bottom, 20)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-            }
-            .animation(reduceMotion ? .none : .easeInOut(duration: 0.3), value: showStatus)
+            .toast(isPresented: $showStatus, message: statusMessage)
             .sheet(isPresented: $showIntroGuide) {
                 IntroGuideView(isPresented: $showIntroGuide)
             }
@@ -174,17 +161,9 @@ struct SettingsView: View {
             }
     }
 
-    @State private var toastTask: Task<Void, Never>?
-
     private func showToast(_ message: String) {
         statusMessage = message
         showStatus = true
-        toastTask?.cancel()
-        toastTask = Task {
-            try? await Task.sleep(for: .seconds(2.5))
-            guard !Task.isCancelled else { return }
-            showStatus = false
-        }
     }
 
     private func refreshStats() async {
@@ -197,23 +176,14 @@ struct SettingsView: View {
 
     private func pickAndImportJSON() {
         #if os(macOS)
-        let panel = NSOpenPanel()
-        panel.title = "Select backup JSON file"
-        panel.message = "Choose an EscapeMint backup file (escapemint-backup-*.json)"
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.json]
-        guard let window = NSApp.keyWindow else {
-            if panel.runModal() == .OK, let url = panel.url {
-                importBackupJSON(from: url)
-            }
-            return
-        }
-        panel.beginSheetModal(for: window) { response in
-            if response == .OK, let url = panel.url {
-                self.importBackupJSON(from: url)
-            }
+        showOpenPanel(
+            title: "Select backup JSON file",
+            message: "Choose an EscapeMint backup file (escapemint-backup-*.json)",
+            canChooseFiles: true,
+            canChooseDirectories: false,
+            allowedContentTypes: [.json]
+        ) { url in
+            self.importBackupJSON(from: url)
         }
         #else
         showImportJSON = true

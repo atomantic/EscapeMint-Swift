@@ -171,17 +171,17 @@ struct PlatformsView: View {
 
             #if os(macOS)
             HStack(spacing: 0) {
-                statColumn(label: "Fund Size", value: formatCurrency(info.totalFundSize))
-                statColumn(label: "Current Value", value: formatCurrency(info.totalValue), color: .mint)
-                statColumn(label: "Funds", value: "\(info.fundCount)")
-                statColumn(label: "Active", value: "\(info.activeFundCount)")
+                StatBox(label: "Fund Size", value: formatCurrency(info.totalFundSize), showCard: false)
+                StatBox(label: "Current Value", value: formatCurrency(info.totalValue), color: .mint, showCard: false)
+                StatBox(label: "Funds", value: "\(info.fundCount)", showCard: false)
+                StatBox(label: "Active", value: "\(info.activeFundCount)", showCard: false)
             }
             #else
             LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 8) {
-                statColumn(label: "Fund Size", value: formatCurrency(info.totalFundSize))
-                statColumn(label: "Value", value: formatCurrency(info.totalValue), color: .mint)
-                statColumn(label: "Funds", value: "\(info.fundCount)")
-                statColumn(label: "Active", value: "\(info.activeFundCount)")
+                StatBox(label: "Fund Size", value: formatCurrency(info.totalFundSize), showCard: false)
+                StatBox(label: "Value", value: formatCurrency(info.totalValue), color: .mint, showCard: false)
+                StatBox(label: "Funds", value: "\(info.fundCount)", showCard: false)
+                StatBox(label: "Active", value: "\(info.activeFundCount)", showCard: false)
             }
             #endif
         }
@@ -203,17 +203,6 @@ struct PlatformsView: View {
         } label: {
             Label("Delete Platform", systemImage: "trash")
         }
-    }
-
-    @ViewBuilder
-    private func statColumn(label: String, value: String, color: Color = .textPrimary) -> some View {
-        VStack(spacing: 2) {
-            Text(label)
-                .font(.caption2).foregroundColor(.textMuted)
-            Text(value)
-                .font(.callout).fontWeight(.medium).foregroundColor(color)
-        }
-        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Empty State
