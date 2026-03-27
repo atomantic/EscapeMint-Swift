@@ -1,5 +1,20 @@
 import SwiftUI
 
+/// Format a Double for display in text fields — clean, no precision artifacts
+private func cleanNum(_ val: Double) -> String {
+    val == 0 ? "" : (val == val.rounded(.down) ? String(format: "%.0f", val) : String(format: "%.2f", val))
+}
+private func cleanNum(_ val: Double?) -> String { val.map { cleanNum($0) } ?? "" }
+private func cleanShares(_ val: Double?) -> String {
+    guard let v = val, v != 0 else { return "" }
+    if v == v.rounded(.down) { return String(format: "%.0f", v) }
+    let s = String(format: "%.8f", v)
+    var end = s.endIndex
+    while end > s.startIndex && s[s.index(before: end)] == "0" { end = s.index(before: end) }
+    if end > s.startIndex && s[s.index(before: end)] == "." { end = s.index(before: end) }
+    return String(s[s.startIndex..<end])
+}
+
 struct EditEntryView: View {
     @Environment(\.dismiss) private var dismiss
     private var store: FundDataStore { .shared }
@@ -23,9 +38,12 @@ struct EditEntryView: View {
     @State private var marginBorrowed: String
     @State private var notes: String
     @State private var fundSizeText: String
+    @State private var cashInterest: String
     @State private var isSaving = false
     @State private var showDeleteConfirm = false
     @State private var showOptional = true
+
+    private var isCash: Bool { fundType == .cash }
 
     init(entry: FundEntry, entryIndex: Int, fundId: String, fundType: FundType, fundConfig: FundConfig, existingEntries: [FundEntry] = [], onSaved: @escaping () -> Void) {
         self.entry = entry
@@ -37,16 +55,21 @@ struct EditEntryView: View {
         self.onSaved = onSaved
         _date = State(initialValue: isoDateFormatter.date(from: entry.date) ?? Date())
         _action = State(initialValue: entry.action ?? .HOLD)
-        _value = State(initialValue: String(entry.value))
-        _amount = State(initialValue: entry.amount.map { String($0) } ?? "")
-        _shares = State(initialValue: entry.shares.map { String($0) } ?? "")
-        _price = State(initialValue: entry.price.map { String($0) } ?? "")
-        _dividend = State(initialValue: entry.dividend.map { String($0) } ?? "")
-        _expense = State(initialValue: entry.expense.map { String($0) } ?? "")
-        _marginAvailable = State(initialValue: entry.margin_available.map { String($0) } ?? "")
-        _marginBorrowed = State(initialValue: entry.margin_borrowed.map { String($0) } ?? "")
+        // For cash funds, show the cash balance (cash ?? fund_size ?? value)
+        let cashDisplay = fundType == .cash
+            ? (entry.cash ?? entry.fund_size ?? entry.value)
+            : entry.value
+        _value = State(initialValue: cleanNum(cashDisplay))
+        _amount = State(initialValue: cleanNum(entry.amount))
+        _shares = State(initialValue: cleanShares(entry.shares))
+        _price = State(initialValue: cleanNum(entry.price))
+        _dividend = State(initialValue: cleanNum(entry.dividend))
+        _expense = State(initialValue: cleanNum(entry.expense))
+        _marginAvailable = State(initialValue: cleanNum(entry.margin_available))
+        _marginBorrowed = State(initialValue: cleanNum(entry.margin_borrowed))
         _notes = State(initialValue: entry.notes ?? "")
-        _fundSizeText = State(initialValue: entry.fund_size.map { String($0) } ?? "")
+        _fundSizeText = State(initialValue: cleanNum(entry.fund_size))
+        _cashInterest = State(initialValue: cleanNum(entry.cash_interest))
     }
 
     private var features: FundTypeFeatures { getFeatures(fundType) }
@@ -58,47 +81,10 @@ struct EditEntryView: View {
     var body: some View {
         NavigationStack {
             Form {
-                // MARK: - Action section
-                Section {
-                    DatePicker("Date", selection: $date, displayedComponents: .date)
-                    Picker("Action", selection: $action) {
-                        Text("BUY").tag(FundAction.BUY)
-                        Text("SELL").tag(FundAction.SELL)
-                        Text("HOLD").tag(FundAction.HOLD)
-                    }
-                }
-
-                // MARK: - Values section
-                Section {
-                    NumericFieldRow(label: "Equity ($)", placeholder: "Portfolio value", text: $value)
-                    NumericFieldRow(label: "Amount ($)", placeholder: action == .HOLD ? "N/A" : "Buy/sell amount", text: $amount)
-                        .disabled(action == .HOLD)
-                        .opacity(action == .HOLD ? 0.5 : 1)
-                } header: {
-                    Text("Action")
-                }
-
-                // MARK: - Optional section
-                Section(isExpanded: $showOptional) {
-                    if features.supportsShares {
-                        NumericFieldRow(label: "Shares/Units", text: $shares, hint: totalSharesHint)
-                        NumericFieldRow(label: "Price ($)", placeholder: "Per unit", text: $price)
-                        Button("Calc Price/Equity") { calcPriceEquity() }
-                            .font(.callout)
-                            .foregroundColor(.mint)
-                    }
-                    if features.supportsDividends {
-                        NumericFieldRow(label: "Dividend ($)", text: $dividend)
-                    }
-                    NumericFieldRow(label: "Expense ($)", text: $expense, sign: "-")
-                    if features.supportsMargin {
-                        NumericFieldRow(label: "Margin Available ($)", text: $marginAvailable)
-                        NumericFieldRow(label: "Margin Borrowed ($)", text: $marginBorrowed, sign: "-")
-                    }
-                    NumericFieldRow(label: "Fund Size ($)", text: $fundSizeText)
-                    TextField("Notes", text: $notes)
-                } header: {
-                    Text("Optional")
+                if isCash {
+                    cashForm
+                } else {
+                    tradingForm
                 }
 
                 // MARK: - Delete
@@ -131,6 +117,80 @@ struct EditEntryView: View {
         }
     }
 
+    // MARK: - Cash Fund Form
+
+    @ViewBuilder
+    private var cashForm: some View {
+        Section {
+            DatePicker("Date", selection: $date, displayedComponents: .date)
+        }
+
+        Section {
+            NumericFieldRow(label: "Cash Balance ($)", placeholder: "Current balance", text: $value)
+            NumericFieldRow(label: "Amount ($)", placeholder: "Deposit/withdrawal", text: $amount)
+        } header: {
+            Text("Cash Balance Entry")
+                .foregroundColor(.mint)
+        }
+
+        Section(isExpanded: $showOptional) {
+            NumericFieldRow(label: "Interest Earned ($)", text: $cashInterest)
+            NumericFieldRow(label: "Expense ($)", text: $expense, sign: "-")
+            if features.supportsMargin {
+                NumericFieldRow(label: "Margin Available ($)", text: $marginAvailable)
+                NumericFieldRow(label: "Margin Borrowed ($)", text: $marginBorrowed, sign: "-")
+            }
+            TextField("Notes", text: $notes)
+        } header: {
+            Text("Optional")
+        }
+    }
+
+    // MARK: - Trading Fund Form
+
+    @ViewBuilder
+    private var tradingForm: some View {
+        Section {
+            DatePicker("Date", selection: $date, displayedComponents: .date)
+            Picker("Action", selection: $action) {
+                Text("BUY").tag(FundAction.BUY)
+                Text("SELL").tag(FundAction.SELL)
+                Text("HOLD").tag(FundAction.HOLD)
+            }
+        }
+
+        Section {
+            NumericFieldRow(label: "Equity ($)", placeholder: "Portfolio value", text: $value)
+            NumericFieldRow(label: "Amount ($)", placeholder: action == .HOLD ? "N/A" : "Buy/sell amount", text: $amount)
+                .disabled(action == .HOLD)
+                .opacity(action == .HOLD ? 0.5 : 1)
+        } header: {
+            Text("Action")
+        }
+
+        Section(isExpanded: $showOptional) {
+            if features.supportsShares {
+                NumericFieldRow(label: "Shares/Units", text: $shares, hint: totalSharesHint)
+                NumericFieldRow(label: "Price ($)", placeholder: "Per unit", text: $price)
+                Button("Calc Price/Equity") { calcPriceEquity() }
+                    .font(.callout)
+                    .foregroundColor(.mint)
+            }
+            if features.supportsDividends {
+                NumericFieldRow(label: "Dividend ($)", text: $dividend)
+            }
+            NumericFieldRow(label: "Expense ($)", text: $expense, sign: "-")
+            if features.supportsMargin {
+                NumericFieldRow(label: "Margin Available ($)", text: $marginAvailable)
+                NumericFieldRow(label: "Margin Borrowed ($)", text: $marginBorrowed, sign: "-")
+            }
+            NumericFieldRow(label: "Fund Size ($)", text: $fundSizeText)
+            TextField("Notes", text: $notes)
+        } header: {
+            Text("Optional")
+        }
+    }
+
     private func calcPriceEquity() {
         guard let result = calcPriceAndEquity(amount: amount, shares: shares, existingEntries: existingEntries, date: date) else { return }
         price = result.price
@@ -143,23 +203,30 @@ struct EditEntryView: View {
         var updated = entry
         updated.date = isoDateFormatter.string(from: date)
         func r(_ v: Double) -> Double { (v * 100).rounded() / 100 }
-        updated.value = r(parseFormulaValue(value))
-        updated.action = action
-        let amt = r(parseFormulaValue(amount)); updated.amount = amt != 0 ? amt : nil
-        let sh = parseFormulaValue(shares); updated.shares = sh != 0 ? sh : nil
-        let pr = r(parseFormulaValue(price)); updated.price = pr != 0 ? pr : nil
-        let div = r(parseFormulaValue(dividend)); updated.dividend = div != 0 ? div : nil
+        let parsedValue = r(parseFormulaValue(value))
+
+        if isCash {
+            // Cash fund: value, cash, and fund_size are all the cash balance
+            updated.value = parsedValue
+            updated.cash = parsedValue > 0 ? parsedValue : nil
+            updated.fund_size = parsedValue > 0 ? parsedValue : nil
+            let amt = r(parseFormulaValue(amount)); updated.amount = amt != 0 ? abs(amt) : nil
+            updated.action = amt > 0 ? .DEPOSIT : amt < 0 ? .WITHDRAW : entry.action
+            let ci = r(parseFormulaValue(cashInterest)); updated.cash_interest = ci != 0 ? ci : nil
+        } else {
+            updated.value = parsedValue
+            updated.action = action
+            let amt = r(parseFormulaValue(amount)); updated.amount = amt != 0 ? amt : nil
+            let sh = parseFormulaValue(shares); updated.shares = sh != 0 ? sh : nil
+            let pr = r(parseFormulaValue(price)); updated.price = pr != 0 ? pr : nil
+            let div = r(parseFormulaValue(dividend)); updated.dividend = div != 0 ? div : nil
+            let fs = r(parseFormulaValue(fundSizeText)); updated.fund_size = fs != 0 ? fs : nil
+        }
+
         let exp = r(parseFormulaValue(expense)); updated.expense = exp != 0 ? exp : nil
         let mav = r(parseFormulaValue(marginAvailable)); updated.margin_available = mav != 0 ? mav : nil
         let mbr = r(parseFormulaValue(marginBorrowed)); updated.margin_borrowed = mbr != 0 ? mbr : nil
         updated.notes = notes.isEmpty ? nil : notes
-
-        let fs = r(parseFormulaValue(fundSizeText)); updated.fund_size = fs != 0 ? fs : nil
-
-        // For cash funds, keep the cash field in sync with equity
-        if fundType == .cash {
-            updated.cash = updated.value > 0 ? updated.value : nil
-        }
 
         dismiss()
         Task {
