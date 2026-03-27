@@ -2,9 +2,23 @@ import SwiftUI
 import CoreSpotlight
 import UserNotifications
 
+#if os(macOS)
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag {
+            sender.windows.first { $0.canBecomeMain }?.makeKeyAndOrderFront(nil)
+        }
+        return true
+    }
+}
+#endif
+
 @main
 struct EscapeMintApp: App {
     @Environment(\.scenePhase) private var scenePhase
+    #if os(macOS)
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    #endif
 
     init() {
         // Set notification delegate before any pending responses are delivered
@@ -59,6 +73,12 @@ struct EscapeMintApp: App {
                     NotificationCenter.default.post(name: .fundsDidChange, object: nil)
                 }
                 .keyboardShortcut("r", modifiers: .command)
+            }
+            CommandGroup(after: .windowArrangement) {
+                Button("Show Main Window") {
+                    NSApp.windows.first { $0.canBecomeMain }?.makeKeyAndOrderFront(nil)
+                }
+                .keyboardShortcut("0", modifiers: .command)
             }
         }
         #endif

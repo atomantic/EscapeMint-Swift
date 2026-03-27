@@ -106,9 +106,10 @@ if $BUILD_IOS; then
         -configuration Release \
         -destination 'generic/platform=iOS' \
         -archivePath "$ARCHIVE_IOS" \
-        CODE_SIGNING_ALLOWED=NO \
-        CODE_SIGN_IDENTITY="" \
-        CODE_SIGNING_REQUIRED=NO \
+        -allowProvisioningUpdates \
+        -authenticationKeyPath "$KEY_PATH" \
+        -authenticationKeyID "$APPSTORE_API_KEY_ID" \
+        -authenticationKeyIssuerID "$APPSTORE_ISSUER_ID" \
         -quiet
     echo "✅ iOS archive complete"
 
