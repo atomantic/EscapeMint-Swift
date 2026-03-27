@@ -26,8 +26,8 @@ final class WidgetDataProvider {
         let actionable = store.actionableFunds
 
         let topFunds: [WidgetFundSnapshot] = store.summaries
-            .filter { $0.fund.config.status != .closed && !$0.isCash }
-            .prefix(5)
+            .filter { $0.fund.config.status != .closed }
+            .prefix(7)
             .map { summary in
                 WidgetFundSnapshot(
                     ticker: summary.fund.ticker.uppercased(),

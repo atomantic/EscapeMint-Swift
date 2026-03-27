@@ -47,9 +47,9 @@ struct PortfolioEntry: TimelineEntry {
     let state: EntryState
 
     enum EntryState {
-        case loaded    // Real data from App Group snapshot
-        case noData    // No snapshot available — show empty state
-        case placeholder // System placeholder — show redacted preview
+        case loaded
+        case noData
+        case placeholder
     }
 
     init(snapshot: WidgetSnapshotData) {
@@ -74,6 +74,8 @@ struct PortfolioEntry: TimelineEntry {
             WidgetFundData(ticker: "BTC", platform: "Coinbase", value: 5000, gainPct: 15.2, isDueForAction: true, recommendedAction: "BUY", recommendedAmount: 150),
             WidgetFundData(ticker: "TQQQ", platform: "Robinhood", value: 3000, gainPct: 8.5, isDueForAction: false, recommendedAction: nil, recommendedAmount: nil),
             WidgetFundData(ticker: "SPXL", platform: "Robinhood", value: 2500, gainPct: 5.3, isDueForAction: true, recommendedAction: "BUY", recommendedAmount: 100),
+            WidgetFundData(ticker: "CASH", platform: "Robinhood", value: 2000, gainPct: 3.2, isDueForAction: false, recommendedAction: nil, recommendedAmount: nil),
+            WidgetFundData(ticker: "ETH", platform: "Coinbase", value: 1500, gainPct: -2.1, isDueForAction: true, recommendedAction: "BUY", recommendedAmount: 75),
         ] : []
         self.state = state
     }
@@ -130,12 +132,12 @@ private struct WidgetEmptyState: View {
 // MARK: - Shared Components
 
 private struct WidgetBranding: View {
-    var font: Font = .caption2
+    var font: Font = .caption
     var body: some View {
-        HStack {
+        HStack(spacing: 4) {
             Image(systemName: "leaf.fill")
                 .foregroundColor(.mint)
-                .font(.caption)
+                .font(.subheadline)
             Text("EscapeMint")
                 .font(font).fontWeight(.semibold)
                 .foregroundColor(.secondary)
@@ -145,11 +147,11 @@ private struct WidgetBranding: View {
 
 private struct GainChangeView: View {
     let pct: Double
-    var font: Font = .caption
+    var font: Font = .subheadline
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: pct >= 0 ? "arrow.up.right" : "arrow.down.right")
-                .font(.caption2)
+                .font(.caption)
             Text(String(format: "%.1f%%", pct))
                 .font(font).fontWeight(.medium)
         }
@@ -190,21 +192,35 @@ struct SmallWidgetView: View {
             if entry.state == .noData {
                 WidgetEmptyState()
             } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    WidgetBranding()
-                    Spacer()
-                    Text(formatCurrency(entry.totalValue))
-                        .font(.title2).fontWeight(.bold)
-                        .minimumScaleFactor(0.7)
-                        .lineLimit(1)
-                    GainChangeView(pct: entry.totalGainPct)
-                    if entry.actionableCount > 0 {
-                        Text("\(entry.actionableCount) action\(entry.actionableCount == 1 ? "" : "s") due")
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "leaf.fill")
+                            .foregroundColor(.mint)
                             .font(.caption2)
-                            .foregroundColor(.orange)
+                        if entry.actionableCount > 0 {
+                            Spacer()
+                            Text("\(entry.actionableCount) due")
+                                .font(.caption2).fontWeight(.semibold)
+                                .foregroundColor(.orange)
+                        }
                     }
+                    Spacer(minLength: 0)
+                    Text(formatCurrency(entry.totalValue))
+                        .font(.system(size: 34, weight: .bold))
+                        .minimumScaleFactor(0.5)
+                        .lineLimit(1)
+                    HStack(spacing: 3) {
+                        Image(systemName: entry.totalGainPct >= 0 ? "arrow.up.right" : "arrow.down.right")
+                            .font(.caption2)
+                        Text(String(format: "%.1f%%", entry.totalGainPct))
+                            .font(.subheadline).fontWeight(.medium)
+                    }
+                    .foregroundColor(entry.totalGainPct >= 0 ? .green : .red)
+                    Spacer(minLength: 0)
+                    Text("\(entry.activeFunds) fund\(entry.activeFunds == 1 ? "" : "s")")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
                 }
-                .padding()
                 .redacted(reason: entry.state == .placeholder ? .placeholder : [])
             }
         }
@@ -224,37 +240,41 @@ struct MediumWidgetView: View {
                         WidgetBranding()
                         Spacer()
                         Text(formatCurrency(entry.totalValue))
-                            .font(.title2).fontWeight(.bold)
-                            .minimumScaleFactor(0.7)
+                            .font(.title).fontWeight(.bold)
+                            .minimumScaleFactor(0.6)
                             .lineLimit(1)
                         GainChangeView(pct: entry.totalGainPct)
+                        if entry.actionableCount > 0 {
+                            Text("\(entry.actionableCount) action\(entry.actionableCount == 1 ? "" : "s") due")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                     Divider()
 
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 6) {
                         ForEach(Array(entry.topFunds.prefix(3).enumerated()), id: \.offset) { _, fund in
                             HStack {
                                 Text(fund.ticker)
-                                    .font(.caption).fontWeight(.semibold)
+                                    .font(.subheadline).fontWeight(.semibold)
                                 Spacer()
                                 Text(formatCurrency(fund.value))
-                                    .font(.caption2)
+                                    .font(.caption)
                                 Text(String(format: "%+.1f%%", fund.gainPct))
-                                    .font(.caption2)
+                                    .font(.caption)
                                     .foregroundColor(fund.gainPct >= 0 ? .green : .red)
                             }
                         }
                         if entry.topFunds.isEmpty {
                             Text("No funds yet")
-                                .font(.caption)
+                                .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding()
                 .redacted(reason: entry.state == .placeholder ? .placeholder : [])
             }
         }
@@ -269,54 +289,56 @@ struct LargeWidgetView: View {
             if entry.state == .noData {
                 WidgetEmptyState()
             } else {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        WidgetBranding(font: .headline)
+                        WidgetBranding(font: .subheadline)
                         Spacer()
                         if entry.actionableCount > 0 {
                             Text("\(entry.actionableCount) due")
-                                .font(.caption).fontWeight(.medium)
+                                .font(.subheadline).fontWeight(.medium)
                                 .foregroundColor(.white)
-                                .padding(.horizontal, 8).padding(.vertical, 2)
+                                .padding(.horizontal, 8).padding(.vertical, 3)
                                 .background(Color.orange).cornerRadius(8)
                         }
                     }
 
                     Text(formatCurrency(entry.totalValue))
-                        .font(.title).fontWeight(.bold)
+                        .font(.largeTitle).fontWeight(.bold)
+                        .minimumScaleFactor(0.7)
+                        .lineLimit(1)
                     HStack(spacing: 4) {
                         Image(systemName: entry.totalGainPct >= 0 ? "arrow.up.right" : "arrow.down.right")
-                            .font(.caption)
+                            .font(.subheadline)
                         Text(formatCurrency(abs(entry.totalGainUsd)))
-                            .font(.subheadline)
+                            .font(.title3)
                         Text(String(format: "(%+.1f%%)", entry.totalGainPct))
-                            .font(.subheadline)
+                            .font(.title3)
                     }
                     .foregroundColor(entry.totalGainPct >= 0 ? .green : .red)
 
                     Divider()
 
-                    ForEach(Array(entry.topFunds.prefix(5).enumerated()), id: \.offset) { _, fund in
+                    ForEach(Array(entry.topFunds.prefix(7).enumerated()), id: \.offset) { _, fund in
                         HStack {
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(fund.ticker)
-                                    .font(.callout).fontWeight(.semibold)
+                                    .font(.body).fontWeight(.semibold)
                                 Text(fund.platform)
-                                    .font(.caption2).foregroundColor(.secondary)
+                                    .font(.caption).foregroundColor(.secondary)
                             }
                             Spacer()
                             VStack(alignment: .trailing, spacing: 1) {
                                 Text(formatCurrency(fund.value))
-                                    .font(.callout)
+                                    .font(.body)
                                 Text(String(format: "%+.1f%%", fund.gainPct))
-                                    .font(.caption2)
+                                    .font(.caption)
                                     .foregroundColor(fund.gainPct >= 0 ? .green : .red)
                             }
                             if fund.isDueForAction, let action = fund.recommendedAction {
                                 Text(action)
-                                    .font(.caption2).fontWeight(.bold)
+                                    .font(.caption).fontWeight(.bold)
                                     .foregroundColor(.white)
-                                    .padding(.horizontal, 4).padding(.vertical, 2)
+                                    .padding(.horizontal, 6).padding(.vertical, 3)
                                     .background(action == "BUY" ? Color.green : action == "SELL" ? Color.red : Color.gray)
                                     .cornerRadius(4)
                             }
@@ -326,12 +348,20 @@ struct LargeWidgetView: View {
                     if entry.topFunds.isEmpty {
                         Spacer()
                         Text("Open the app to add funds")
-                            .font(.callout).foregroundColor(.secondary)
+                            .font(.body).foregroundColor(.secondary)
                             .frame(maxWidth: .infinity)
                         Spacer()
+                    } else {
+                        Spacer(minLength: 0)
+                        HStack {
+                            Text("\(entry.activeFunds) fund\(entry.activeFunds == 1 ? "" : "s")")
+                                .font(.caption).foregroundColor(.secondary)
+                            Spacer()
+                            Text(entry.date, style: .relative)
+                                .font(.caption).foregroundColor(.secondary)
+                        }
                     }
                 }
-                .padding()
                 .redacted(reason: entry.state == .placeholder ? .placeholder : [])
             }
         }
