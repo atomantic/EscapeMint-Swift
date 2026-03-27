@@ -68,6 +68,8 @@ targets:
           - iCloud.net.shadowpuppet.EscapeMint
         com.apple.developer.icloud-services:
           - CloudDocuments
+        com.apple.security.application-groups:
+          - group.net.shadowpuppet.EscapeMint
     dependencies:
       - target: EscapeMintWidget_iOS
         embed: true
@@ -87,6 +89,9 @@ targets:
         INFOPLIST_FILE: EscapeMintWidget/Info.plist
     entitlements:
       path: EscapeMintWidget/EscapeMintWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.net.shadowpuppet.EscapeMint
 
   EscapeMintTests_iOS:
     type: bundle.unit-test

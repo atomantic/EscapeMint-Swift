@@ -17,6 +17,7 @@ final class WidgetDataProvider {
     /// Write current portfolio state to the shared container
     func updateSnapshot() {
         guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupId) else {
+            Self.logger.error("⚠️ App Group container unavailable — widget data cannot be shared")
             return
         }
 
