@@ -78,6 +78,7 @@ struct ActionableFundCard: View {
                 NotificationCenter.default.post(name: .selectFund, object: actionableFund.fund.id)
                 NotificationCenter.default.post(name: .showAddEntry, object: actionableFund.fund.id)
             }
+            .accessibilityAddTraits(.isButton)
         #else
         NavigationLink(destination: FundDetailView(fundId: actionableFund.fund.id, autoShowAddEntry: true)) {
             cardContent

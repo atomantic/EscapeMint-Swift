@@ -274,6 +274,7 @@ private func introKAxis() -> some AxisContent {
 // MARK: - Market Growth Chart (Step 2)
 
 struct MarketGrowthChart: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animationProgress: Double = 0
 
     private let data: [GrowthPoint] = {
@@ -325,14 +326,18 @@ struct MarketGrowthChart: View {
                     .transition(.opacity)
             }
         }
-        .padding(12).background(Color.bgCard).cornerRadius(12)
-        .task { withAnimation(.easeInOut(duration: 2.0)) { animationProgress = 1.0 } }
+        .padding(12).cardStyle()
+        .task {
+            if reduceMotion { animationProgress = 1.0 }
+            else { withAnimation(.easeInOut(duration: 2.0)) { animationProgress = 1.0 } }
+        }
     }
 }
 
 // MARK: - Volatility Comparison Chart (Step 3)
 
 struct VolatilityComparisonChart: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animationProgress: Double = 0
 
     private let data: [DualLinePoint]
@@ -394,14 +399,18 @@ struct VolatilityComparisonChart: View {
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(12).background(Color.bgCard).cornerRadius(12)
-        .task { withAnimation(.easeInOut(duration: 2.5)) { animationProgress = 1.0 } }
+        .padding(12).cardStyle()
+        .task {
+            if reduceMotion { animationProgress = 1.0 }
+            else { withAnimation(.easeInOut(duration: 2.5)) { animationProgress = 1.0 } }
+        }
     }
 }
 
 // MARK: - Traditional DCA Chart (Step 4)
 
 struct TraditionalDCAChart: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animationProgress: Double = 0
 
     private let data: [PriceTargetPoint]
@@ -458,14 +467,18 @@ struct TraditionalDCAChart: View {
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(12).background(Color.bgCard).cornerRadius(12)
-        .task { withAnimation(.easeInOut(duration: 2.5)) { animationProgress = 1.0 } }
+        .padding(12).cardStyle()
+        .task {
+            if reduceMotion { animationProgress = 1.0 }
+            else { withAnimation(.easeInOut(duration: 2.5)) { animationProgress = 1.0 } }
+        }
     }
 }
 
 // MARK: - Buy/Sell Zones Chart (Steps 5, 6, 8)
 
 struct BuySellZonesChart: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animationProgress: Double = 0
 
     private let data: [PriceTargetPoint]
@@ -519,14 +532,18 @@ struct BuySellZonesChart: View {
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(12).background(Color.bgCard).cornerRadius(12)
-        .task { withAnimation(.easeInOut(duration: 2.5)) { animationProgress = 1.0 } }
+        .padding(12).cardStyle()
+        .task {
+            if reduceMotion { animationProgress = 1.0 }
+            else { withAnimation(.easeInOut(duration: 2.5)) { animationProgress = 1.0 } }
+        }
     }
 }
 
 // MARK: - Leverage Comparison Chart (Step 10)
 
 struct LeverageComparisonChart: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animationProgress: Double = 0
     @State private var viewMode: LeverageViewMode = .price
     @State private var cachedPriceData: [LeveragePoint] = []
@@ -596,23 +613,26 @@ struct LeverageComparisonChart: View {
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(12).background(Color.bgCard).cornerRadius(12)
+        .padding(12).cardStyle()
         .task {
             if ViewCache.shared.isHistoricalDataLoaded {
                 computeLeverageData()
-                withAnimation(.easeInOut(duration: 2.0)) { animationProgress = 1.0 }
+                if reduceMotion { animationProgress = 1.0 }
+                else { withAnimation(.easeInOut(duration: 2.0)) { animationProgress = 1.0 } }
             }
         }
         .onChange(of: ViewCache.shared.isHistoricalDataLoaded) { _, loaded in
             if loaded {
                 computeLeverageData()
                 animationProgress = 0
-                withAnimation(.easeInOut(duration: 2.0)) { animationProgress = 1.0 }
+                if reduceMotion { animationProgress = 1.0 }
+                else { withAnimation(.easeInOut(duration: 2.0)) { animationProgress = 1.0 } }
             }
         }
         .onChange(of: viewMode) { _, _ in
             animationProgress = 0
-            withAnimation(.easeInOut(duration: 2.0)) { animationProgress = 1.0 }
+            if reduceMotion { animationProgress = 1.0 }
+            else { withAnimation(.easeInOut(duration: 2.0)) { animationProgress = 1.0 } }
         }
     }
 
@@ -667,7 +687,7 @@ struct ModeComparisonChart: View {
                     .frame(height: 180).frame(maxWidth: .infinity)
             }
         }
-        .padding(12).background(Color.bgCard).cornerRadius(12)
+        .padding(12).cardStyle()
     }
 
     private enum LegendStyle { case line, square, dashed }

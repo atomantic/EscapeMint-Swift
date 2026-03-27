@@ -372,7 +372,6 @@ struct FundDetailView: View {
                 advancedToolsMessage = msg
                 isRecalculating = false
                 showAdvancedToast = true
-                hideToastAfterDelay()
             }
         } label: {
             Text(isRecalculating ? "..." : "Recalculate")
@@ -397,7 +396,6 @@ struct FundDetailView: View {
                         advancedToolsMessage = msg
                         isRecalculating = false
                         showAdvancedToast = true
-                        hideToastAfterDelay()
                     }
                 }
             }
@@ -413,17 +411,6 @@ struct FundDetailView: View {
         #if os(macOS)
         .menuStyle(.borderlessButton)
         #endif
-    }
-
-    @State private var toastTask: Task<Void, Never>?
-
-    private func hideToastAfterDelay() {
-        toastTask?.cancel()
-        toastTask = Task {
-            try? await Task.sleep(for: .seconds(3))
-            guard !Task.isCancelled else { return }
-            showAdvancedToast = false
-        }
     }
 
     // MARK: - Entries Table
@@ -574,19 +561,7 @@ struct FundDetailView: View {
         .background(Color.bgCard)
         .cornerRadius(12)
         .onAppear { initVisibleColumnsIfNeeded(for: fund) }
-        .overlay(alignment: .bottom) {
-            if showAdvancedToast {
-                Text(advancedToolsMessage)
-                    .font(.caption).fontWeight(.medium)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(Color.mint.cornerRadius(8))
-                    .shadow(radius: 4)
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .animation(.easeInOut(duration: 0.3), value: showAdvancedToast)
-            }
-        }
+        .toast(isPresented: $showAdvancedToast, message: advancedToolsMessage)
     }
 
     /// All available columns in user-defined order (for the config UI)
@@ -929,6 +904,7 @@ struct FundDetailView: View {
             .onTapGesture {
                 editTarget = EditTarget(entry: entry, index: actualIndex)
             }
+            .accessibilityAddTraits(.isButton)
         }
 
         if fund.entries.count > 30 {

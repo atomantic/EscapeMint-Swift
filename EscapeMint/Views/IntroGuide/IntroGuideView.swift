@@ -98,6 +98,7 @@ struct IntroGuideView: View {
                         .frame(width: step == currentStep ? 20 : 8, height: 8)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Step \(step) of \(totalSteps)")
             }
         }
         .padding(.vertical, 10)

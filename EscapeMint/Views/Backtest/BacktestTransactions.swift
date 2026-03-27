@@ -211,6 +211,7 @@ struct BacktestTablePlaceholder: View {
 // MARK: - Shimmer Effect
 
 struct ShimmerModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
     @State private var phase: CGFloat = -1
 
     func body(content: Content) -> some View {
@@ -225,6 +226,7 @@ struct ShimmerModifier: ViewModifier {
                 .mask(content)
             )
             .onAppear {
+                guard !reduceMotion else { return }
                 withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
                     phase = 1
                 }

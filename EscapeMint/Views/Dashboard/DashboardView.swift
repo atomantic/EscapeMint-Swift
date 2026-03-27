@@ -23,7 +23,7 @@ struct DashboardView: View {
         #if os(macOS)
         true
         #else
-        sizeClass == .regular
+        computeIsWide(sizeClass: sizeClass)
         #endif
     }
 
@@ -449,6 +449,7 @@ struct DashboardView: View {
                             ForEach(platformFunds, id: \.fund.id) { summary in
                                 FundCardView(summary: summary)
                                     .onTapGesture { navigateToFund(summary.fund.id) }
+                                    .accessibilityAddTraits(.isButton)
                             }
                         }
                         #else
@@ -486,6 +487,7 @@ struct DashboardView: View {
                     .padding(.top, 8)
                     .contentShape(Rectangle())
                     .onTapGesture { toggleDashPlatform(platform, closed: false) }
+                    .accessibilityAddTraits(.isButton)
                 }
             }
         }
@@ -502,6 +504,7 @@ struct DashboardView: View {
                                 ForEach(platformFunds, id: \.fund.id) { summary in
                                     FundCardView(summary: summary)
                                         .onTapGesture { navigateToFund(summary.fund.id) }
+                                        .accessibilityAddTraits(.isButton)
                                 }
                             }
                             #else
@@ -539,6 +542,7 @@ struct DashboardView: View {
                         .padding(.top, 8)
                         .contentShape(Rectangle())
                         .onTapGesture { toggleDashPlatform(platform, closed: true) }
+                        .accessibilityAddTraits(.isButton)
                     }
                 }
             }
@@ -604,6 +608,7 @@ struct DashboardView: View {
                     .background(Color.bgCard)
                     .contentShape(Rectangle())
                     .onTapGesture { navigateToFund(s.fund.id) }
+                    .accessibilityAddTraits(.isButton)
 
                     Divider().background(Color.bgInput)
                 }
