@@ -142,18 +142,19 @@ struct EditEntryView: View {
         isSaving = true
         var updated = entry
         updated.date = isoDateFormatter.string(from: date)
-        updated.value = parseFormulaValue(value)
+        func r(_ v: Double) -> Double { (v * 100).rounded() / 100 }
+        updated.value = r(parseFormulaValue(value))
         updated.action = action
-        let amt = parseFormulaValue(amount); updated.amount = amt != 0 ? amt : nil
+        let amt = r(parseFormulaValue(amount)); updated.amount = amt != 0 ? amt : nil
         let sh = parseFormulaValue(shares); updated.shares = sh != 0 ? sh : nil
-        let pr = parseFormulaValue(price); updated.price = pr != 0 ? pr : nil
-        let div = parseFormulaValue(dividend); updated.dividend = div != 0 ? div : nil
-        let exp = parseFormulaValue(expense); updated.expense = exp != 0 ? exp : nil
-        let mav = parseFormulaValue(marginAvailable); updated.margin_available = mav != 0 ? mav : nil
-        let mbr = parseFormulaValue(marginBorrowed); updated.margin_borrowed = mbr != 0 ? mbr : nil
+        let pr = r(parseFormulaValue(price)); updated.price = pr != 0 ? pr : nil
+        let div = r(parseFormulaValue(dividend)); updated.dividend = div != 0 ? div : nil
+        let exp = r(parseFormulaValue(expense)); updated.expense = exp != 0 ? exp : nil
+        let mav = r(parseFormulaValue(marginAvailable)); updated.margin_available = mav != 0 ? mav : nil
+        let mbr = r(parseFormulaValue(marginBorrowed)); updated.margin_borrowed = mbr != 0 ? mbr : nil
         updated.notes = notes.isEmpty ? nil : notes
 
-        let fs = parseFormulaValue(fundSizeText); updated.fund_size = fs != 0 ? fs : nil
+        let fs = r(parseFormulaValue(fundSizeText)); updated.fund_size = fs != 0 ? fs : nil
 
         dismiss()
         Task {

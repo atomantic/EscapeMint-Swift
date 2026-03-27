@@ -379,10 +379,11 @@ struct AddEntryView: View {
     private func saveCash() {
         guard !isSaving else { return }
         isSaving = true
-        let cashBalance = parseFormulaValue(value)
-        let amt = parseFormulaValue(amount)
+        func r(_ v: Double) -> Double { (v * 100).rounded() / 100 }
+        let cashBalance = r(parseFormulaValue(value))
+        let amt = r(parseFormulaValue(amount))
         // Adjust cash balance by the amount (positive = deposit, negative = withdraw)
-        let adjustedCash = max(0, cashBalance + amt)
+        let adjustedCash = r(max(0, cashBalance + amt))
         let entryAction: FundAction? = amt > 0 ? .DEPOSIT : amt < 0 ? .WITHDRAW : nil
         var entry = FundEntry(
             date: isoDateFormatter.string(from: date),
@@ -391,12 +392,12 @@ struct AddEntryView: View {
             action: entryAction,
             amount: amt != 0 ? abs(amt) : nil
         )
-        let ci = parseFormulaValue(cashInterest); if ci != 0 { entry.cash_interest = ci }
-        let f = parseFormulaValue(fee); if f != 0 { entry.expense = f }
-        let ma = parseFormulaValue(marginAvailable); if ma != 0 { entry.margin_available = ma }
-        let mb = parseFormulaValue(marginBorrowed); if mb != 0 { entry.margin_borrowed = mb }
+        let ci = r(parseFormulaValue(cashInterest)); if ci != 0 { entry.cash_interest = ci }
+        let f = r(parseFormulaValue(fee)); if f != 0 { entry.expense = f }
+        let ma = r(parseFormulaValue(marginAvailable)); if ma != 0 { entry.margin_available = ma }
+        let mb = r(parseFormulaValue(marginBorrowed)); if mb != 0 { entry.margin_borrowed = mb }
         if !notes.isEmpty { entry.notes = notes }
-        let fs = parseFormulaValue(fundSizeOverride); if fs > 0 {
+        let fs = r(parseFormulaValue(fundSizeOverride)); if fs > 0 {
             entry.fund_size = fs
         } else {
             entry.fund_size = computeFundSizeForEntry(entry, existingEntries: existingEntries, config: fundConfig)
@@ -412,25 +413,26 @@ struct AddEntryView: View {
     private func save() {
         guard !isSaving else { return }
         isSaving = true
+        func r(_ v: Double) -> Double { (v * 100).rounded() / 100 }
         var entry = FundEntry(
             date: isoDateFormatter.string(from: date),
-            value: parseFormulaValue(value),
+            value: r(parseFormulaValue(value)),
             action: action
         )
-        let amt = parseFormulaValue(amount); if amt != 0 { entry.amount = amt }
+        let amt = r(parseFormulaValue(amount)); if amt != 0 { entry.amount = amt }
         let s = parseFormulaValue(shares); if s != 0 { entry.shares = s }
-        let p = parseFormulaValue(price); if p != 0 { entry.price = p }
-        let d = parseFormulaValue(deposit); if d != 0 {
+        let p = r(parseFormulaValue(price)); if p != 0 { entry.price = p }
+        let d = r(parseFormulaValue(deposit)); if d != 0 {
             let depNote = "Deposit: $\(String(format: "%.2f", d))"
             notes = notes.isEmpty ? depNote : "\(notes) | \(depNote)"
         }
-        let w = parseFormulaValue(withdrawal); if w != 0 {
+        let w = r(parseFormulaValue(withdrawal)); if w != 0 {
             let wNote = "Withdrawal: $\(String(format: "%.2f", w))"
             notes = notes.isEmpty ? wNote : "\(notes) | \(wNote)"
         }
-        let dv = parseFormulaValue(dividend); if dv != 0 { entry.dividend = dv }
-        let ma = parseFormulaValue(marginAvailable); if ma != 0 { entry.margin_available = ma }
-        let mb = parseFormulaValue(marginBorrowed); if mb != 0 { entry.margin_borrowed = mb }
+        let dv = r(parseFormulaValue(dividend)); if dv != 0 { entry.dividend = dv }
+        let ma = r(parseFormulaValue(marginAvailable)); if ma != 0 { entry.margin_available = ma }
+        let mb = r(parseFormulaValue(marginBorrowed)); if mb != 0 { entry.margin_borrowed = mb }
         if !notes.isEmpty { entry.notes = notes }
 
         // Compute fund_size

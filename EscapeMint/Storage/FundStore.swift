@@ -632,6 +632,12 @@ func parseTSV(_ content: String) -> [FundEntry] {
     }
 }
 
+/// Round a currency value to 2 decimal places to avoid IEEE 754 artifacts (e.g. 45.55000000000001)
+private func roundCurrency(_ val: Double) -> Double { (val * 100).rounded() / 100 }
+private func roundCurrency(_ val: Double?) -> Double? { val.map { roundCurrency($0) } }
+/// Shares/contracts can be fractional (crypto) — round to 8 decimals
+private func roundQuantity(_ val: Double?) -> Double? { val.map { ($0 * 1e8).rounded() / 1e8 } }
+
 func parseEntry(_ line: String, headers: [String]) -> FundEntry {
     let values = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
     var entry = FundEntry(date: "", value: 0)
@@ -642,60 +648,77 @@ func parseEntry(_ line: String, headers: [String]) -> FundEntry {
 
         switch header {
         case "date": entry.date = val
-        case "value": entry.value = Double(val) ?? 0
-        case "cash": entry.cash = Double(val)
+        case "value": entry.value = roundCurrency(Double(val) ?? 0)
+        case "cash": entry.cash = roundCurrency(Double(val))
         case "action": entry.action = FundAction(rawValue: val)
-        case "amount": entry.amount = Double(val)
-        case "shares": entry.shares = Double(val)
-        case "price": entry.price = Double(val)
-        case "dividend": entry.dividend = Double(val)
-        case "expense": entry.expense = Double(val)
-        case "cash_interest": entry.cash_interest = Double(val)
-        case "fund_size": entry.fund_size = Double(val)
-        case "margin_available": entry.margin_available = Double(val)
-        case "margin_borrowed": entry.margin_borrowed = Double(val)
-        case "margin_expense": entry.margin_expense = Double(val)
+        case "amount": entry.amount = roundCurrency(Double(val))
+        case "shares": entry.shares = roundQuantity(Double(val))
+        case "price": entry.price = roundCurrency(Double(val))
+        case "dividend": entry.dividend = roundCurrency(Double(val))
+        case "expense": entry.expense = roundCurrency(Double(val))
+        case "cash_interest": entry.cash_interest = roundCurrency(Double(val))
+        case "fund_size": entry.fund_size = roundCurrency(Double(val))
+        case "margin_available": entry.margin_available = roundCurrency(Double(val))
+        case "margin_borrowed": entry.margin_borrowed = roundCurrency(Double(val))
+        case "margin_expense": entry.margin_expense = roundCurrency(Double(val))
         case "notes": entry.notes = val.replacingOccurrences(of: "\\t", with: "\t").replacingOccurrences(of: "\\n", with: "\n")
-        case "contracts": entry.contracts = Double(val)
-        case "entry_price": entry.entry_price = Double(val)
-        case "liquidation_price": entry.liquidation_price = Double(val)
-        case "unrealized_pnl": entry.unrealized_pnl = Double(val)
-        case "margin_locked": entry.margin_locked = Double(val)
-        case "fee": entry.fee = Double(val)
-        case "margin": entry.margin = Double(val)
+        case "contracts": entry.contracts = roundQuantity(Double(val))
+        case "entry_price": entry.entry_price = roundCurrency(Double(val))
+        case "liquidation_price": entry.liquidation_price = roundCurrency(Double(val))
+        case "unrealized_pnl": entry.unrealized_pnl = roundCurrency(Double(val))
+        case "margin_locked": entry.margin_locked = roundCurrency(Double(val))
+        case "fee": entry.fee = roundCurrency(Double(val))
+        case "margin": entry.margin = roundCurrency(Double(val))
         default: break
         }
     }
     return entry
 }
 
-func optStr(_ val: Double?) -> String { val.map { String($0) } ?? "" }
+/// Format a Double for TSV output, stripping trailing zeros (e.g. 245.55 not 245.55000000000001)
+private func fmtCurrency(_ val: Double) -> String {
+    let rounded = roundCurrency(val)
+    return rounded == rounded.rounded(.down) ? String(format: "%.0f", rounded) : String(format: "%.2f", rounded)
+}
+private func fmtCurrency(_ val: Double?) -> String { val.map { fmtCurrency($0) } ?? "" }
+private func fmtQuantity(_ val: Double?) -> String {
+    guard let v = val else { return "" }
+    let rounded = (v * 1e8).rounded() / 1e8
+    // Strip trailing zeros: use %g-style but cap at 8 decimals
+    if rounded == rounded.rounded(.down) { return String(format: "%.0f", rounded) }
+    let s = String(format: "%.8f", rounded)
+    // Trim trailing zeros after decimal
+    var end = s.endIndex
+    while end > s.startIndex && s[s.index(before: end)] == "0" { end = s.index(before: end) }
+    if end > s.startIndex && s[s.index(before: end)] == "." { end = s.index(before: end) }
+    return String(s[s.startIndex..<end])
+}
 
 func serializeEntry(_ entry: FundEntry) -> String {
     var parts: [String] = []
     parts.append(entry.date)
-    parts.append(String(entry.value))
-    parts.append(optStr(entry.cash))
+    parts.append(fmtCurrency(entry.value))
+    parts.append(fmtCurrency(entry.cash))
     parts.append(entry.action?.rawValue ?? "")
-    parts.append(optStr(entry.amount))
-    parts.append(optStr(entry.shares))
-    parts.append(optStr(entry.price))
-    parts.append(optStr(entry.dividend))
-    parts.append(optStr(entry.expense))
-    parts.append(optStr(entry.cash_interest))
-    parts.append(optStr(entry.fund_size))
-    parts.append(optStr(entry.margin_available))
-    parts.append(optStr(entry.margin_borrowed))
-    parts.append(optStr(entry.margin_expense))
+    parts.append(fmtCurrency(entry.amount))
+    parts.append(fmtQuantity(entry.shares))
+    parts.append(fmtCurrency(entry.price))
+    parts.append(fmtCurrency(entry.dividend))
+    parts.append(fmtCurrency(entry.expense))
+    parts.append(fmtCurrency(entry.cash_interest))
+    parts.append(fmtCurrency(entry.fund_size))
+    parts.append(fmtCurrency(entry.margin_available))
+    parts.append(fmtCurrency(entry.margin_borrowed))
+    parts.append(fmtCurrency(entry.margin_expense))
     let notes = (entry.notes ?? "").replacingOccurrences(of: "\t", with: "\\t").replacingOccurrences(of: "\n", with: "\\n")
     parts.append(notes)
-    parts.append(optStr(entry.contracts))
-    parts.append(optStr(entry.entry_price))
-    parts.append(optStr(entry.liquidation_price))
-    parts.append(optStr(entry.unrealized_pnl))
-    parts.append(optStr(entry.margin_locked))
-    parts.append(optStr(entry.fee))
-    parts.append(optStr(entry.margin))
+    parts.append(fmtQuantity(entry.contracts))
+    parts.append(fmtCurrency(entry.entry_price))
+    parts.append(fmtCurrency(entry.liquidation_price))
+    parts.append(fmtCurrency(entry.unrealized_pnl))
+    parts.append(fmtCurrency(entry.margin_locked))
+    parts.append(fmtCurrency(entry.fee))
+    parts.append(fmtCurrency(entry.margin))
     return parts.joined(separator: "\t")
 }
 

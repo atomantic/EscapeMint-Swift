@@ -736,12 +736,12 @@ final class EngineTests: XCTestCase {
         let serialized = serializeEntry(entry)
         let parts = serialized.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
         XCTAssertEqual(parts[0], "2025-01-01")
-        XCTAssertEqual(parts[1], "1000.0")
-        XCTAssertEqual(parts[2], "4000.0")
+        XCTAssertEqual(parts[1], "1000")
+        XCTAssertEqual(parts[2], "4000")
         XCTAssertEqual(parts[3], "BUY")
-        XCTAssertEqual(parts[4], "500.0")
-        XCTAssertEqual(parts[5], "10.0")
-        XCTAssertEqual(parts[6], "100.0")
+        XCTAssertEqual(parts[4], "500")
+        XCTAssertEqual(parts[5], "10")
+        XCTAssertEqual(parts[6], "100")
         // Dividend should be empty
         XCTAssertEqual(parts[7], "")
     }
@@ -751,7 +751,7 @@ final class EngineTests: XCTestCase {
         let serialized = serializeEntry(entry)
         let parts = serialized.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
         XCTAssertEqual(parts[0], "2025-01-01")
-        XCTAssertEqual(parts[1], "500.0")
+        XCTAssertEqual(parts[1], "500")
         // All optional fields should be empty
         XCTAssertEqual(parts[2], "")  // cash
         XCTAssertEqual(parts[3], "")  // action
@@ -1177,12 +1177,18 @@ final class EngineTests: XCTestCase {
         XCTAssertGreaterThan(portfolio.totalFundSize, 0)
     }
 
-    // MARK: - optStr helper
+    // MARK: - TSV formatting helpers
 
-    func testOptStr() {
-        XCTAssertEqual(optStr(nil), "")
-        XCTAssertEqual(optStr(42.5), "42.5")
-        XCTAssertEqual(optStr(0.0), "0.0")
+    func testFmtCurrencyRoundTrip() {
+        // Verify currency values survive parse → serialize without precision drift
+        let line = "2025-01-01\t245.55\t\tHOLD\t100\t\t\t\t\t\t245.55\t\t\t\t\t\t\t\t\t\t\t"
+        let headers = ["date","value","cash","action","amount","shares","price","dividend","expense","cash_interest","fund_size","margin_available","margin_borrowed","margin_expense","notes","contracts","entry_price","liquidation_price","unrealized_pnl","margin_locked","fee","margin"]
+        let entry = parseEntry(line, headers: headers)
+        XCTAssertEqual(entry.value, 245.55, accuracy: 0.001)
+        XCTAssertEqual(entry.fund_size, 245.55)
+        let serialized = serializeEntry(entry)
+        XCTAssertTrue(serialized.contains("245.55"), "Serialized value should be clean: \(serialized)")
+        XCTAssertFalse(serialized.contains("245.55000000000001"), "Should not contain precision artifacts")
     }
 
     // MARK: - BacktestEngine: Declining Market
