@@ -40,6 +40,15 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("Appearance") {
+                    Picker("Theme", selection: $appearance.mode) {
+                        ForEach(AppearanceMode.allCases, id: \.self) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
                 Section {
                     Toggle("DCA Reminders", isOn: Binding(
                         get: { notifications.isEnabled },
