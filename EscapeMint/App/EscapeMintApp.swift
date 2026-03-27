@@ -7,6 +7,10 @@ import UserNotifications
 final class AppDelegate: NSObject, NSApplicationDelegate {
     static var reopenWindow: (() -> Void)?
 
+    nonisolated func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
     nonisolated func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {
             DispatchQueue.main.async {
@@ -69,7 +73,7 @@ struct EscapeMintApp: App {
             ContentView()
         }
         #if os(macOS)
-        .defaultSize(width: 1200, height: 800)
+        .defaultSize(width: 1400, height: 900)
         .commands {
             CommandGroup(replacing: .appTermination) {
                 Button("Quit EscapeMint") {
@@ -78,13 +82,11 @@ struct EscapeMintApp: App {
                 .keyboardShortcut("q", modifiers: .command)
             }
             CommandGroup(replacing: .newItem) {
-                Button("New Fund") {
-                    NotificationCenter.default.post(name: .showCreateFund, object: nil)
-                }
-                .keyboardShortcut("n", modifiers: .command)
+                NewFundCommand()
             }
             CommandGroup(after: .toolbar) {
                 Button("Refresh") {
+                    AppDelegate.showOrCreateMainWindow()
                     NotificationCenter.default.post(name: .fundsDidChange, object: nil)
                 }
                 .keyboardShortcut("r", modifiers: .command)
@@ -269,6 +271,28 @@ struct ContentView: View {
 }
 
 #if os(macOS)
+struct NewFundCommand: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("New Fund") {
+            ensureMainWindow()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                NotificationCenter.default.post(name: .showCreateFund, object: nil)
+            }
+        }
+        .keyboardShortcut("n", modifiers: .command)
+    }
+
+    private func ensureMainWindow() {
+        if NSApp.windows.contains(where: { $0.canBecomeMain }) {
+            AppDelegate.showOrCreateMainWindow()
+        } else {
+            openWindow(id: "main")
+        }
+    }
+}
+
 struct ShowMainWindowCommand: View {
     @Environment(\.openWindow) private var openWindow
 
@@ -370,11 +394,13 @@ struct MacContentView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: .constant(.all)) {
             sidebar
+                .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 300)
         } detail: {
             detail
         }
+        .navigationSplitViewStyle(.balanced)
         .onReceive(NotificationCenter.default.publisher(for: .selectFund)) { note in
             if let id = note.object as? String {
                 selectedNav = .fund(id)
