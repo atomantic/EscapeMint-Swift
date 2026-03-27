@@ -138,7 +138,7 @@ struct DashboardView: View {
                 dashboardHeader
                 loadingBanner
                 if !store.funds.isEmpty {
-                    if !store.actionableFunds.isEmpty {
+                    if store.isLoaded && !store.actionableFunds.isEmpty {
                         ActionableFundsBanner(actionableFunds: store.actionableFunds, dismissedIds: $dismissedAlertIds)
                     }
                     if hasEntryData {
@@ -172,7 +172,7 @@ struct DashboardView: View {
                 if !store.funds.isEmpty {
                     // iOS header controls
                     iosHeaderControls
-                    if !store.actionableFunds.isEmpty {
+                    if store.isLoaded && !store.actionableFunds.isEmpty {
                         ActionableFundsBanner(actionableFunds: store.actionableFunds, dismissedIds: $dismissedAlertIds)
                             .padding(.horizontal)
                     }
