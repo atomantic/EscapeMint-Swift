@@ -10,12 +10,13 @@ final class AuthManager {
     private(set) var isEvaluating = false
     private(set) var biometryType: LABiometryType = .none
     private(set) var biometryAvailable = false
+    private var authTask: Task<Void, Never>?
 
     private static let logger = Logger(subsystem: "net.shadowpuppet.EscapeMint", category: "AuthManager")
 
     var isEnabled: Bool {
-        get { UserDefaults.standard.bool(forKey: "escapemint-biometric-auth") }
-        set { UserDefaults.standard.set(newValue, forKey: "escapemint-biometric-auth") }
+        get { UserDefaults.standard.bool(forKey: AppStorageKeys.biometricAuth) }
+        set { UserDefaults.standard.set(newValue, forKey: AppStorageKeys.biometricAuth) }
     }
 
     var biometryName: String {
@@ -37,7 +38,7 @@ final class AuthManager {
         guard isEnabled, !isUnlocked, !isEvaluating else { return }
 
         isEvaluating = true
-        Task {
+        authTask = Task {
             defer {
                 isEvaluating = false
                 refreshBiometry()
@@ -79,6 +80,9 @@ final class AuthManager {
 
     func lock() {
         guard isEnabled else { return }
+        authTask?.cancel()
+        authTask = nil
+        isEvaluating = false
         isUnlocked = false
     }
 

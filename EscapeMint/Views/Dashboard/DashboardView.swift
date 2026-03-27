@@ -74,6 +74,12 @@ struct DashboardView: View {
             }
         #endif
         }
+        .onReceive(NotificationCenter.default.publisher(for: .showCreateFund)) { _ in
+            showCreateFund = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .fundsDidChange)) { _ in
+            Task { await store.reload() }
+        }
         .onChange(of: showCharts) { _, on in
             if on && cache.dashboardTimeSeries.isEmpty && store.isLoaded { recomputeChartsIfNeeded() }
             if !on { cache.cancelDashboard() }

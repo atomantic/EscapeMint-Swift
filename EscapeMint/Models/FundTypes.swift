@@ -151,11 +151,7 @@ struct FundSummary {
     var effectiveLiquidAPY: Double { closedMetrics?.apy ?? liquidAPY }
 
     /// Whether this fund is due for its next DCA action (interval elapsed since last entry)
-    var isDueForAction: Bool {
-        guard let intervalDays = fund.config.interval_days, intervalDays > 0 else { return true }
-        guard let lastEntry = fund.entries.last else { return true }
-        return daysBetween(lastEntry.date, todayString()) >= intervalDays
-    }
+    let isDueForAction: Bool
 
     // Convenience accessors from metrics
     var currentValue: Double { metrics.currentValue }
@@ -195,6 +191,7 @@ struct FundSummary {
         self.state = state
         self.recommendation = computeRecommendation(config: fund.config, state: state)
         self.closedMetrics = Self.buildClosedMetrics(fund: fund, asOfDate: today)
+        self.isDueForAction = Self.computeIsDueForAction(fund: fund, today: today)
     }
 
     init(_ fund: FundData, metrics: FundMetrics, state: FundState) {
@@ -204,7 +201,15 @@ struct FundSummary {
         self.metrics = metrics
         self.state = state
         self.recommendation = computeRecommendation(config: fund.config, state: state)
-        self.closedMetrics = Self.buildClosedMetrics(fund: fund, asOfDate: todayString())
+        let today = todayString()
+        self.closedMetrics = Self.buildClosedMetrics(fund: fund, asOfDate: today)
+        self.isDueForAction = Self.computeIsDueForAction(fund: fund, today: today)
+    }
+
+    private static func computeIsDueForAction(fund: FundData, today: String) -> Bool {
+        guard let intervalDays = fund.config.interval_days, intervalDays > 0 else { return true }
+        guard let lastEntry = fund.entries.last else { return true }
+        return daysBetween(lastEntry.date, today) >= intervalDays
     }
 
     private static func buildClosedMetrics(fund: FundData, asOfDate: String) -> ClosedFundMetrics? {

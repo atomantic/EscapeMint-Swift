@@ -3,7 +3,7 @@ import SwiftUI
 struct IntroGuideView: View {
     @Binding var isPresented: Bool
     @State private var currentStep = 1
-    @AppStorage("escapemint-intro-completed") private var introCompleted = false
+    @AppStorage(AppStorageKeys.introCompleted) private var introCompleted = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var modePreloader: ModeComparisonPreloader { .shared }
 

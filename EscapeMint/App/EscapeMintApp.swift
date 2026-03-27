@@ -48,6 +48,18 @@ struct EscapeMintApp: App {
                 }
                 .keyboardShortcut("q", modifiers: .command)
             }
+            CommandGroup(replacing: .newItem) {
+                Button("New Fund") {
+                    NotificationCenter.default.post(name: .showCreateFund, object: nil)
+                }
+                .keyboardShortcut("n", modifiers: .command)
+            }
+            CommandGroup(after: .toolbar) {
+                Button("Refresh") {
+                    NotificationCenter.default.post(name: .fundsDidChange, object: nil)
+                }
+                .keyboardShortcut("r", modifiers: .command)
+            }
         }
         #endif
         .onChange(of: scenePhase) { _, newPhase in
@@ -55,14 +67,19 @@ struct EscapeMintApp: App {
                 AuthManager.shared.lock()
             }
         }
+        #if os(macOS)
+        Settings {
+            SettingsView()
+        }
+        #endif
     }
 }
 
 struct ContentView: View {
     @State private var appearance = AppearanceManager.shared
     @State private var auth = AuthManager.shared
-    @AppStorage("escapemint-intro-completed") private var introCompleted = false
-    @AppStorage("escapemint-show-intro-on-launch") private var showIntroOnLaunch = false
+    @AppStorage(AppStorageKeys.introCompleted) private var introCompleted = false
+    @AppStorage(AppStorageKeys.showIntroOnLaunch) private var showIntroOnLaunch = false
     @State private var showIntroGuide = false
     @State private var selectedTab: Int = {
         if CommandLine.arguments.contains("-startTab"),
@@ -94,7 +111,7 @@ struct ContentView: View {
                 #endif
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(appearance.mode.colorScheme)
         .privacySensitive()
         .onContinueUserActivity(CSSearchableItemActionType) { activity in
             guard let fundId = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String else { return }

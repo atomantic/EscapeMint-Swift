@@ -14,8 +14,8 @@ struct SettingsView: View {
     @State private var showLoadTestConfirm = false
     @State private var showRemoveTestConfirm = false
     @State private var testFundCount = 0
-    @AppStorage("escapemint-show-intro-on-launch") var showIntroOnLaunch = false
-    @AppStorage("escapemint-advanced-tools") var advancedToolsEnabled = false
+    @AppStorage(AppStorageKeys.showIntroOnLaunch) var showIntroOnLaunch = false
+    @AppStorage(AppStorageKeys.advancedTools) var advancedToolsEnabled = false
     @State private var showIntroGuide = false
     @State private var backupFileURL: URL?
     @State private var showShareSheet = false

@@ -25,7 +25,7 @@ struct BacktestView: View {
     }
 
     // First-run detection
-    @AppStorage("escapemint-intro-completed") private var introCompleted = false
+    @AppStorage(AppStorageKeys.introCompleted) private var introCompleted = false
 
     // Read expensive results from persistent cache
     private var result: BacktestResult? { cache.backtestResult }

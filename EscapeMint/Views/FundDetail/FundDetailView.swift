@@ -24,7 +24,7 @@ struct FundDetailView: View {
     @State private var isRecalculating = false
     @State private var advancedToolsMessage = ""
     @State private var showAdvancedToast = false
-    @AppStorage("escapemint-advanced-tools") private var advancedToolsEnabled = false
+    @AppStorage(AppStorageKeys.advancedTools) private var advancedToolsEnabled = false
 
     private var fund: FundData? { store.fund(byId: fundId) }
     private var summary: FundSummary? { store.summary(byId: fundId) }

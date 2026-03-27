@@ -6,6 +6,8 @@ extension Notification.Name {
     static let selectBacktest = Notification.Name("selectBacktest")
     static let selectPlatform = Notification.Name("selectPlatform")
     static let showAddEntry = Notification.Name("showAddEntry")
+    static let showCreateFund = Notification.Name("showCreateFund")
+    static let fundsDidChange = Notification.Name("fundsDidChange")
 }
 
 enum NotificationUserInfoKey {
