@@ -228,6 +228,7 @@
 		43EA0A1D7008E27E20D07B13 /* AdvancedToolsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedToolsTests.swift; sourceTree = "<group>"; };
 		4A2D5E0BEEB8E52E0461ADC0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		4CB98C8C76DB995DB12DB51C /* EditEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditEntryView.swift; sourceTree = "<group>"; };
+		50BB80B0D333342E7009BBD6 /* EscapeMint-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "EscapeMint-macOS.entitlements"; sourceTree = "<group>"; };
 		5178FBFF2608094D106457C0 /* EditFundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditFundView.swift; sourceTree = "<group>"; };
 		524A60C790216C69F3B6D153 /* LockScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockScreenView.swift; sourceTree = "<group>"; };
 		5439E3A322BB84FE60191A58 /* IntroGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroGuideView.swift; sourceTree = "<group>"; };
@@ -434,6 +435,7 @@
 			isa = PBXGroup;
 			children = (
 				4141AFA78E93A2BB544FFD49 /* Assets.xcassets */,
+				50BB80B0D333342E7009BBD6 /* EscapeMint-macOS.entitlements */,
 				0DF6302CD46DDE6D7F7FDF2A /* EscapeMint.entitlements */,
 				89B67B9D0233CE75C2517D8B /* EscapeMintApp.swift */,
 				4A2D5E0BEEB8E52E0461ADC0 /* Info.plist */,
@@ -960,7 +962,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 43;
+				CURRENT_PROJECT_VERSION = 44;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = TYQ32QCF6K;
@@ -1008,7 +1010,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = EscapeMint/App/EscapeMint.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = EscapeMint/App/EscapeMint.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = EscapeMint/App/EscapeMint.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "EscapeMint/App/EscapeMint-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = TYQ32QCF6K;
@@ -1033,7 +1037,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = EscapeMint/App/EscapeMint.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = EscapeMint/App/EscapeMint.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = EscapeMint/App/EscapeMint.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "EscapeMint/App/EscapeMint-macOS.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = TYQ32QCF6K;
@@ -1175,7 +1181,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 43;
+				CURRENT_PROJECT_VERSION = 44;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = TYQ32QCF6K;
@@ -1214,7 +1220,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = EscapeMint/App/EscapeMint.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = EscapeMint/App/EscapeMint.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = EscapeMint/App/EscapeMint.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "EscapeMint/App/EscapeMint-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = TYQ32QCF6K;
@@ -1239,7 +1247,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = EscapeMint/App/EscapeMint.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = EscapeMint/App/EscapeMint.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = EscapeMint/App/EscapeMint.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "EscapeMint/App/EscapeMint-macOS.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = TYQ32QCF6K;
