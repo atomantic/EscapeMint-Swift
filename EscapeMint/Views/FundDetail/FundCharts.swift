@@ -335,9 +335,10 @@ struct ValueChartView: View {
     var body: some View {
         EMChartCard(title: "Value & Allocation") {
             if let last = points?.last {
-                LegendDot(color: .mint, label: "Value \(formatCurrency(last.value))")
-                LegendDot(color: .purple, label: "Invested \(formatCurrency(last.invested))")
-                LegendDot(color: .green, label: "Target \(formatCurrency(last.target))")
+                let d = config.dollarDec
+                LegendDot(color: .mint, label: "Value \(formatCurrency(last.value, decimals: d))")
+                LegendDot(color: .purple, label: "Invested \(formatCurrency(last.invested, decimals: d))")
+                LegendDot(color: .green, label: "Target \(formatCurrency(last.target, decimals: d))")
             }
         } chart: {
             if let points {
@@ -369,11 +370,12 @@ struct ValueChartView: View {
                 .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
                 .chartOverlay { proxy in
+                    let d = config.dollarDec
                     chartHoverOverlay(proxy: proxy, entries: points, hoverIndex: $hoverIndex) { pt in
                         [
-                            (label: "Value", value: formatCurrency(pt.value), color: .mint),
-                            (label: "Invested", value: formatCurrency(pt.invested), color: .purple),
-                            (label: "Target", value: formatCurrency(pt.target), color: .green),
+                            (label: "Value", value: formatCurrency(pt.value, decimals: d), color: .mint),
+                            (label: "Invested", value: formatCurrency(pt.invested, decimals: d), color: .purple),
+                            (label: "Target", value: formatCurrency(pt.target, decimals: d), color: .green),
                         ]
                     }
                 }
@@ -411,8 +413,9 @@ struct PLChartView: View {
     var body: some View {
         EMChartCard(title: "P&L Over Time") {
             if let last = points?.last {
-                LegendDot(color: .mint, label: "R: \(formatCurrency(last.realized))")
-                LegendDot(color: .blue, label: "L: \(formatCurrency(last.liquid))")
+                let d = config.dollarDec
+                LegendDot(color: .mint, label: "R: \(formatCurrency(last.realized, decimals: d))")
+                LegendDot(color: .blue, label: "L: \(formatCurrency(last.liquid, decimals: d))")
             }
             ChartBoundsButton(fundId: fundId, boundsKey: "pnl", isPercent: false, bounds: bounds)
         } chart: {
@@ -440,10 +443,11 @@ struct PLChartView: View {
                 .chartYScale(domain: chartYDomain(bounds, points: allValues))
                 .chartLegend(.hidden)
                 .chartOverlay { proxy in
+                    let d = config.dollarDec
                     chartHoverOverlay(proxy: proxy, entries: points, hoverIndex: $hoverIndex) { pt in
                         [
-                            (label: "Realized", value: formatCurrency(pt.realized), color: .mint),
-                            (label: "Liquid", value: formatCurrency(pt.liquid), color: .blue),
+                            (label: "Realized", value: formatCurrency(pt.realized, decimals: d), color: .mint),
+                            (label: "Liquid", value: formatCurrency(pt.liquid, decimals: d), color: .blue),
                         ]
                     }
                 }
@@ -556,14 +560,15 @@ struct CapturedProfitChartView: View {
 
         EMChartCard(title: "Captured Profit") {
             if let last {
+                let dd = config.dollarDec
                 if hasExtracted {
-                    LegendDot(color: .mint, label: "Extracted \(formatCurrency(last.cumExtracted))")
+                    LegendDot(color: .mint, label: "Extracted \(formatCurrency(last.cumExtracted, decimals: dd))")
                 }
                 if hasDividends {
-                    LegendDot(color: .green, label: "Div: \(formatCurrency(last.cumDividend))")
+                    LegendDot(color: .green, label: "Div: \(formatCurrency(last.cumDividend, decimals: dd))")
                 }
                 if hasInterest {
-                    LegendDot(color: .yellow, label: "Int: \(formatCurrency(last.cumInterest))")
+                    LegendDot(color: .yellow, label: "Int: \(formatCurrency(last.cumInterest, decimals: dd))")
                 }
             }
         } chart: {
@@ -594,11 +599,12 @@ struct CapturedProfitChartView: View {
                 .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
                 .chartOverlay { proxy in
+                    let dd = config.dollarDec
                     chartHoverOverlay(proxy: proxy, entries: points, hoverIndex: $hoverIndex) { pt in
                         var lines: [(label: String, value: String, color: Color)] = []
-                        if hasExtracted { lines.append((label: "Extracted", value: formatCurrency(pt.cumExtracted), color: .mint)) }
-                        if hasDividends { lines.append((label: "Dividends", value: formatCurrency(pt.cumDividend), color: .green)) }
-                        if hasInterest { lines.append((label: "Interest", value: formatCurrency(pt.cumInterest), color: .yellow)) }
+                        if hasExtracted { lines.append((label: "Extracted", value: formatCurrency(pt.cumExtracted, decimals: dd), color: .mint)) }
+                        if hasDividends { lines.append((label: "Dividends", value: formatCurrency(pt.cumDividend, decimals: dd), color: .green)) }
+                        if hasInterest { lines.append((label: "Interest", value: formatCurrency(pt.cumInterest, decimals: dd), color: .yellow)) }
                         return lines
                     }
                 }

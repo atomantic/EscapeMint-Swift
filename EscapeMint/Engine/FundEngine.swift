@@ -1071,6 +1071,9 @@ func computeActionableFunds(_ funds: [FundData], asOfDate: String? = nil) -> [Ac
               let intervalDays = config.interval_days,
               intervalDays > 0 else { continue }
 
+        // Stock funds: skip on weekends and US market holidays
+        if config.fund_type == .stock && !isStockTradingDay(today) { continue }
+
         // Check if due
         let isDue: Bool
         let daysOverdue: Int

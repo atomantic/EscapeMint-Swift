@@ -6,6 +6,7 @@ private let currencyFormatter: NumberFormatter = {
     let f = NumberFormatter()
     f.numberStyle = .currency
     f.currencyCode = "USD"
+    f.maximumFractionDigits = 2
     return f
 }()
 
@@ -18,6 +19,19 @@ private let currencyFullFormatter: NumberFormatter = {
     return f
 }()
 
+nonisolated(unsafe) private var currencyFormatterCache: [Int: NumberFormatter] = [:]
+private func cachedCurrencyFormatter(decimals: Int, pinMinimum: Bool) -> NumberFormatter {
+    let key = pinMinimum ? decimals : -(decimals + 1)
+    if let cached = currencyFormatterCache[key] { return cached }
+    let f = NumberFormatter()
+    f.numberStyle = .currency
+    f.currencyCode = "USD"
+    if pinMinimum { f.minimumFractionDigits = decimals }
+    f.maximumFractionDigits = decimals
+    currencyFormatterCache[key] = f
+    return f
+}
+
 private let percentFormatter: NumberFormatter = {
     let f = NumberFormatter()
     f.numberStyle = .percent
@@ -26,14 +40,21 @@ private let percentFormatter: NumberFormatter = {
     return f
 }()
 
-func formatCurrency(_ value: Double) -> String {
-    currencyFormatter.maximumFractionDigits = 2
-    return currencyFormatter.string(from: NSNumber(value: value)) ?? "$0.00"
+func formatCurrency(_ value: Double, decimals: Int = 2) -> String {
+    if decimals == 2 {
+        return currencyFormatter.string(from: NSNumber(value: value)) ?? "$0.00"
+    }
+    return cachedCurrencyFormatter(decimals: decimals, pinMinimum: false)
+        .string(from: NSNumber(value: value)) ?? "$0.00"
 }
 
-/// Always show cents (2 decimal places) regardless of magnitude
-func formatCurrencyFull(_ value: Double) -> String {
-    currencyFullFormatter.string(from: NSNumber(value: value)) ?? "$0.00"
+/// Always show cents (decimal places) regardless of magnitude
+func formatCurrencyFull(_ value: Double, decimals: Int = 2) -> String {
+    if decimals == 2 {
+        return currencyFullFormatter.string(from: NSNumber(value: value)) ?? "$0.00"
+    }
+    return cachedCurrencyFormatter(decimals: decimals, pinMinimum: true)
+        .string(from: NSNumber(value: value)) ?? "$0.00"
 }
 
 func formatPercent(_ value: Double) -> String {

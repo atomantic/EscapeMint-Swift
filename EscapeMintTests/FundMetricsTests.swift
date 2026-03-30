@@ -481,7 +481,8 @@ final class FundMetricsTests: XCTestCase {
         let config = makeConfig()
         let fund = FundData(platform: "test", ticker: "AAPL", config: config, entries: [])
 
-        let actionable = computeActionableFunds([fund], asOfDate: "2025-03-15")
+        // 2025-03-14 is a Friday (trading day for stocks)
+        let actionable = computeActionableFunds([fund], asOfDate: "2025-03-14")
         // New funds with no entries are immediately actionable (need first action)
         XCTAssertEqual(actionable.count, 1)
         XCTAssertEqual(actionable.first?.fund.id, fund.id)
@@ -490,20 +491,21 @@ final class FundMetricsTests: XCTestCase {
     func testActionableFundsNotYetDue() {
         var config = makeConfig()
         config.interval_days = 7
-        let entries = [FundEntry(date: "2025-03-14", value: 1000, action: .BUY, amount: 500)]
+        let entries = [FundEntry(date: "2025-03-13", value: 1000, action: .BUY, amount: 500)]
         let fund = FundData(platform: "test", ticker: "AAPL", config: config, entries: entries)
 
-        let actionable = computeActionableFunds([fund], asOfDate: "2025-03-15")
+        let actionable = computeActionableFunds([fund], asOfDate: "2025-03-14")
         XCTAssertEqual(actionable.count, 0) // Only 1 day since last entry, interval is 7
     }
 
     func testActionableFundsDueToday() {
         var config = makeConfig()
         config.interval_days = 7
-        let entries = [FundEntry(date: "2025-03-08", value: 1000, action: .BUY, amount: 500)]
+        let entries = [FundEntry(date: "2025-03-07", value: 1000, action: .BUY, amount: 500)]
         let fund = FundData(platform: "test", ticker: "AAPL", config: config, entries: entries)
 
-        let actionable = computeActionableFunds([fund], asOfDate: "2025-03-15")
+        // 2025-03-14 is a Friday (trading day)
+        let actionable = computeActionableFunds([fund], asOfDate: "2025-03-14")
         XCTAssertEqual(actionable.count, 1)
         XCTAssertEqual(actionable[0].daysOverdue, 0)
     }
@@ -515,7 +517,8 @@ final class FundMetricsTests: XCTestCase {
         let fund2 = FundData(platform: "test", ticker: "B", config: config,
                              entries: [FundEntry(date: "2025-01-01", value: 1000, action: .BUY, amount: 100)])
 
-        let actionable = computeActionableFunds([fund1, fund2], asOfDate: "2025-03-15")
+        // 2025-03-14 is a Friday (trading day)
+        let actionable = computeActionableFunds([fund1, fund2], asOfDate: "2025-03-14")
         XCTAssertEqual(actionable.count, 2)
         // fund2 is more overdue (older last entry)
         XCTAssertGreaterThan(actionable[0].daysOverdue, actionable[1].daysOverdue)

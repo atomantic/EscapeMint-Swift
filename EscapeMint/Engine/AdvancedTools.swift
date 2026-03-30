@@ -120,6 +120,26 @@ func recalculateFundSize(entries: [FundEntry], config: FundConfig) -> [FundEntry
     return result
 }
 
+// MARK: - Recalculate Prices
+
+/// Recalculate price for all entries that have both amount and shares.
+/// price = amount / |shares|, rounded to the fund's dollar_decimals.
+func recalculateEntryPrices(entries: [FundEntry], dollarDecimals: Int) -> (entries: [FundEntry], updated: Int) {
+    var result = entries
+    var updated = 0
+    let multiplier = pow(10.0, Double(dollarDecimals))
+    for i in 0..<result.count {
+        guard let amount = result[i].amount, amount > 0,
+              let shares = result[i].shares, abs(shares) > 0 else { continue }
+        let price = (amount / abs(shares) * multiplier).rounded() / multiplier
+        if result[i].price != price {
+            result[i].price = price
+            updated += 1
+        }
+    }
+    return (result, updated)
+}
+
 // MARK: - Interpolate Column
 
 /// Interpolate missing values for a numeric column using linear interpolation by date.

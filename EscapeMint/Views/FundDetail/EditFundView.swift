@@ -23,6 +23,7 @@ struct EditFundView: View {
     @State private var dividendReinvest: Bool
     @State private var interestReinvest: Bool
     @State private var expenseFromFund: Bool
+    @State private var dollarDecimals: String
     @State private var showDeleteConfirm = false
     @State private var isSaving = false
     @State private var selectedTab = 0
@@ -48,6 +49,7 @@ struct EditFundView: View {
         _dividendReinvest = State(initialValue: fund.config.dividend_reinvest ?? false)
         _interestReinvest = State(initialValue: fund.config.interest_reinvest ?? false)
         _expenseFromFund = State(initialValue: fund.config.expense_from_fund ?? false)
+        _dollarDecimals = State(initialValue: fund.config.dollar_decimals.map(String.init) ?? "2")
     }
 
     private var isTradingFund: Bool {
@@ -134,6 +136,10 @@ struct EditFundView: View {
                 }
             }
         }
+
+        Section("Display") {
+            dcaTipField("Dollar decimals", tip: "Number of decimal places for dollar values. Use 5 for low-price crypto like DOGE ($0.09424).", text: $dollarDecimals, placeholder: "2")
+        }
     }
 
     @ViewBuilder
@@ -183,6 +189,8 @@ struct EditFundView: View {
         config.dividend_reinvest = dividendReinvest
         config.interest_reinvest = interestReinvest
         config.expense_from_fund = expenseFromFund
+        let dd = Int(dollarDecimals) ?? 2
+        config.dollar_decimals = dd == 2 ? nil : dd
 
         let platformChanged = platform != fund.platform
         let tickerChanged = ticker != fund.ticker

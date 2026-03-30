@@ -47,7 +47,7 @@ struct EditEntryView: View {
         _value = State(initialValue: cleanNum(cashDisplay))
         _amount = State(initialValue: cleanNum(entry.amount))
         _shares = State(initialValue: cleanShares(entry.shares))
-        _price = State(initialValue: cleanNum(entry.price))
+        _price = State(initialValue: cleanShares(entry.price))
         _dividend = State(initialValue: cleanNum(entry.dividend))
         _expense = State(initialValue: cleanNum(entry.expense))
         _marginAvailable = State(initialValue: cleanNum(entry.margin_available))
@@ -177,7 +177,7 @@ struct EditEntryView: View {
     }
 
     private func calcPriceEquity() {
-        guard let result = calcPriceAndEquity(amount: amount, shares: shares, existingEntries: existingEntries, date: date) else { return }
+        guard let result = calcPriceAndEquity(amount: amount, shares: shares, existingEntries: existingEntries, date: date, dollarDecimals: fundConfig.dollarDec) else { return }
         price = result.price
         if !result.value.isEmpty { value = result.value }
     }
@@ -203,7 +203,7 @@ struct EditEntryView: View {
             updated.action = action
             let amt = r(parseFormulaValue(amount)); updated.amount = amt != 0 ? amt : nil
             let sh = parseFormulaValue(shares); updated.shares = sh != 0 ? sh : nil
-            let pr = r(parseFormulaValue(price)); updated.price = pr != 0 ? pr : nil
+            let pr = parseFormulaValue(price); updated.price = pr != 0 ? pr : nil
             let div = r(parseFormulaValue(dividend)); updated.dividend = div != 0 ? div : nil
             let fs = r(parseFormulaValue(fundSizeText)); updated.fund_size = fs != 0 ? fs : nil
         }

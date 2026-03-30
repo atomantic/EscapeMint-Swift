@@ -254,6 +254,29 @@ final class FundDataStore {
         return (true, "Recalculated fund_size for \(recalculated.count) entries")
     }
 
+    /// Backup fund, recalculate prices from amount/shares, save to disk.
+    func recalculatePrices(fundId: String) async -> (success: Bool, message: String) {
+        guard let fund = fund(byId: fundId) else {
+            return (false, "Fund not found")
+        }
+        do {
+            _ = try await FundStore.shared.backupFund(id: fundId)
+        } catch {
+            return (false, "Backup failed: \(error.localizedDescription)")
+        }
+
+        let entries = fund.entries
+        let dd = fund.config.dollarDec
+        let (updatedEntries, updated) = await Task.detached(priority: .userInitiated) {
+            recalculateEntryPrices(entries: entries, dollarDecimals: dd)
+        }.value
+
+        if updated > 0 {
+            await replaceEntries(fundId: fundId, entries: updatedEntries)
+        }
+        return (true, "Recalculated \(updated) prices (\(entries.count) entries)")
+    }
+
     /// Backup fund, interpolate missing values for a column, save to disk.
     func interpolateFundColumn(fundId: String, column: InterpolatableColumn) async -> (success: Bool, message: String) {
         guard let fund = fund(byId: fundId) else {

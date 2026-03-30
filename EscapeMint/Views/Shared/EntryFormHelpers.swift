@@ -3,19 +3,20 @@ import SwiftUI
 
 /// Calculate price from amount/shares and derive equity from prior shares.
 /// Returns (price, equity) or nil if inputs are invalid.
-func calcPriceAndEquity(amount: String, shares: String, existingEntries: [FundEntry], date: Date) -> (price: String, value: String)? {
+func calcPriceAndEquity(amount: String, shares: String, existingEntries: [FundEntry], date: Date, dollarDecimals: Int = 2) -> (price: String, value: String)? {
     let amountVal = parseFormulaValue(amount)
     let sharesVal = parseFormulaValue(shares)
     guard amountVal > 0, sharesVal > 0 else { return nil }
 
     let selectedDate = isoDateFormatter.string(from: date)
     let calculatedPrice = amountVal / abs(sharesVal)
-    let priceStr = String(format: "%.2f", calculatedPrice)
+    let fmt = "%.\(dollarDecimals)f"
+    let priceStr = String(format: fmt, calculatedPrice)
 
     let prior = getCumulativeShares(entries: existingEntries, beforeDate: selectedDate)
     if prior > 0 {
         let equity = prior * calculatedPrice
-        return (priceStr, String(format: "%.2f", equity))
+        return (priceStr, String(format: fmt, equity))
     }
     return (priceStr, "")
 }

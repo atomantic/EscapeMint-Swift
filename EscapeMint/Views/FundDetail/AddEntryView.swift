@@ -370,7 +370,7 @@ struct AddEntryView: View {
     }
 
     private func calcPriceEquity() {
-        guard let result = calcPriceAndEquity(amount: amount, shares: shares, existingEntries: existingEntries, date: date) else { return }
+        guard let result = calcPriceAndEquity(amount: amount, shares: shares, existingEntries: existingEntries, date: date, dollarDecimals: fundConfig.dollarDec) else { return }
         price = result.price
         if !result.value.isEmpty { value = result.value }
     }
@@ -420,7 +420,7 @@ struct AddEntryView: View {
         )
         let amt = r(parseFormulaValue(amount)); if amt != 0 { entry.amount = amt }
         let s = parseFormulaValue(shares); if s != 0 { entry.shares = s }
-        let p = r(parseFormulaValue(price)); if p != 0 { entry.price = p }
+        let p = parseFormulaValue(price); if p != 0 { entry.price = p }
         let d = r(parseFormulaValue(deposit)); if d != 0 {
             let depNote = "Deposit: $\(String(format: "%.2f", d))"
             notes = notes.isEmpty ? depNote : "\(notes) | \(depNote)"

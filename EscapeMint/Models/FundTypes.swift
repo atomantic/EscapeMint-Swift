@@ -68,6 +68,9 @@ struct FundConfig: Codable {
     var maintenance_margin_rate: Double?
     var contract_multiplier: Double?
 
+    // Display
+    var dollar_decimals: Int?
+
     // Chart bounds (persisted per-fund)
     var chart_bounds: [String: ChartBounds]?
 
@@ -82,8 +85,14 @@ struct FundConfig: Codable {
         case margin_enabled
         case accumulate, dividend_reinvest, interest_reinvest, expense_from_fund
         case initial_margin_rate, maintenance_margin_rate, contract_multiplier
+        case dollar_decimals
         case chart_bounds
     }
+}
+
+extension FundConfig {
+    /// Effective dollar decimal places (defaults to 2)
+    var dollarDec: Int { dollar_decimals ?? 2 }
 }
 
 struct ChartBounds: Codable, Equatable {
@@ -192,7 +201,7 @@ struct FundSummary {
         }
 
         self.state = state
-        self.recommendation = computeRecommendation(config: fund.config, state: state)
+        self.recommendation = Self.computeMarginAwareRecommendation(fund: fund, state: state)
         self.closedMetrics = Self.buildClosedMetrics(fund: fund, asOfDate: today)
         self.isDueForAction = Self.computeIsDueForAction(fund: fund, today: today)
     }
@@ -203,13 +212,26 @@ struct FundSummary {
         self.features = getFeatures(fund.config.fund_type)
         self.metrics = metrics
         self.state = state
-        self.recommendation = computeRecommendation(config: fund.config, state: state)
+        self.recommendation = Self.computeMarginAwareRecommendation(fund: fund, state: state)
         let today = todayString()
         self.closedMetrics = Self.buildClosedMetrics(fund: fund, asOfDate: today)
         self.isDueForAction = Self.computeIsDueForAction(fund: fund, today: today)
     }
 
+    /// Computes recommendation with margin_available added to cash when margin is enabled
+    private static func computeMarginAwareRecommendation(fund: FundData, state: FundState) -> Recommendation? {
+        var stateForRec = state
+        if fund.config.margin_enabled == true,
+           let latestEntry = fund.entries.last,
+           let marginAvail = latestEntry.margin_available, marginAvail > 0 {
+            stateForRec.cashAvailableUsd += marginAvail
+        }
+        return computeRecommendation(config: fund.config, state: stateForRec)
+    }
+
     private static func computeIsDueForAction(fund: FundData, today: String) -> Bool {
+        // Stock funds: not actionable on weekends/holidays
+        if fund.config.fund_type == .stock && !isStockTradingDay(today) { return false }
         guard let intervalDays = fund.config.interval_days, intervalDays > 0 else { return true }
         guard let lastEntry = fund.entries.last else { return true }
         return daysBetween(lastEntry.date, today) >= intervalDays

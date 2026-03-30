@@ -28,6 +28,7 @@ struct FundDetailView: View {
 
     private var fund: FundData? { store.fund(byId: fundId) }
     private var summary: FundSummary? { store.summary(byId: fundId) }
+    private var dd: Int { fund?.config.dollarDec ?? 2 }
     private var derivPoints: [DerivativesChartPoint]? {
         guard let fund else { return nil }
         return cache.cachedDerivPoints(fundId: fund.id, entryCount: fund.entries.count)
@@ -220,13 +221,20 @@ struct FundDetailView: View {
                         .padding(.horizontal, 6).padding(.vertical, 2)
                         .background(Color.bgInput).cornerRadius(4)
                 }
+                if config.margin_enabled == true {
+                    Text("Margin")
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Color.blue.opacity(0.2))
+                        .foregroundColor(.blue)
+                        .cornerRadius(4)
+                }
                 if let acc = config.accumulate {
                     Text(acc ? "Accumulate" : "Harvest")
                         .foregroundColor(acc ? .mint : .orange)
                 }
                 Spacer()
                 if config.status == .closed, let lastCash = fund.entries.last?.cash {
-                    Text("Cash: \(formatCurrency(lastCash))")
+                    Text("Cash: \(formatCurrency(lastCash, decimals: config.dollarDec))")
                         .fontWeight(.medium)
                 }
             }
@@ -236,6 +244,15 @@ struct FundDetailView: View {
                     Text("\(config.interval_days ?? 7)d interval")
                     if let min = config.input_min_usd, let mid = config.input_mid_usd, let max = config.input_max_usd {
                         Text("DCA $\(Int(min))/$\(Int(mid))/$\(Int(max))")
+                    }
+                    Spacer()
+                    if state.cashAvailableUsd > 0 {
+                        Text("Cash: \(formatCurrency(state.cashAvailableUsd, decimals: config.dollarDec))")
+                    }
+                    if config.margin_enabled == true,
+                       let marginAvail = fund.entries.last?.margin_available, marginAvail > 0 {
+                        Text("Margin: \(formatCurrency(marginAvail, decimals: config.dollarDec))")
+                            .foregroundColor(.blue)
                     }
                 }
             }
@@ -253,7 +270,7 @@ struct FundDetailView: View {
     private func recommendationCard(_ rec: Recommendation) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text(rec.action == .HOLD ? "HOLD" : "\(rec.action.rawValue) \(formatCurrency(rec.amount))")
+                Text(rec.action == .HOLD ? "HOLD" : "\(rec.action.rawValue) \(formatCurrency(rec.amount, decimals: dd))")
                     .font(.title2).fontWeight(.bold)
                     .foregroundColor(Color.forAction(rec.action))
                 Text(rec.reasoning)
@@ -279,9 +296,9 @@ struct FundDetailView: View {
     @ViewBuilder
     private func stateCard(summary: FundSummary) -> some View {
         if let cm = summary.closedMetrics {
-            ClosedFundStateCard(closedMetrics: cm)
+            ClosedFundStateCard(closedMetrics: cm, dollarDecimals: dd)
         } else {
-            ActiveFundStateCard(state: summary.state, summary: summary)
+            ActiveFundStateCard(state: summary.state, summary: summary, dollarDecimals: dd)
         }
     }
 
@@ -291,12 +308,13 @@ struct FundDetailView: View {
     private func derivativesChartContent() -> some View {
         if let pts = derivPoints, let fund {
             let cb = fund.config.chart_bounds
-            DerivativesPLChart(points: pts, fundId: fund.id, bounds: cb?["pnl"])
+            let d = dd
+            DerivativesPLChart(points: pts, fundId: fund.id, bounds: cb?["pnl"], dollarDecimals: d)
             DerivativesAPYChart(points: pts, fundId: fund.id, bounds: cb?["apy"])
-            DerivativesValueChart(points: pts)
-            DerivativesPriceChart(points: pts, fundId: fund.id, bounds: cb?["derivativesPrice"])
-            DerivativesMarginChart(points: pts)
-            DerivativesCapturedProfitChart(points: pts)
+            DerivativesValueChart(points: pts, dollarDecimals: d)
+            DerivativesPriceChart(points: pts, fundId: fund.id, bounds: cb?["derivativesPrice"], dollarDecimals: d)
+            DerivativesMarginChart(points: pts, dollarDecimals: d)
+            DerivativesCapturedProfitChart(points: pts, dollarDecimals: d)
         } else {
             ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
         }
@@ -322,7 +340,8 @@ struct FundDetailView: View {
             if fund.config.fund_type == .derivatives {
                 if let pts = derivPoints {
                     let cb = fund.config.chart_bounds
-                    DerivativesPLChart(points: pts, fundId: fund.id, bounds: cb?["pnl"])
+                    let d = dd
+                    DerivativesPLChart(points: pts, fundId: fund.id, bounds: cb?["pnl"], dollarDecimals: d)
                     DerivativesAPYChart(points: pts, fundId: fund.id, bounds: cb?["apy"])
                 }
             } else {
@@ -335,10 +354,11 @@ struct FundDetailView: View {
             if fund.config.fund_type == .derivatives {
                 if let pts = derivPoints {
                     let cb = fund.config.chart_bounds
-                    DerivativesValueChart(points: pts)
-                    DerivativesPriceChart(points: pts, fundId: fund.id, bounds: cb?["derivativesPrice"])
-                    DerivativesMarginChart(points: pts)
-                    DerivativesCapturedProfitChart(points: pts)
+                    let d = dd
+                    DerivativesValueChart(points: pts, dollarDecimals: d)
+                    DerivativesPriceChart(points: pts, fundId: fund.id, bounds: cb?["derivativesPrice"], dollarDecimals: d)
+                    DerivativesMarginChart(points: pts, dollarDecimals: d)
+                    DerivativesCapturedProfitChart(points: pts, dollarDecimals: d)
                 }
             } else {
                 ValueChartView(entries: fund.entries, config: fund.config, fundId: fund.id)
@@ -361,6 +381,28 @@ struct FundDetailView: View {
     }
 
     // MARK: - Advanced Tools
+
+    @ViewBuilder
+    private func recalcPricesButton(_ fund: FundData) -> some View {
+        Button {
+            guard !isRecalculating else { return }
+            isRecalculating = true
+            Task {
+                let (_, msg) = await store.recalculatePrices(fundId: fund.id)
+                advancedToolsMessage = msg
+                isRecalculating = false
+                showAdvancedToast = true
+            }
+        } label: {
+            Label(isRecalculating ? "..." : "Recalc Prices", systemImage: "arrow.triangle.2.circlepath")
+                .font(.caption2).fontWeight(.medium)
+                .foregroundColor(.mint)
+        }
+        .disabled(isRecalculating)
+        #if os(macOS)
+        .buttonStyle(.plain)
+        #endif
+    }
 
     @ViewBuilder
     private func advancedToolsButtons(_ fund: FundData) -> some View {
@@ -524,6 +566,9 @@ struct FundDetailView: View {
                 Text("Entries (\(fund.entries.count))")
                     .font(.headline).foregroundColor(.textPrimary)
                 Spacer()
+                if getFeatures(fund.config.fund_type).supportsShares && fund.entries.contains(where: { ($0.shares ?? 0) != 0 }) {
+                    recalcPricesButton(fund)
+                }
                 if advancedToolsEnabled {
                     advancedToolsButtons(fund)
                 }
@@ -714,6 +759,7 @@ struct FundDetailView: View {
 
     @ViewBuilder
     private func entryCell(_ entry: FundEntry, columnId: String, computed: ComputedEntryRow?) -> some View {
+        let d = dd
         switch columnId {
         case "date":
             Text(entry.date)
@@ -725,21 +771,21 @@ struct FundDetailView: View {
                     .foregroundColor(Color.forAction(entry.action))
             }
         case "value":
-            Text(formatCurrency(entry.value))
+            Text(formatCurrency(entry.value, decimals: d))
         case "amount":
-            if let amt = entry.amount { Text(formatCurrency(amt)).foregroundColor(.textSecondary) }
+            if let amt = entry.amount { Text(formatCurrency(amt, decimals: d)).foregroundColor(.textSecondary) }
             else { Self.dash }
         case "extracted":
             if let c = computed, c.extracted > 0 {
-                Text(formatCurrency(c.extracted)).foregroundColor(.mint)
+                Text(formatCurrency(c.extracted, decimals: d)).foregroundColor(.mint)
             } else { Self.dash }
         case "realized":
             if let c = computed {
-                Text(formatCurrency(c.realized)).foregroundColor(c.realized >= 0 ? .mint : .red)
+                Text(formatCurrency(c.realized, decimals: d)).foregroundColor(c.realized >= 0 ? .mint : .red)
             } else { Self.dash }
         case "liquid_pnl":
             if let c = computed {
-                Text(formatCurrency(c.liquidPnl)).foregroundColor(c.liquidPnl >= 0 ? .mint : .red)
+                Text(formatCurrency(c.liquidPnl, decimals: d)).foregroundColor(c.liquidPnl >= 0 ? .mint : .red)
             } else { Self.dash }
         case "realized_apy":
             if let c = computed {
@@ -753,31 +799,31 @@ struct FundDetailView: View {
             if let s = entry.shares { Text(String(format: "%.4f", s)).foregroundColor(.textSecondary) }
             else { Self.dash }
         case "price":
-            if let p = entry.price { Text(formatCurrency(p)).foregroundColor(.textSecondary) }
+            if let p = entry.price { Text(formatCurrency(p, decimals: d)).foregroundColor(.textSecondary) }
             else { Self.dash }
         case "dividend":
-            if let d = entry.dividend { Text(formatCurrency(d)).foregroundColor(.mint) }
+            if let div = entry.dividend { Text(formatCurrency(div, decimals: d)).foregroundColor(.mint) }
             else { Self.dash }
         case "expense":
-            if let e = entry.expense { Text(formatCurrency(e)).foregroundColor(.red) }
+            if let e = entry.expense { Text(formatCurrency(e, decimals: d)).foregroundColor(.red) }
             else { Self.dash }
         case "cash_interest":
-            if let ci = entry.cash_interest { Text(formatCurrency(ci)).foregroundColor(.mint) }
+            if let ci = entry.cash_interest { Text(formatCurrency(ci, decimals: d)).foregroundColor(.mint) }
             else { Self.dash }
         case "fund_size":
             if computed?.isClosingEntry == true {
                 Text("closed").italic().foregroundColor(.textMuted)
             } else if let fs = entry.fund_size {
-                Text(formatCurrency(fs)).foregroundColor(.textSecondary)
+                Text(formatCurrency(fs, decimals: d)).foregroundColor(.textSecondary)
             } else { Self.dash }
         case "cash":
-            if let c = entry.cash { Text(formatCurrency(c)).foregroundColor(.textSecondary) }
+            if let c = entry.cash { Text(formatCurrency(c, decimals: d)).foregroundColor(.textSecondary) }
             else { Self.dash }
         case "margin_available":
-            if let ma = entry.margin_available { Text(formatCurrency(ma)).foregroundColor(.textSecondary) }
+            if let ma = entry.margin_available { Text(formatCurrency(ma, decimals: d)).foregroundColor(.textSecondary) }
             else { Self.dash }
         case "margin_borrowed":
-            if let mb = entry.margin_borrowed { Text(formatCurrency(mb)).foregroundColor(.orange) }
+            if let mb = entry.margin_borrowed { Text(formatCurrency(mb, decimals: d)).foregroundColor(.orange) }
             else { Self.dash }
         case "notes":
             if let n = entry.notes, !n.isEmpty { Text(n).foregroundColor(.textMuted).lineLimit(1) }
@@ -786,38 +832,38 @@ struct FundDetailView: View {
             if let c = entry.contracts { Text(String(format: "%.2f", c)).foregroundColor(.textSecondary) }
             else { Self.dash }
         case "entry_price":
-            if let ep = entry.entry_price { Text(formatCurrency(ep)).foregroundColor(.textSecondary) }
+            if let ep = entry.entry_price { Text(formatCurrency(ep, decimals: d)).foregroundColor(.textSecondary) }
             else { Self.dash }
         case "fee":
-            if let f = entry.fee { Text(formatCurrency(f)).foregroundColor(.red) }
+            if let f = entry.fee { Text(formatCurrency(f, decimals: d)).foregroundColor(.red) }
             else { Self.dash }
         case "margin_locked":
-            if let ml = entry.margin_locked { Text(formatCurrency(ml)).foregroundColor(.orange) }
+            if let ml = entry.margin_locked { Text(formatCurrency(ml, decimals: d)).foregroundColor(.orange) }
             else { Self.dash }
         case "liquidation_price":
-            if let lp = entry.liquidation_price { Text(formatCurrency(lp)).foregroundColor(.textSecondary) }
+            if let lp = entry.liquidation_price { Text(formatCurrency(lp, decimals: d)).foregroundColor(.textSecondary) }
             else { Self.dash }
         case "unrealized_pnl":
-            if let up = entry.unrealized_pnl { Text(formatCurrency(up)).foregroundColor(up >= 0 ? .mint : .red) }
+            if let up = entry.unrealized_pnl { Text(formatCurrency(up, decimals: d)).foregroundColor(up >= 0 ? .mint : .red) }
             else { Self.dash }
         case "position":
             if let c = computed { Text(String(format: "%.0f", c.sumShares)).foregroundColor(.textSecondary) }
             else { Self.dash }
         case "deriv_cash":
-            if let cash = entry.cash { Text(formatCurrency(cash)).foregroundColor(.textSecondary) }
+            if let cash = entry.cash { Text(formatCurrency(cash, decimals: d)).foregroundColor(.textSecondary) }
             else { Self.dash }
         case "deriv_equity":
             if let cash = entry.cash, let c = computed {
                 let equity = cash + c.unrealized
-                Text(formatCurrency(equity)).foregroundColor(.textSecondary)
+                Text(formatCurrency(equity, decimals: d)).foregroundColor(.textSecondary)
             } else { Self.dash }
         case "invested":
             if let c = computed {
-                Text(formatCurrency(c.invested)).foregroundColor(.textSecondary)
+                Text(formatCurrency(c.invested, decimals: d)).foregroundColor(.textSecondary)
             } else { Self.dash }
         case "unrealized":
             if let c = computed {
-                Text(formatCurrency(c.unrealized)).foregroundColor(c.unrealized >= 0 ? .mint : .red)
+                Text(formatCurrency(c.unrealized, decimals: d)).foregroundColor(c.unrealized >= 0 ? .mint : .red)
             } else { Self.dash }
         case "sum_shares":
             if let c = computed, c.sumShares != 0 {
@@ -825,19 +871,19 @@ struct FundDetailView: View {
             } else { Self.dash }
         case "sum_expense":
             if let c = computed, c.sumExpenses > 0 {
-                Text(formatCurrency(c.sumExpenses)).foregroundColor(.red)
+                Text(formatCurrency(c.sumExpenses, decimals: d)).foregroundColor(.red)
             } else { Self.dash }
         case "sum_extracted":
             if let c = computed, c.sumExtracted > 0 {
-                Text(formatCurrency(c.sumExtracted)).foregroundColor(.mint)
+                Text(formatCurrency(c.sumExtracted, decimals: d)).foregroundColor(.mint)
             } else { Self.dash }
         case "sum_cash_int":
             if let c = computed, c.sumCashInterest > 0 {
-                Text(formatCurrency(c.sumCashInterest)).foregroundColor(.mint)
+                Text(formatCurrency(c.sumCashInterest, decimals: d)).foregroundColor(.mint)
             } else { Self.dash }
         case "sum_dividends":
             if let c = computed, c.sumDividends > 0 {
-                Text(formatCurrency(c.sumDividends)).foregroundColor(.mint)
+                Text(formatCurrency(c.sumDividends, decimals: d)).foregroundColor(.mint)
             } else { Self.dash }
         default:
             Self.dash
@@ -889,9 +935,9 @@ struct FundDetailView: View {
                 Text(entry.action?.rawValue ?? "HOLD").font(.caption).fontWeight(.medium)
                     .foregroundColor(Color.forAction(entry.action))
                 Spacer()
-                Text(formatCurrency(entry.value)).font(.caption).foregroundColor(.textPrimary)
+                Text(formatCurrency(entry.value, decimals: dd)).font(.caption).foregroundColor(.textPrimary)
                 if let amt = entry.amount {
-                    Text(formatCurrency(amt)).font(.caption).foregroundColor(.textSecondary)
+                    Text(formatCurrency(amt, decimals: dd)).font(.caption).foregroundColor(.textSecondary)
                         .frame(width: 70, alignment: .trailing)
                 }
                 Image(systemName: "ellipsis.circle")

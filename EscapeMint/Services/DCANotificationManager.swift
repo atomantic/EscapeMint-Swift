@@ -136,18 +136,23 @@ final class DCANotificationManager {
     func computeNextDCADate(fund: FundData, intervalDays: Int) -> Date? {
         let calendar = Calendar.current
         let now = Date()
+        let fundType = fund.config.fund_type
 
+        let rawDate: Date
         if let lastEntry = fund.entries.last,
            let lastDate = isoDateFormatter.date(from: lastEntry.date) {
             let nextDate = calendar.date(byAdding: .day, value: intervalDays, to: lastDate) ?? now
-            if nextDate <= now {
-                return atNineAM(calendar.date(byAdding: .day, value: 1, to: now) ?? now)
-            }
-            return atNineAM(nextDate)
+            rawDate = nextDate <= now
+                ? (calendar.date(byAdding: .day, value: 1, to: now) ?? now)
+                : nextDate
+        } else {
+            // No entries — schedule for tomorrow
+            rawDate = calendar.date(byAdding: .day, value: 1, to: now) ?? now
         }
 
-        // No entries — schedule for tomorrow
-        return atNineAM(calendar.date(byAdding: .day, value: 1, to: now) ?? now)
+        // Stock funds: advance to next trading day (skip weekends/holidays)
+        let fireDate = nextTradingDay(from: rawDate, fundType: fundType)
+        return atNineAM(fireDate)
     }
 
     private func atNineAM(_ date: Date) -> Date? {

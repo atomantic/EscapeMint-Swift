@@ -637,6 +637,8 @@ private func roundCurrency(_ val: Double) -> Double { (val * 100).rounded() / 10
 private func roundCurrency(_ val: Double?) -> Double? { val.map { roundCurrency($0) } }
 /// Shares/contracts can be fractional (crypto) — round to 8 decimals
 private func roundQuantity(_ val: Double?) -> Double? { val.map { ($0 * 1e8).rounded() / 1e8 } }
+/// Prices can have up to 8 decimals for low-price crypto (e.g. DOGE $0.09424)
+private func roundPrice(_ val: Double?) -> Double? { val.map { ($0 * 1e8).rounded() / 1e8 } }
 
 func parseEntry(_ line: String, headers: [String]) -> FundEntry {
     let values = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
@@ -653,7 +655,7 @@ func parseEntry(_ line: String, headers: [String]) -> FundEntry {
         case "action": entry.action = FundAction(rawValue: val)
         case "amount": entry.amount = roundCurrency(Double(val))
         case "shares": entry.shares = roundQuantity(Double(val))
-        case "price": entry.price = roundCurrency(Double(val))
+        case "price": entry.price = roundPrice(Double(val))
         case "dividend": entry.dividend = roundCurrency(Double(val))
         case "expense": entry.expense = roundCurrency(Double(val))
         case "cash_interest": entry.cash_interest = roundCurrency(Double(val))
@@ -663,8 +665,8 @@ func parseEntry(_ line: String, headers: [String]) -> FundEntry {
         case "margin_expense": entry.margin_expense = roundCurrency(Double(val))
         case "notes": entry.notes = val.replacingOccurrences(of: "\\t", with: "\t").replacingOccurrences(of: "\\n", with: "\n")
         case "contracts": entry.contracts = roundQuantity(Double(val))
-        case "entry_price": entry.entry_price = roundCurrency(Double(val))
-        case "liquidation_price": entry.liquidation_price = roundCurrency(Double(val))
+        case "entry_price": entry.entry_price = roundPrice(Double(val))
+        case "liquidation_price": entry.liquidation_price = roundPrice(Double(val))
         case "unrealized_pnl": entry.unrealized_pnl = roundCurrency(Double(val))
         case "margin_locked": entry.margin_locked = roundCurrency(Double(val))
         case "fee": entry.fee = roundCurrency(Double(val))
@@ -681,6 +683,8 @@ private func fmtCurrency(_ val: Double) -> String {
     return rounded == rounded.rounded(.down) ? String(format: "%.0f", rounded) : String(format: "%.2f", rounded)
 }
 private func fmtCurrency(_ val: Double?) -> String { val.map { fmtCurrency($0) } ?? "" }
+/// Format a price for TSV — preserves up to 8 decimals for low-price assets
+private func fmtPrice(_ val: Double?) -> String { fmtQuantity(val) }
 private func fmtQuantity(_ val: Double?) -> String {
     guard let v = val else { return "" }
     let rounded = (v * 1e8).rounded() / 1e8
@@ -702,7 +706,7 @@ func serializeEntry(_ entry: FundEntry) -> String {
     parts.append(entry.action?.rawValue ?? "")
     parts.append(fmtCurrency(entry.amount))
     parts.append(fmtQuantity(entry.shares))
-    parts.append(fmtCurrency(entry.price))
+    parts.append(fmtPrice(entry.price))
     parts.append(fmtCurrency(entry.dividend))
     parts.append(fmtCurrency(entry.expense))
     parts.append(fmtCurrency(entry.cash_interest))
@@ -713,8 +717,8 @@ func serializeEntry(_ entry: FundEntry) -> String {
     let notes = (entry.notes ?? "").replacingOccurrences(of: "\t", with: "\\t").replacingOccurrences(of: "\n", with: "\\n")
     parts.append(notes)
     parts.append(fmtQuantity(entry.contracts))
-    parts.append(fmtCurrency(entry.entry_price))
-    parts.append(fmtCurrency(entry.liquidation_price))
+    parts.append(fmtPrice(entry.entry_price))
+    parts.append(fmtPrice(entry.liquidation_price))
     parts.append(fmtCurrency(entry.unrealized_pnl))
     parts.append(fmtCurrency(entry.margin_locked))
     parts.append(fmtCurrency(entry.fee))

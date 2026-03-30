@@ -188,26 +188,28 @@ private struct StateCardContainer<Content: View>: View {
 
 struct ClosedFundStateCard: View {
     let closedMetrics: ClosedFundMetrics
+    var dollarDecimals: Int = 2
 
     var body: some View {
         let cm = closedMetrics
+        let d = dollarDecimals
         StateCardContainer {
             Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 8) {
                 GridRow {
-                    StatBox(label: "Total Invested", value: formatCurrencyFull(cm.totalInvestedUsd), showCard: false)
-                    StatBox(label: "Total Returned", value: formatCurrencyFull(cm.totalReturnedUsd), showCard: false)
+                    StatBox(label: "Total Invested", value: formatCurrencyFull(cm.totalInvestedUsd, decimals: d), showCard: false)
+                    StatBox(label: "Total Returned", value: formatCurrencyFull(cm.totalReturnedUsd, decimals: d), showCard: false)
                 }
                 GridRow {
-                    StatBox(label: "Net Gain/Loss", value: "\(formatCurrencyFull(cm.netGainUsd)) (\(formatPercent(cm.returnPct)))", color: cm.netGainUsd >= 0 ? .mint : .red, showCard: false)
+                    StatBox(label: "Net Gain/Loss", value: "\(formatCurrencyFull(cm.netGainUsd, decimals: d)) (\(formatPercent(cm.returnPct)))", color: cm.netGainUsd >= 0 ? .mint : .red, showCard: false)
                     StatBox(label: "Annualized Return", value: formatPercent(cm.apy), color: cm.apy > 0 ? .mint : .red, showCard: false)
                 }
                 GridRow {
-                    StatBox(label: "Dividends", value: formatCurrencyFull(cm.totalDividendsUsd), showCard: false)
-                    StatBox(label: "Cash Interest", value: formatCurrencyFull(cm.totalCashInterestUsd), showCard: false)
+                    StatBox(label: "Dividends", value: formatCurrencyFull(cm.totalDividendsUsd, decimals: d), showCard: false)
+                    StatBox(label: "Cash Interest", value: formatCurrencyFull(cm.totalCashInterestUsd, decimals: d), showCard: false)
                 }
                 GridRow {
                     StatBox(label: "Duration", value: "\(cm.durationDays) days", showCard: false)
-                    StatBox(label: "Expenses", value: formatCurrencyFull(-cm.totalExpensesUsd), color: cm.totalExpensesUsd > 0 ? .red : .white, showCard: false)
+                    StatBox(label: "Expenses", value: formatCurrencyFull(-cm.totalExpensesUsd, decimals: d), color: cm.totalExpensesUsd > 0 ? .red : .white, showCard: false)
                 }
             }
         }
@@ -217,24 +219,26 @@ struct ClosedFundStateCard: View {
 struct ActiveFundStateCard: View {
     let state: FundState
     let summary: FundSummary
+    var dollarDecimals: Int = 2
 
     var body: some View {
+        let d = dollarDecimals
         StateCardContainer {
             Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 8) {
                 GridRow {
-                    StatBox(label: "Invested", value: formatCurrencyFull(state.startInputUsd), showCard: false)
-                    StatBox(label: "Asset Value", value: formatCurrencyFull(summary.currentValue), showCard: false)
+                    StatBox(label: "Invested", value: formatCurrencyFull(state.startInputUsd, decimals: d), showCard: false)
+                    StatBox(label: "Asset Value", value: formatCurrencyFull(summary.currentValue, decimals: d), showCard: false)
                 }
                 GridRow {
-                    StatBox(label: "Unrealized", value: "\(summary.unrealizedGains >= 0 ? "+" : "")\(formatCurrencyFull(summary.unrealizedGains))", color: summary.unrealizedGains >= 0 ? .mint : .red, showCard: false)
-                    StatBox(label: "Cash", value: formatCurrencyFull(state.cashAvailableUsd), showCard: false)
+                    StatBox(label: "Unrealized", value: "\(summary.unrealizedGains >= 0 ? "+" : "")\(formatCurrencyFull(summary.unrealizedGains, decimals: d))", color: summary.unrealizedGains >= 0 ? .mint : .red, showCard: false)
+                    StatBox(label: "Cash", value: formatCurrencyFull(state.cashAvailableUsd, decimals: d), showCard: false)
                 }
                 GridRow {
-                    StatBox(label: "Realized", value: formatCurrencyFull(state.realizedGainsUsd), color: state.realizedGainsUsd > 0 ? .mint : .textPrimary, showCard: false)
+                    StatBox(label: "Realized", value: formatCurrencyFull(state.realizedGainsUsd, decimals: d), color: state.realizedGainsUsd > 0 ? .mint : .textPrimary, showCard: false)
                     StatBox(label: "Realized APY", value: formatPercent(summary.realizedAPY), color: summary.realizedAPY > 0 ? .mint : .red, showCard: false)
                 }
                 GridRow {
-                    StatBox(label: "Liquid P&L", value: formatCurrencyFull(summary.liquidGain), color: summary.liquidGain >= 0 ? .mint : .red, showCard: false)
+                    StatBox(label: "Liquid P&L", value: formatCurrencyFull(summary.liquidGain, decimals: d), color: summary.liquidGain >= 0 ? .mint : .red, showCard: false)
                     StatBox(label: "Liquid APY", value: formatPercent(summary.liquidAPY), color: summary.liquidAPY > 0 ? .mint : .red, showCard: false)
                 }
             }
@@ -339,6 +343,7 @@ struct DerivativesPLChart: View {
     let points: [DerivativesChartPoint]
     var fundId: String = ""
     var bounds: ChartBounds?
+    var dollarDecimals: Int = 2
     @State private var hoverIndex: Int?
 
     var body: some View {
@@ -367,10 +372,11 @@ struct DerivativesPLChart: View {
                 .chartYScale(domain: chartYDomain(bounds, points: points.flatMap { [$0.liquidPL, $0.capturedProfit] }))
                 .chartLegend(.hidden)
                 .chartOverlay { proxy in
+                    let dd = dollarDecimals
                     chartHoverOverlay(proxy: proxy, entries: points, hoverIndex: $hoverIndex) { pt in
                         [
-                            (label: "Liquid", value: formatCurrency(pt.liquidPL), color: .orange),
-                            (label: "Realized", value: formatCurrency(pt.capturedProfit), color: .mint),
+                            (label: "Liquid", value: formatCurrency(pt.liquidPL, decimals: dd), color: .orange),
+                            (label: "Realized", value: formatCurrency(pt.capturedProfit, decimals: dd), color: .mint),
                         ]
                     }
                 }
@@ -435,6 +441,7 @@ struct DerivativesAPYChart: View {
 
 struct DerivativesValueChart: View {
     let points: [DerivativesChartPoint]
+    var dollarDecimals: Int = 2
     @State private var hoverIndex: Int?
 
     var body: some View {
@@ -467,11 +474,12 @@ struct DerivativesValueChart: View {
                 .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
                 .chartOverlay { proxy in
+                    let dd = dollarDecimals
                     chartHoverOverlay(proxy: proxy, entries: points, hoverIndex: $hoverIndex) { pt in
                         [
-                            (label: "Notional", value: formatCurrency(pt.costBasis), color: .purple),
-                            (label: "Cost Basis", value: formatCurrency(pt.costBasis), color: .blue),
-                            (label: "Position", value: formatCurrency(pt.positionValue), color: .mint),
+                            (label: "Notional", value: formatCurrency(pt.costBasis, decimals: dd), color: .purple),
+                            (label: "Cost Basis", value: formatCurrency(pt.costBasis, decimals: dd), color: .blue),
+                            (label: "Position", value: formatCurrency(pt.positionValue, decimals: dd), color: .mint),
                         ]
                     }
                 }
@@ -489,6 +497,7 @@ struct DerivativesPriceChart: View {
     let points: [DerivativesChartPoint]
     var fundId: String = ""
     var bounds: ChartBounds?
+    var dollarDecimals: Int = 2
     @State private var hoverIndex: Int?
 
     var body: some View {
@@ -523,10 +532,11 @@ struct DerivativesPriceChart: View {
                 .chartYScale(domain: chartYDomain(bounds, points: clampedPoints.flatMap { [$0.avgEntry, $0.liqPrice] }))
                 .chartLegend(.hidden)
                 .chartOverlay { proxy in
+                    let dd = dollarDecimals
                     chartHoverOverlay(proxy: proxy, entries: withPosition, hoverIndex: $hoverIndex) { pt in
                         [
-                            (label: "Avg Entry", value: formatCurrency(pt.avgEntry), color: .orange),
-                            (label: "Liq Price", value: formatCurrency(max(0, pt.liqPrice)), color: .mint),
+                            (label: "Avg Entry", value: formatCurrency(pt.avgEntry, decimals: dd), color: .orange),
+                            (label: "Liq Price", value: formatCurrency(max(0, pt.liqPrice), decimals: dd), color: .mint),
                         ]
                     }
                 }
@@ -544,6 +554,7 @@ struct DerivativesPriceChart: View {
 
 struct DerivativesMarginChart: View {
     let points: [DerivativesChartPoint]
+    var dollarDecimals: Int = 2
     @State private var hoverIndex: Int?
 
     private var maxLev: Double { max(5.0, (points.map(\.leverage).max() ?? 5) * 1.2) }
@@ -621,8 +632,8 @@ struct DerivativesMarginChart: View {
                             .stroke(Color.textMuted.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
 
                         ChartTooltipCard(date: pt.date, lines: [
-                            (label: "Cash", value: formatCurrency(pt.marginBalance), color: .blue),
-                            (label: "Locked", value: formatCurrency(pt.marginLocked), color: .orange),
+                            (label: "Cash", value: formatCurrency(pt.marginBalance, decimals: dollarDecimals), color: .blue),
+                            (label: "Locked", value: formatCurrency(pt.marginLocked, decimals: dollarDecimals), color: .orange),
                             (label: "Leverage", value: String(format: "%.2fx", pt.leverage), color: .green),
                         ])
                         .position(x: xPos > geo.size.width / 2 ? xPos - 70 : xPos + 70, y: 40)
@@ -652,6 +663,7 @@ struct DerivativesMarginChart: View {
 
 struct DerivativesCapturedProfitChart: View {
     let points: [DerivativesChartPoint]
+    var dollarDecimals: Int = 2
     @State private var hoverIndex: Int?
 
     var body: some View {
@@ -693,13 +705,14 @@ struct DerivativesCapturedProfitChart: View {
                 .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
                 .chartOverlay { proxy in
+                    let dd = dollarDecimals
                     chartHoverOverlay(proxy: proxy, entries: points, hoverIndex: $hoverIndex) { pt in
                         [
-                            (label: "Realized", value: formatCurrency(pt.sumRealized), color: .green),
-                            (label: "Funding", value: formatCurrency(pt.sumFunding), color: .blue),
-                            (label: "Interest", value: formatCurrency(pt.sumInterest), color: .purple),
-                            (label: "Rebates", value: formatCurrency(pt.sumRebates), color: .cyan),
-                            (label: "Fees", value: formatCurrency(-pt.sumFees), color: .red),
+                            (label: "Realized", value: formatCurrency(pt.sumRealized, decimals: dd), color: .green),
+                            (label: "Funding", value: formatCurrency(pt.sumFunding, decimals: dd), color: .blue),
+                            (label: "Interest", value: formatCurrency(pt.sumInterest, decimals: dd), color: .purple),
+                            (label: "Rebates", value: formatCurrency(pt.sumRebates, decimals: dd), color: .cyan),
+                            (label: "Fees", value: formatCurrency(-pt.sumFees, decimals: dd), color: .red),
                         ]
                     }
                 }

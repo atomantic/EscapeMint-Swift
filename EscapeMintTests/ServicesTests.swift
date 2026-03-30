@@ -124,8 +124,9 @@ final class ServicesTests: XCTestCase {
         XCTAssertNotNil(nextDate)
 
         if let date = nextDate {
-            // Should be 7 days from today at 9 AM
-            let expected = Calendar.current.date(byAdding: .day, value: 7, to: Date())!
+            // Should be 7 days from today, advanced to next trading day for stocks
+            let rawExpected = Calendar.current.date(byAdding: .day, value: 7, to: Date())!
+            let expected = nextTradingDay(from: rawExpected, fundType: .stock)
             let scheduledDay = Calendar.current.component(.day, from: date)
             let expectedDay = Calendar.current.component(.day, from: expected)
             XCTAssertEqual(scheduledDay, expectedDay)

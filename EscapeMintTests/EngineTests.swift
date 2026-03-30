@@ -1070,10 +1070,10 @@ final class EngineTests: XCTestCase {
         ]
         let fund = FundData(platform: "test", ticker: "AAPL", config: config, entries: entries)
 
-        // 42 days since last entry, interval is 7 days -> 35 days overdue
-        let actionable = computeActionableFunds([fund], asOfDate: "2025-03-15")
+        // 41 days since last entry, interval is 7 days -> 34 days overdue (2025-03-14 is a Friday)
+        let actionable = computeActionableFunds([fund], asOfDate: "2025-03-14")
         XCTAssertEqual(actionable.count, 1)
-        XCTAssertEqual(actionable[0].daysOverdue, 35)
+        XCTAssertEqual(actionable[0].daysOverdue, 34)
     }
 
     func testComputeActionableFundsSkipsClosed() {
@@ -1093,6 +1093,77 @@ final class EngineTests: XCTestCase {
 
         let actionable = computeActionableFunds([fund], asOfDate: "2025-03-15")
         XCTAssertEqual(actionable.count, 0)
+    }
+
+    func testComputeActionableFundsStockSkipsWeekend() {
+        let config = makeStockConfig()
+        let entries = [FundEntry(date: "2025-02-01", value: 1000, action: .BUY, amount: 500)]
+        let fund = FundData(platform: "test", ticker: "AAPL", config: config, entries: entries)
+
+        // 2025-03-15 is a Saturday — stock funds should not be actionable
+        let actionable = computeActionableFunds([fund], asOfDate: "2025-03-15")
+        XCTAssertEqual(actionable.count, 0)
+    }
+
+    func testComputeActionableFundsCryptoNotSkippedOnWeekend() {
+        var config = makeStockConfig()
+        config.fund_type = .crypto
+        let entries = [FundEntry(date: "2025-02-01", value: 1000, action: .BUY, amount: 500)]
+        let fund = FundData(platform: "test", ticker: "BTC", config: config, entries: entries)
+
+        // 2025-03-15 is a Saturday — crypto should still be actionable
+        let actionable = computeActionableFunds([fund], asOfDate: "2025-03-15")
+        XCTAssertEqual(actionable.count, 1)
+    }
+
+    func testComputeActionableFundsStockSkipsHoliday() {
+        let config = makeStockConfig()
+        let entries = [FundEntry(date: "2025-12-18", value: 1000, action: .BUY, amount: 500)]
+        let fund = FundData(platform: "test", ticker: "AAPL", config: config, entries: entries)
+
+        // 2025-12-25 is Christmas (Thursday) — stock market closed
+        let actionable = computeActionableFunds([fund], asOfDate: "2025-12-25")
+        XCTAssertEqual(actionable.count, 0)
+    }
+
+    // MARK: - Trading Day Detection
+
+    func testIsStockTradingDayWeekday() {
+        XCTAssertTrue(isStockTradingDay("2025-03-14"))  // Friday
+        XCTAssertTrue(isStockTradingDay("2025-03-10"))  // Monday
+        XCTAssertTrue(isStockTradingDay("2025-03-12"))  // Wednesday
+    }
+
+    func testIsStockTradingDayWeekend() {
+        XCTAssertFalse(isStockTradingDay("2025-03-15")) // Saturday
+        XCTAssertFalse(isStockTradingDay("2025-03-16")) // Sunday
+    }
+
+    func testIsStockTradingDayHolidays() {
+        // New Year's Day 2025 (Wed Jan 1)
+        XCTAssertFalse(isStockTradingDay("2025-01-01"))
+        // MLK Day 2025 (Mon Jan 20)
+        XCTAssertFalse(isStockTradingDay("2025-01-20"))
+        // Good Friday 2025 (April 18)
+        XCTAssertFalse(isStockTradingDay("2025-04-18"))
+        // Christmas 2025 (Thu Dec 25)
+        XCTAssertFalse(isStockTradingDay("2025-12-25"))
+        // Day after Christmas is a trading day
+        XCTAssertTrue(isStockTradingDay("2025-12-26"))
+    }
+
+    func testNextTradingDaySkipsWeekend() {
+        // Saturday 2025-03-15 → Monday 2025-03-17
+        let sat = isoDateFormatter.date(from: "2025-03-15")!
+        let result = nextTradingDay(from: sat, fundType: .stock)
+        XCTAssertEqual(isoDateFormatter.string(from: result), "2025-03-17")
+    }
+
+    func testNextTradingDayCryptoDoesNotSkip() {
+        // Saturday — crypto doesn't skip
+        let sat = isoDateFormatter.date(from: "2025-03-15")!
+        let result = nextTradingDay(from: sat, fundType: .crypto)
+        XCTAssertEqual(isoDateFormatter.string(from: result), "2025-03-15")
     }
 
     // MARK: - Entry Rows
