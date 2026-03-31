@@ -53,8 +53,12 @@ final class FundDataStore {
         // Yield immediately so the UI (intro guide sheet) can finish rendering
         await Task.yield()
 
+        // Initialize FundStore on a background thread — url(forUbiquityContainerIdentifier:)
+        // can block 10+ seconds on first launch with a new Apple ID and MUST NOT run on main thread
+        let isICloud = await Task.detached(priority: .userInitiated) { FundStore.shared.isICloud }.value
+
         // If iCloud wasn't available at init (e.g. after reboot), retry before loading
-        if !FundStore.shared.isICloud {
+        if !isICloud {
             let recovered = await FundStore.shared.retryICloudIfNeeded()
             if recovered {
                 Self.logger.info("☁️ iCloud recovered after retry, loading from iCloud")
