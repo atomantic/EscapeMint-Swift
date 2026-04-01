@@ -9,6 +9,9 @@ struct NumericFieldRow: View {
     @Binding var text: String
     var hint: String? = nil
     var sign: String? = nil
+    var autoFocus: Bool = false
+
+    @FocusState private var isFocused: Bool
 
     private var formulaHint: String? {
         guard isFormula(text) else { return nil }
@@ -33,6 +36,7 @@ struct NumericFieldRow: View {
             TextField("", text: $text, prompt: Text(placeholder).foregroundColor(.textMuted.opacity(0.5)))
                 .formulaKeyboard()
                 .multilineTextAlignment(.trailing)
+                .focused($isFocused)
                 #if os(macOS)
                 .frame(maxWidth: 200)
                 .textFieldStyle(.roundedBorder)
@@ -54,6 +58,22 @@ struct NumericFieldRow: View {
                     .frame(minWidth: 50, alignment: .trailing)
             }
         }
+        .onAppear {
+            if autoFocus {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    isFocused = true
+                }
+            }
+        }
+        #if os(iOS)
+        .onChange(of: isFocused) { _, focused in
+            if focused {
+                DispatchQueue.main.async {
+                    UIApplication.shared.sendAction(#selector(UIResponder.selectAll(_:)), to: nil, from: nil, for: nil)
+                }
+            }
+        }
+        #endif
     }
 }
 
@@ -300,7 +320,7 @@ struct AddEntryView: View {
     private var cashForm: some View {
         Section {
             DatePicker("Date", selection: $date, displayedComponents: .date)
-            NumericFieldRow(label: "Cash Balance ($)", text: $value)
+            NumericFieldRow(label: "Cash Balance ($)", text: $value, autoFocus: true)
             NumericFieldRow(label: "Amount ($)", placeholder: "+100 or -50", text: $amount)
         } footer: {
             Text("Positive amount = deposit, negative = withdraw")
@@ -332,7 +352,7 @@ struct AddEntryView: View {
 
         Section {
             NumericFieldRow(label: "Equity ($)", placeholder: "Portfolio value", text: $value)
-            NumericFieldRow(label: "Amount ($)", placeholder: action == .HOLD ? "N/A" : "Buy/sell amount", text: $amount)
+            NumericFieldRow(label: "Amount ($)", placeholder: action == .HOLD ? "N/A" : "Buy/sell amount", text: $amount, autoFocus: true)
                 .disabled(action == .HOLD)
                 .opacity(action == .HOLD ? 0.5 : 1)
         } header: {
