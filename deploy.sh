@@ -152,6 +152,11 @@ EOF
         --apiKey "$APPSTORE_API_KEY_ID" \
         --apiIssuer "$APPSTORE_ISSUER_ID"
     echo "✅ iOS upload complete!"
+
+    if $BUILD_MACOS; then
+        echo "⏳ Waiting 60s before macOS upload to avoid Apple CDN contention..."
+        sleep 60
+    fi
 fi
 
 # --- macOS Build & Upload ---
