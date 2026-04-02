@@ -1,19 +1,13 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+#if os(iOS)
 private enum SettingsTab: String, CaseIterable, Hashable {
     case general = "General"
     case data = "Data"
     case about = "About"
-
-    var icon: String {
-        switch self {
-        case .general: return "gearshape.fill"
-        case .data: return "externaldrive.fill"
-        case .about: return "info.circle.fill"
-        }
-    }
 }
+#endif
 
 struct SettingsView: View {
     @State private var appearance = AppearanceManager.shared
@@ -34,7 +28,9 @@ struct SettingsView: View {
     @State private var showShareSheet = false
     @State private var auth = AuthManager.shared
     @State private var notifications = DCANotificationManager.shared
+    #if os(iOS)
     @State private var selectedTab: SettingsTab = .general
+    #endif
 
     var body: some View {
         tabContainer
@@ -76,26 +72,46 @@ struct SettingsView: View {
     // MARK: - Tab Container
 
     #if os(macOS)
-    private func settingsForm<C: View>(@ViewBuilder content: () -> C) -> some View {
-        Form(content: content)
+    private var col1: some View {
+        Form { generalSections }
             .formStyle(.grouped)
-            .frame(minWidth: 420, minHeight: 300)
+    }
+
+    private var col2: some View {
+        Form { dataSections }
+            .formStyle(.grouped)
+    }
+
+    private var col3: some View {
+        Form { aboutSections }
+            .formStyle(.grouped)
     }
     #endif
 
     @ViewBuilder
     private var tabContainer: some View {
         #if os(macOS)
-        TabView(selection: $selectedTab) {
-            settingsForm { generalSections }
-                .tabItem { Label(SettingsTab.general.rawValue, systemImage: SettingsTab.general.icon) }
-                .tag(SettingsTab.general)
-            settingsForm { dataSections }
-                .tabItem { Label(SettingsTab.data.rawValue, systemImage: SettingsTab.data.icon) }
-                .tag(SettingsTab.data)
-            settingsForm { aboutSections }
-                .tabItem { Label(SettingsTab.about.rawValue, systemImage: SettingsTab.about.icon) }
-                .tag(SettingsTab.about)
+        GeometryReader { geo in
+            let w = geo.size.width
+            ScrollView {
+                Group {
+                    if w >= 860 {
+                        HStack(alignment: .top, spacing: 16) {
+                            col1.frame(maxWidth: .infinity)
+                            col2.frame(maxWidth: .infinity)
+                            col3.frame(maxWidth: .infinity)
+                        }
+                    } else if w >= 540 {
+                        HStack(alignment: .top, spacing: 16) {
+                            VStack(spacing: 16) { col1; col3 }.frame(maxWidth: .infinity)
+                            col2.frame(maxWidth: .infinity)
+                        }
+                    } else {
+                        VStack(spacing: 16) { col1; col2; col3 }
+                    }
+                }
+                .padding()
+            }
         }
         #else
         VStack(spacing: 0) {
