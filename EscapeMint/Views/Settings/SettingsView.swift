@@ -1,6 +1,20 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+private enum SettingsTab: String, CaseIterable, Hashable {
+    case general = "General"
+    case data = "Data"
+    case about = "About"
+
+    var icon: String {
+        switch self {
+        case .general: return "gearshape.fill"
+        case .data: return "externaldrive.fill"
+        case .about: return "info.circle.fill"
+        }
+    }
+}
+
 struct SettingsView: View {
     @State private var appearance = AppearanceManager.shared
     @State private var fundCount = 0
@@ -20,121 +34,10 @@ struct SettingsView: View {
     @State private var showShareSheet = false
     @State private var auth = AuthManager.shared
     @State private var notifications = DCANotificationManager.shared
+    @State private var selectedTab: SettingsTab = .general
 
     var body: some View {
-        settingsContent
-    }
-
-    @ViewBuilder
-    private var settingsContent: some View {
-        List {
-                Section("Security") {
-                    if auth.biometryAvailable {
-                        Toggle("Require \(auth.biometryName)", isOn: Binding(
-                            get: { auth.isEnabled },
-                            set: { auth.setEnabled($0) }
-                        ))
-                    } else {
-                        LabeledContent("Biometric Auth", value: "Not Available")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Section("Appearance") {
-                    Picker("Theme", selection: $appearance.mode) {
-                        ForEach(AppearanceMode.allCases, id: \.self) { mode in
-                            Text(mode.rawValue).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
-
-                Section {
-                    Toggle("DCA Reminders", isOn: Binding(
-                        get: { notifications.isEnabled },
-                        set: { enabled in
-                            Task { await notifications.setEnabled(enabled) }
-                        }
-                    ))
-                } header: {
-                    Text("Notifications")
-                } footer: {
-                    Text("Get notified when a fund is due for its next DCA action based on its interval setting.")
-                }
-
-                Section("Intro Guide") {
-                    Toggle("Show intro on launch", isOn: $showIntroOnLaunch)
-                    Button("Show Intro Guide") {
-                        showIntroGuide = true
-                    }
-                }
-
-                Section("Storage") {
-                    LabeledContent("Location", value: storageLocation)
-                    LabeledContent("Funds", value: "\(fundCount)")
-                    LabeledContent("Data Size", value: dataSize)
-                    if FundStore.shared.isICloud {
-                        Button {
-                            Task {
-                                await ICloudSyncMonitor.shared.syncNow()
-                                await refreshStats()
-                                showToast("Synced from iCloud")
-                            }
-                        } label: {
-                            HStack {
-                                Label("Sync with iCloud", systemImage: "arrow.triangle.2.circlepath.icloud")
-                                if ICloudSyncMonitor.shared.isSyncing {
-                                    Spacer()
-                                    ProgressView().controlSize(.small)
-                                }
-                            }
-                        }
-                        .disabled(ICloudSyncMonitor.shared.isSyncing)
-                    }
-                }
-
-                Section("Import / Export") {
-                    Button("Import from Backup (.json)") { pickAndImportJSON() }
-                    Button("Export Backup (.json)") { exportBackup() }
-                }
-
-                Section("Actions") {
-                    Button("Load Test Data") { showLoadTestConfirm = true }
-                    if testFundCount > 0 {
-                        Button("Remove Test Data", role: .destructive) { showRemoveTestConfirm = true }
-                    }
-                    Button("Clear All Data", role: .destructive) { showClearConfirm = true }
-                }
-
-                Section {
-                    Toggle("Enable Advanced/Beta Tools", isOn: $advancedToolsEnabled)
-                } header: {
-                    Text("Advanced / Beta")
-                } footer: {
-                    Text("Shows recalculate and interpolate tools in fund detail views. Data is automatically backed up before each operation.")
-                }
-
-                Section("About") {
-                    LabeledContent("App", value: "EscapeMint")
-                    LabeledContent("Version", value: {
-                        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-                        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
-                        return "\(version) (\(build))"
-                    }())
-                }
-
-                if let privacyURL = URL(string: "https://github.com/atomantic/EscapeMint/blob/main/docs/PRIVACY.md"),
-                   let termsURL = URL(string: "https://github.com/atomantic/EscapeMint/blob/main/docs/TERMS.md") {
-                    Section("Legal") {
-                        Link("Privacy Policy", destination: privacyURL)
-                        Link("Terms of Use", destination: termsURL)
-                    }
-                }
-            }
-            .navigationTitle("Settings")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+        tabContainer
             .task { await refreshStats() }
             .toast(isPresented: $showStatus, message: statusMessage)
             .sheet(isPresented: $showIntroGuide) {
@@ -169,6 +72,212 @@ struct SettingsView: View {
                 }
             }
     }
+
+    // MARK: - Tab Container
+
+    #if os(macOS)
+    private func settingsForm<C: View>(@ViewBuilder content: () -> C) -> some View {
+        Form(content: content)
+            .formStyle(.grouped)
+            .frame(minWidth: 420, minHeight: 300)
+    }
+    #endif
+
+    @ViewBuilder
+    private var tabContainer: some View {
+        #if os(macOS)
+        TabView(selection: $selectedTab) {
+            settingsForm { generalSections }
+                .tabItem { Label(SettingsTab.general.rawValue, systemImage: SettingsTab.general.icon) }
+                .tag(SettingsTab.general)
+            settingsForm { dataSections }
+                .tabItem { Label(SettingsTab.data.rawValue, systemImage: SettingsTab.data.icon) }
+                .tag(SettingsTab.data)
+            settingsForm { aboutSections }
+                .tabItem { Label(SettingsTab.about.rawValue, systemImage: SettingsTab.about.icon) }
+                .tag(SettingsTab.about)
+        }
+        #else
+        VStack(spacing: 0) {
+            Picker("Settings Tab", selection: Binding(
+                get: { selectedTab },
+                set: { newVal in withAnimation(.easeInOut(duration: 0.15)) { selectedTab = newVal } }
+            )) {
+                ForEach(SettingsTab.allCases, id: \.self) { tab in
+                    Text(tab.rawValue).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color(uiColor: .systemGroupedBackground))
+
+            List {
+                switch selectedTab {
+                case .general: generalSections
+                case .data: dataSections
+                case .about: aboutSections
+                }
+            }
+            .listStyle(.insetGrouped)
+            .animation(.easeInOut(duration: 0.15), value: selectedTab)
+        }
+        .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+    }
+
+    // MARK: - General Tab
+
+    @ViewBuilder
+    private var generalSections: some View {
+        Section("Appearance") {
+            Picker("Theme", selection: $appearance.mode) {
+                ForEach(AppearanceMode.allCases, id: \.self) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+
+        Section("Security") {
+            if auth.biometryAvailable {
+                Toggle("Require \(auth.biometryName)", isOn: Binding(
+                    get: { auth.isEnabled },
+                    set: { auth.setEnabled($0) }
+                ))
+            } else {
+                LabeledContent("Biometric Auth", value: "Not Available")
+                    .foregroundStyle(.secondary)
+            }
+        }
+
+        Section {
+            Toggle("DCA Reminders", isOn: Binding(
+                get: { notifications.isEnabled },
+                set: { enabled in Task { await notifications.setEnabled(enabled) } }
+            ))
+        } header: {
+            Text("Notifications")
+        } footer: {
+            Text("Get notified when a fund is due for its next DCA action based on its interval setting.")
+        }
+
+        Section("Intro Guide") {
+            Toggle("Show intro on launch", isOn: $showIntroOnLaunch)
+            Button("Show Intro Guide") { showIntroGuide = true }
+        }
+    }
+
+    // MARK: - Data Tab
+
+    @ViewBuilder
+    private var dataSections: some View {
+        Section("Storage") {
+            LabeledContent("Location", value: storageLocation)
+            LabeledContent("Funds", value: "\(fundCount)")
+            LabeledContent("Data Size", value: dataSize)
+            if FundStore.shared.isICloud {
+                Button {
+                    Task {
+                        await ICloudSyncMonitor.shared.syncNow()
+                        await refreshStats()
+                        showToast("Synced from iCloud")
+                    }
+                } label: {
+                    HStack {
+                        Label("Sync with iCloud", systemImage: "arrow.triangle.2.circlepath.icloud")
+                        if ICloudSyncMonitor.shared.isSyncing {
+                            Spacer()
+                            ProgressView().controlSize(.small)
+                        }
+                    }
+                }
+                .disabled(ICloudSyncMonitor.shared.isSyncing)
+            }
+        }
+
+        Section("Import / Export") {
+            Button {
+                pickAndImportJSON()
+            } label: {
+                Label("Import from Backup (.json)", systemImage: "square.and.arrow.down")
+            }
+            Button {
+                exportBackup()
+            } label: {
+                Label("Export Backup (.json)", systemImage: "square.and.arrow.up")
+            }
+        }
+
+        Section("Actions") {
+            Button {
+                showLoadTestConfirm = true
+            } label: {
+                Label("Load Test Data", systemImage: "flask.fill")
+            }
+            if testFundCount > 0 {
+                Button(role: .destructive) {
+                    showRemoveTestConfirm = true
+                } label: {
+                    Label("Remove Test Data", systemImage: "trash")
+                }
+            }
+            Button(role: .destructive) {
+                showClearConfirm = true
+            } label: {
+                Label("Clear All Data", systemImage: "xmark.bin.fill")
+            }
+        }
+    }
+
+    // MARK: - About Tab
+
+    @ViewBuilder
+    private var aboutSections: some View {
+        Section {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.mint.gradient)
+                        .frame(width: 60, height: 60)
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("EscapeMint")
+                        .font(.headline)
+                    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+                    let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+                    Text("Version \(version) (\(build))")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(.vertical, 4)
+        }
+
+        Section {
+            Toggle("Enable Advanced/Beta Tools", isOn: $advancedToolsEnabled)
+        } header: {
+            Text("Advanced / Beta")
+        } footer: {
+            Text("Shows recalculate and interpolate tools in fund detail views. Data is automatically backed up before each operation.")
+        }
+
+        if let privacyURL = URL(string: "https://github.com/atomantic/EscapeMint/blob/main/docs/PRIVACY.md"),
+           let termsURL = URL(string: "https://github.com/atomantic/EscapeMint/blob/main/docs/TERMS.md") {
+            Section("Legal") {
+                Link("Privacy Policy", destination: privacyURL)
+                Link("Terms of Use", destination: termsURL)
+            }
+        }
+    }
+
+    // MARK: - Actions
 
     private func showToast(_ message: String) {
         statusMessage = message
@@ -276,7 +385,6 @@ struct SettingsView: View {
             if stats.fundCount > 0 {
                 do {
                     let backupURL = try await FundStore.shared.exportToBackupJSON()
-                    // Move backup to Documents for persistence
                     guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
                         showToast("Could not access Documents directory")
                         return

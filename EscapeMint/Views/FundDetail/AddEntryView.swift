@@ -12,6 +12,7 @@ struct NumericFieldRow: View {
     var autoFocus: Bool = false
 
     @FocusState private var isFocused: Bool
+    @State private var hasAutoFocused = false
 
     private var formulaHint: String? {
         guard isFormula(text) else { return nil }
@@ -59,18 +60,16 @@ struct NumericFieldRow: View {
             }
         }
         .onAppear {
-            if autoFocus {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    isFocused = true
-                }
+            guard autoFocus, !hasAutoFocused else { return }
+            hasAutoFocused = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                isFocused = true
             }
         }
         #if os(iOS)
         .onChange(of: isFocused) { _, focused in
             if focused {
-                DispatchQueue.main.async {
-                    UIApplication.shared.sendAction(#selector(UIResponder.selectAll(_:)), to: nil, from: nil, for: nil)
-                }
+                UIApplication.shared.sendAction(#selector(UIResponder.selectAll(_:)), to: nil, from: nil, for: nil)
             }
         }
         #endif
