@@ -36,10 +36,13 @@ struct LockScreenView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.bg.ignoresSafeArea())
-        // .task auto-cancels when the view disappears, which matters if the user
-        // dismisses a sheet above the lock screen mid-prompt. The AuthManager has its
-        // own isEvaluating guard so re-entry is still safe.
-        .task { auth.authenticate() }
+        // .onAppear (not .task): `auth.authenticate()` is a synchronous call that
+        // internally spawns its own unstructured `Task` stored as `authTask` and returns
+        // immediately. A `.task` modifier would only cancel whatever runs inside its own
+        // closure — since the closure returns instantly, there is nothing for `.task`
+        // cancellation to stop. The real cancellation path is `AuthManager.lock()`.
+        // AuthManager has an `isEvaluating` guard so duplicate re-entries are safe.
+        .onAppear { auth.authenticate() }
     }
 
     private var biometryIcon: String {
