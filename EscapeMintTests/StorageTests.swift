@@ -365,18 +365,32 @@ final class StorageTests: XCTestCase {
         XCTAssertFalse(isTestPlatform("robinhood"))
     }
 
-    func testBackupJSONInvalidFormatHandling() {
-        // Empty JSON
-        let emptyData = "{}".data(using: .utf8)!
-        let emptyResult = try? JSONSerialization.jsonObject(with: emptyData) as? [String: Any]
-        XCTAssertNotNil(emptyResult)
-        XCTAssertNil(emptyResult?["funds"])
+    func testBackupJSONInvalidFormatHandling() async throws {
+        // Previously this test only exercised the Swift stdlib `JSONSerialization` — a bug
+        // in `FundStore.importFromBackupJSON` would not have failed it. Now we actually call
+        // the production method against temp files with malformed content and verify it
+        // throws or returns 0-imported.
+        let store = FundStore.shared
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("escapemint-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
 
-        // Missing funds array
-        let noFundsJSON: [String: Any] = ["version": "1.0.0"]
-        let noFundsData = try! JSONSerialization.data(withJSONObject: noFundsJSON)
-        let noFunds = try! JSONSerialization.jsonObject(with: noFundsData) as! [String: Any]
-        XCTAssertNil(noFunds["funds"] as? [[String: Any]])
+        // Empty JSON — no "funds" key → should throw (invalid backup format)
+        let emptyURL = tempDir.appendingPathComponent("empty.json")
+        try "{}".data(using: .utf8)!.write(to: emptyURL)
+        do {
+            _ = try await store.importFromBackupJSON(emptyURL)
+            XCTFail("Expected importFromBackupJSON to throw on missing 'funds' key")
+        } catch {
+            // expected
+        }
+
+        // Present but empty funds array → should return 0 imported, no throw
+        let zeroFundsURL = tempDir.appendingPathComponent("zero.json")
+        try #"{"version":"1.0.0","funds":[]}"#.data(using: .utf8)!.write(to: zeroFundsURL)
+        let zeroCount = try await store.importFromBackupJSON(zeroFundsURL)
+        XCTAssertEqual(zeroCount, 0)
     }
 
     // MARK: - TSV Column Building
