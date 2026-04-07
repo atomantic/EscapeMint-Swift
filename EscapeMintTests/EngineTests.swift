@@ -216,24 +216,45 @@ final class EngineTests: XCTestCase {
 
     // MARK: - computeRecommendation: nil cases
 
+    // These tests use *non-default* state values. A regression that returned nil for all
+    // fund types regardless of config would still pass if the state were `FundState()` —
+    // which defeats the point of verifying the type/status-specific nil behaviour.
+
+    private func makeNonDefaultState() -> FundState {
+        var s = FundState()
+        s.actualValueUsd = 5000
+        s.cashAvailableUsd = 1500
+        s.startInputUsd = 4000
+        s.expectedTargetUsd = 4500
+        s.gainUsd = 1000
+        s.realizedGainsUsd = 250
+        return s
+    }
+
     func testComputeRecommendationNilForCash() {
         var config = makeStockConfig()
         config.fund_type = .cash
-        let state = FundState()
-        XCTAssertNil(computeRecommendation(config: config, state: state))
+        // Use populated state to verify nil is driven by fund_type, not empty state.
+        XCTAssertNil(computeRecommendation(config: config, state: makeNonDefaultState()))
     }
 
     func testComputeRecommendationNilForDerivatives() {
         var config = makeStockConfig()
         config.fund_type = .derivatives
-        let state = FundState()
-        XCTAssertNil(computeRecommendation(config: config, state: state))
+        XCTAssertNil(computeRecommendation(config: config, state: makeNonDefaultState()))
     }
 
     func testComputeRecommendationNilForClosed() {
         let config = makeStockConfig(status: .closed)
-        let state = FundState()
-        XCTAssertNil(computeRecommendation(config: config, state: state))
+        XCTAssertNil(computeRecommendation(config: config, state: makeNonDefaultState()))
+    }
+
+    // Positive control: with the SAME non-default state and a standard stock config,
+    // computeRecommendation MUST return non-nil. This ensures the nil tests above are
+    // meaningfully testing the type/status branches.
+    func testComputeRecommendationNonNilForStockWithState() {
+        let config = makeStockConfig()
+        XCTAssertNotNil(computeRecommendation(config: config, state: makeNonDefaultState()))
     }
 
     // MARK: - computeExpectedTarget
@@ -1215,10 +1236,13 @@ final class EngineTests: XCTestCase {
         let config = makeStockConfig(cashApy: 0.04)
         let cashflows = [CashFlow(date: "2023-12-31", amountUsd: 10000, type: .deposit)]
         let trades = [Trade(date: "2024-01-01", amountUsd: 1000, type: .buy)]
-        // Deposit 10000, buy 1000 on Jan 1 -> 9000 cash earning 4% for 365 days
+        // Expected ≈ 10000 * (1.04^(1/365) - 1)  (1 day @ $10k)
+        //         + 9000 * (1.04^(366/365) - 1)  (366 days @ $9k; 2024 is a leap year)
+        // ≈ 1.07 + 361.01 ≈ 362.08
         let interest = computeCashInterest(config: config, trades: trades, cashflows: cashflows, asOfDate: "2025-01-01")
-        // 9000 * (1.04^1 - 1) = 360
-        XCTAssertEqual(interest, 360, accuracy: 5.0)
+        // Previously accuracy: 5.0 (a ~1.4% slack with no floating-point justification).
+        // Tightened to 0.50 (~0.14%) which catches any off-by-day regression.
+        XCTAssertEqual(interest, 362.08, accuracy: 0.50)
     }
 
     // MARK: - Portfolio Metrics
