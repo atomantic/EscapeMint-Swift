@@ -178,8 +178,17 @@ EOF
     IOS_UPLOAD_STATUS=${PIPESTATUS[0]}
     set -e
     # altool can exit 0 while the XML plist in its output actually says UPLOAD FAILED.
-    # Grep for the known failure strings so deploy.sh doesn't report phantom success.
-    if [ "$IOS_UPLOAD_STATUS" -ne 0 ] || grep -qE "UPLOAD FAILED|ERROR: |Validation failed|product-errors" "$IOS_UPLOAD_LOG"; then
+    # Grep for the definitive failure markers so deploy.sh doesn't report phantom success.
+    #
+    # IMPORTANT: do NOT grep for plain "ERROR: " — altool logs transient multipart upload
+    # retries as "ERROR: [ContentDelivery.Uploader...] WILL RETRY PART N" which are normal
+    # recoverable events, NOT terminal failures. We false-positived on those and killed the
+    # script mid-recovery. Use only Apple's definitive failure markers:
+    #   - "UPLOAD FAILED" : Apple's summary banner printed once when all retries exhausted
+    #   - "Validation failed (" : server-side 4xx from App Store Connect
+    #   - "ERROR ITMS-" : legacy Apple error code format (still emitted for some failures)
+    #   - "product-errors" : Apple's structured error output
+    if [ "$IOS_UPLOAD_STATUS" -ne 0 ] || grep -qE "UPLOAD FAILED|Validation failed \(|ERROR ITMS-|product-errors" "$IOS_UPLOAD_LOG"; then
         echo "❌ iOS upload failed — see errors above"
         exit 1
     fi
@@ -254,7 +263,8 @@ EOF
         --apiIssuer "$APPSTORE_ISSUER_ID" 2>&1 | tee "$MACOS_UPLOAD_LOG"
     MACOS_UPLOAD_STATUS=${PIPESTATUS[0]}
     set -e
-    if [ "$MACOS_UPLOAD_STATUS" -ne 0 ] || grep -qE "UPLOAD FAILED|ERROR: |Validation failed|product-errors" "$MACOS_UPLOAD_LOG"; then
+    # Same grep-pattern discipline as iOS: definitive markers only, no plain "ERROR: ".
+    if [ "$MACOS_UPLOAD_STATUS" -ne 0 ] || grep -qE "UPLOAD FAILED|Validation failed \(|ERROR ITMS-|product-errors" "$MACOS_UPLOAD_LOG"; then
         echo "❌ macOS upload failed — see errors above"
         exit 1
     fi
