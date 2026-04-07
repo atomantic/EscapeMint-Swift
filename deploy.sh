@@ -52,11 +52,33 @@ if ! $BUILD_IOS && ! $BUILD_MACOS; then
     BUILD_IOS=true
 fi
 
-# Auto-increment build number
+# Auto-increment build number. If anything fails after this point, roll back
+# project.yml and the generated pbxproj to their BYTE-EXACT pre-bump state so we
+# don't permanently consume a build number that never reached TestFlight.
+#
+# We snapshot the files to unique tempfiles instead of `git checkout --`, because
+# git-checkout would also discard any pre-existing uncommitted changes the operator
+# may have in these files (e.g. in-progress edits to project.yml or the pbxproj).
+ORIG_PROJECT_YML=$(mktemp)
+ORIG_PBXPROJ=$(mktemp)
+cp project.yml "$ORIG_PROJECT_YML"
+cp "$PROJECT/project.pbxproj" "$ORIG_PBXPROJ"
+
 CURRENT_BUILD=$(grep CURRENT_PROJECT_VERSION project.yml | head -1 | awk '{print $2}')
 NEW_BUILD=$((CURRENT_BUILD + 1))
 echo "📦 Build number: $CURRENT_BUILD → $NEW_BUILD"
 /usr/bin/sed -i '' "s/CURRENT_PROJECT_VERSION: ${CURRENT_BUILD}/CURRENT_PROJECT_VERSION: ${NEW_BUILD}/" project.yml
+
+DEPLOY_SUCCESS=false
+rollback_build_bump() {
+    if [ "$DEPLOY_SUCCESS" = "false" ]; then
+        echo "↩️  Rolling back build number bump (deploy did not complete)..."
+        cp "$ORIG_PROJECT_YML" project.yml 2>/dev/null || true
+        cp "$ORIG_PBXPROJ" "$PROJECT/project.pbxproj" 2>/dev/null || true
+    fi
+    rm -f "$ORIG_PROJECT_YML" "$ORIG_PBXPROJ"
+}
+trap rollback_build_bump EXIT
 
 echo "⚙️  Regenerating Xcode project..."
 xcodegen generate
@@ -146,11 +168,21 @@ EOF
     fi
 
     echo "🚀 Uploading iOS to TestFlight..."
+    IOS_UPLOAD_LOG="$BUILD_DIR/ios_upload.log"
+    set +e
     xcrun altool --upload-app \
         --file "$IPA_PATH" \
         --type ios \
         --apiKey "$APPSTORE_API_KEY_ID" \
-        --apiIssuer "$APPSTORE_ISSUER_ID"
+        --apiIssuer "$APPSTORE_ISSUER_ID" 2>&1 | tee "$IOS_UPLOAD_LOG"
+    IOS_UPLOAD_STATUS=${PIPESTATUS[0]}
+    set -e
+    # altool can exit 0 while the XML plist in its output actually says UPLOAD FAILED.
+    # Grep for the known failure strings so deploy.sh doesn't report phantom success.
+    if [ "$IOS_UPLOAD_STATUS" -ne 0 ] || grep -qE "UPLOAD FAILED|ERROR: |Validation failed|product-errors" "$IOS_UPLOAD_LOG"; then
+        echo "❌ iOS upload failed — see errors above"
+        exit 1
+    fi
     echo "✅ iOS upload complete!"
 
     if $BUILD_MACOS; then
@@ -213,12 +245,17 @@ EOF
     fi
 
     echo "🚀 Uploading macOS to TestFlight..."
-    if ! xcrun altool --upload-app \
+    MACOS_UPLOAD_LOG="$BUILD_DIR/macos_upload.log"
+    set +e
+    xcrun altool --upload-app \
         --file "$PKG_PATH" \
         --type macos \
         --apiKey "$APPSTORE_API_KEY_ID" \
-        --apiIssuer "$APPSTORE_ISSUER_ID"; then
-        echo "❌ macOS upload failed"
+        --apiIssuer "$APPSTORE_ISSUER_ID" 2>&1 | tee "$MACOS_UPLOAD_LOG"
+    MACOS_UPLOAD_STATUS=${PIPESTATUS[0]}
+    set -e
+    if [ "$MACOS_UPLOAD_STATUS" -ne 0 ] || grep -qE "UPLOAD FAILED|ERROR: |Validation failed|product-errors" "$MACOS_UPLOAD_LOG"; then
+        echo "❌ macOS upload failed — see errors above"
         exit 1
     fi
     echo "✅ macOS upload complete!"
@@ -226,8 +263,14 @@ fi
 
 echo "✅ Build $NEW_BUILD submitted to TestFlight."
 
+# Commit the build number bump only after all uploads succeed, so a failed deploy
+# doesn't leave a permanently-consumed build number committed to main. DEPLOY_SUCCESS
+# is flipped AFTER `git commit` succeeds — if the commit itself fails (hooks, config
+# issues, etc.) under `set -e`, the EXIT trap still sees DEPLOY_SUCCESS=false and
+# rolls back the pre-commit file changes.
 git add project.yml "$PROJECT/project.pbxproj"
 git commit -m "build: bump to build $NEW_BUILD"
+DEPLOY_SUCCESS=true
 echo "📝 Committed build number bump"
 
 rm -rf "$BUILD_DIR"
