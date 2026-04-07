@@ -36,7 +36,10 @@ struct LockScreenView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.bg.ignoresSafeArea())
-        .onAppear { auth.authenticate() }
+        // .task auto-cancels when the view disappears, which matters if the user
+        // dismisses a sheet above the lock screen mid-prompt. The AuthManager has its
+        // own isEvaluating guard so re-entry is still safe.
+        .task { auth.authenticate() }
     }
 
     private var biometryIcon: String {
