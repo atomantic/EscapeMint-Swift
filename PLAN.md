@@ -75,6 +75,127 @@ Let users find funds instantly from the iOS home screen and ask Siri for portfol
 
 ---
 
+## Better Swift Audit - 2026-04-07
+
+Summary: 99 findings across 7 categories. 6 CRITICAL, 27 HIGH, 40 MEDIUM, 26 LOW.
+Platforms: iOS 17+, macOS 14+ | Build system: XcodeGen
+Gotcha catalogue entries in scope: #4 (iCloud ubiquity), #5 (iCloud symlink), #7 (XcodeGen), #8 (TestFlight upload), #9 (App Group provisioning), #11 (foregroundStyle(.accentColor))
+
+### Remediated — 4 per-category PRs open against main
+- atomantic/EscapeMint-Swift#3 — **security**: WidgetDataProvider file protection, SpotlightIndexer/DCANotificationManager PII removal, AppStorageKeys centralization
+- atomantic/EscapeMint-Swift#4 — **platform-swiftui**: deploy.sh altool guard + build-number rollback trap, macOS App Group entitlement, LockScreenView `.task`
+- atomantic/EscapeMint-Swift#5 — **bugs-perf + architecture + dry**: FundStore directory-state `OSAllocatedUnfairLock`, Formatters/Converters thread-safe caches, stable FundEntry.id, FundStore error propagation + file protection, EMChartLoadingPlaceholder extraction (10 sites)
+- atomantic/EscapeMint-Swift#6 — **tests**: strengthened weak/vacuous `testComputeRecommendationNil*` (positive control added), `testComputeCashInterestWithTrade` (accuracy 5.0 → 0.50), `testBackupJSONInvalidFormatHandling` (now calls real actor method)
+
+Build verified: 242 → 243 tests pass on both iOS 17+ and macOS 14+. Zero failures.
+
+### Deferred to next audit
+- **[HIGH]** `AuthManager` biometric pref → Keychain (nontrivial cross-platform Keychain helper needed)
+- **[CRITICAL]** `EscapeMintApp.swift:312-647` — extract MacContentView (335 lines, defer to dedicated refactor PR)
+- **[HIGH]** `FundEngine.swift` — 1347-line god file split (TradeEngine/RecommendationEngine/PortfolioEngine/etc.)
+- **[HIGH]** `DashboardView`/`SettingsView` direct `FundStore.shared` access → route through FundDataStore
+- **[HIGH]** `ViewCache` split (backtest state vs chart caches) + typed caches to drop `@unchecked Sendable`
+- **[HIGH]** `importFromBackupJSON` → Codable BackupDocument (eliminate JSONSerialization)
+- **[HIGH]** `FundCharts.computePLPoints` O(n²) → incremental cursor
+- **[HIGH]** `BacktestCharts.ChartCardModifier` → reconcile with Theme.CardStyle
+- **[HIGH]** `isWideLayout` extension (needs View restructuring to absorb `@Environment` read)
+- **[HIGH]** Chart async-loading helper extraction (4× duplicated body in FundCharts)
+- **[CRITICAL][MISSING]** New FundStoreTests.swift integration tests for actor I/O paths
+- **[CRITICAL][MISSING]** New FundDataStoreTests.swift for stateful in-memory mutations
+- **[HIGH][MISSING]** New ViewCacheTests.swift for cache lifecycle
+- **[MEDIUM]** Info.plist/project.yml cleanup (GENERATE_INFOPLIST_FILE, UILaunchScreen duplication) — currently deploying successfully so deferred to avoid regression risk
+- **[MEDIUM]** Hardcoded font sizes 7-10pt → `@ScaledMetric` for Dynamic Type
+- **[MEDIUM]** `withAnimation` in MacContentView/DashboardView collapse not guarded by reduceMotion
+
+### File Ownership Map
+| File | Primary Category | Reason |
+|------|-----------------|--------|
+| EscapeMint/Services/WidgetDataProvider.swift | security | Missing file protection on App Group snapshot (HIGH) |
+| EscapeMint/Services/SpotlightIndexer.swift | security | PII leak in contentDescription (MEDIUM) |
+| EscapeMint/Services/DCANotificationManager.swift | security | PII leak in notification body (MEDIUM) |
+| EscapeMint/Services/AuthManager.swift | security | Biometric pref in UserDefaults (HIGH) |
+| EscapeMint/Models/AppStorageKeys.swift | code-quality | Missing keys (MEDIUM) |
+| EscapeMint/Theme/AppearanceManager.swift | code-quality | Stringly-typed UserDefaults key (MEDIUM) |
+| EscapeMint/Storage/FundStore.swift | architecture | nonisolated(unsafe) race + import silent errors + file protection (HIGH + HIGH + HIGH) |
+| EscapeMint/Storage/FundDataStore.swift | architecture | Expose import/export methods (HIGH) |
+| EscapeMint/Storage/ViewCache.swift | bugs-perf | @unchecked Sendable Any (MEDIUM) |
+| EscapeMint/App/EscapeMintApp.swift | architecture | Extract MacContentView (CRITICAL) |
+| EscapeMint/Views/Mac/MacContentView.swift | architecture | NEW — extracted |
+| EscapeMint/Views/Dashboard/DashboardView.swift | architecture | Direct FundStore.shared access (HIGH) |
+| EscapeMint/Views/Settings/SettingsView.swift | architecture | Direct FundStore.shared access (HIGH) |
+| EscapeMint/Views/Backtest/BacktestCharts.swift | dry | ChartCardModifier duplicates CardStyle (HIGH) |
+| EscapeMint/Views/FundDetail/FundCharts.swift | dry | Loading placeholder 10x + chart-loading helper 4x (CRITICAL + HIGH) |
+| EscapeMint/Views/FundDetail/DerivativesCharts.swift | dry | Loading placeholder duplication |
+| EscapeMint/Views/FundDetail/FundDetailView.swift | dry | Loading placeholder usage |
+| EscapeMint/Views/IntroGuide/IntroCharts.swift | dry | padding(12).cardStyle() 6x |
+| EscapeMint/Theme/PlatformModifiers.swift | dry | isWideLayout extension |
+| EscapeMint/Theme/Formatters.swift | bugs-perf | nonisolated(unsafe) currencyFormatterCache (HIGH) |
+| EscapeMint/Engine/Converters.swift | bugs-perf | nonisolated(unsafe) holidayCache (HIGH) |
+| EscapeMint/Models/FundTypes.swift | bugs-perf | FundEntry.id unstable UUID (MEDIUM) |
+| project.yml | platform-swiftui | UILaunchScreen dedup + GENERATE_INFOPLIST_FILE + orientations (HIGH) |
+| EscapeMint/App/Info.plist | platform-swiftui | Managed by XcodeGen — clean up duplicates |
+| EscapeMint/App/EscapeMint-macOS.entitlements | platform-swiftui | Missing App Groups (HIGH) |
+| deploy.sh | platform-swiftui | iOS upload guard + build number order (HIGH) |
+| EscapeMint/Views/Shared/LockScreenView.swift | platform-swiftui | .onAppear → .task |
+| EscapeMintTests/*Tests.swift | tests | Strengthen existing tests |
+| EscapeMintTests/FundStoreTests.swift | tests | NEW — FundStore actor integration tests |
+| EscapeMintTests/ViewCacheTests.swift | tests | NEW — ViewCache cache lifecycle tests |
+
+### Security & Secrets
+- [ ] **[HIGH]** `WidgetDataProvider.swift:53-58` - Widget snapshot written to App Group container with no `FileProtectionType.completeUntilFirstUserAuthentication`. Fix: apply protection after write (Simple)
+- [ ] **[HIGH]** `AuthManager.swift:17-19` - Biometric auth preference stored in `UserDefaults.standard` — bypassable on jailbroken devices. Fix: store in Keychain with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` (Medium)
+- [ ] **[MEDIUM]** `SpotlightIndexer.swift:62-64` - Fund portfolio value leaked to Spotlight / Siri suggestions via `contentDescription`. Fix: remove value; keep only ticker/platform (Simple)
+- [ ] **[MEDIUM]** `DCANotificationManager.swift:108,112` - Notification body reveals DCA dollar amount on lock screen. Fix: remove amount from body (Simple)
+
+### Code Quality
+- [ ] **[MEDIUM]** `DCANotificationManager.swift:40,53,56` - Stringly-typed UserDefaults key not in AppStorageKeys. Fix: add `AppStorageKeys.dcaNotifications` (Simple)
+- [ ] **[MEDIUM]** `AppearanceManager.swift:22,26` - Stringly-typed `"appearanceMode"` key. Fix: add to AppStorageKeys (Simple)
+- [ ] **[MEDIUM]** `EscapeMintApp.swift:382,386` + `DashboardView.swift:674,678,685` - Sidebar/dashboard collapse keys stringly-typed. Fix: add to AppStorageKeys (Simple)
+
+### DRY & YAGNI
+- [ ] **[CRITICAL]** `FundCharts.swift:384,456,527,613` + `DerivativesCharts.swift:385,434,488,656,721` + `FundDetailView.swift:319` - 10 copies of `ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)`. Fix: extract as `emChartLoadingPlaceholder` (Simple)
+- [ ] **[HIGH]** `BacktestCharts.swift:348-365` - Private `ChartCardModifier` duplicates `Theme.CardStyle`. Fix: use cardStyle() with parameterization (Medium)
+- [ ] **[HIGH]** `DashboardView.swift:22-27`, `BacktestCharts.swift:29-35`, `BacktestView.swift:19-25`, `BacktestConfigPanel.swift:11-17` - Identical `isWide` block duplicated 4×. Fix: add `View.isWideLayout` extension to PlatformModifiers.swift (Medium)
+- [ ] **[HIGH]** `FundCharts.swift:387-400,459-472,530-543,616-629` - Async chart-loading body repeated 4×. Fix: extract generic helper (Medium)
+- [ ] **[MEDIUM]** `IntroCharts.swift:329,402,470,535,616,690` - `.padding(12).cardStyle()` applied 6×. Fix: no new abstraction needed, just verify consistency (Simple)
+- [ ] **[MEDIUM]** FundCharts/DerivativesCharts - `isoDateFormatter.date(from: pt.date) ?? Date()` 15×. Fix: use `pt.dateValue` (DateIdentifiable already conformed) (Simple)
+
+### Architecture & SOLID
+- [ ] **[CRITICAL]** `EscapeMintApp.swift:312-647` - MacContentView 335 lines embedded in app entry file. Fix: extract to `Views/Mac/MacContentView.swift` (Simple)
+- [ ] **[HIGH]** `FundStore.swift:16-17` - `nonisolated(unsafe)` data race on `fundsDirectory`/`isICloud`. Fix: snapshot `fundsDirectory` into local `let` in `loadIfNeeded` before task group; defer `retryICloudIfNeeded` updates to after reads complete (Medium)
+- [ ] **[HIGH]** `FundStore.swift:456-459` - `importFromBackupJSON` silently swallows errors with bare `continue`. Fix: log with `Self.logger.warning` before continue (Simple)
+- [ ] **[HIGH]** `FundStore.swift` - File protection not applied after `updateConfig`, `importFromBackupJSON` writes. Fix: add `setAttributes([.protectionKey: .complete], ...)` after each write on iOS (Simple)
+- [ ] **[HIGH]** `DashboardView.swift:714` + `SettingsView.swift:197,304-419` - Views call `FundStore.shared` directly for import/export/stats. Fix: expose methods on FundDataStore; update callers (Medium)
+- [ ] **[HIGH]** `FundStore.swift:350` - `importFromDirectory` uses `try?` silently suppressing directory enumeration errors. Fix: propagate error (Simple)
+
+### Bugs, Performance & Error Handling
+- [ ] **[HIGH]** `Formatters.swift:22` - `nonisolated(unsafe) currencyFormatterCache` NumberFormatter not thread-safe, written from multiple threads. Fix: pre-build common formatters at app startup OR guard with lock (Simple)
+- [ ] **[HIGH]** `Converters.swift:102` - `nonisolated(unsafe) holidayCache` mutated from background threads. Fix: convert to thread-safe lookup (Simple)
+- [ ] **[MEDIUM]** `FundTypes.swift:137` - `FundEntry.id = UUID().uuidString` creates new IDs on every disk reload, causing SwiftUI to tear down all rows. Fix: use deterministic `"\(fundId)-\(date)-\(value)"` (Simple)
+- [ ] **[MEDIUM]** `ViewCache.swift:190-192` - `ChartCacheEntry: @unchecked Sendable` wraps `Any`. Fix: use generic `ChartCacheEntry<T: Sendable>` or `any Sendable` (Simple)
+
+### Platform Coverage & SwiftUI Patterns
+- [ ] **[HIGH]** `project.yml:44-53` + `Info.plist:29-30` - `UILaunchScreen` defined in BOTH locations (Gotcha #7.3/#7.4). Fix: keep only in `project.yml` info.properties; delete from Info.plist (Simple)
+- [ ] **[HIGH]** `deploy.sh:148-158` - iOS `xcrun altool --upload-app` result not error-checked (Gotcha #8). Stashed in-progress work addresses this — integrate. Fix: grep `altool` output for `UPLOAD FAILED` (Simple)
+- [ ] **[HIGH]** `EscapeMint-macOS.entitlements` - Missing `com.apple.security.application-groups` (Gotcha #9 related — widget data provider silently fails on macOS). Fix: add App Group entry (Simple)
+- [ ] **[HIGH]** `deploy.sh:56-59` - Build number bumped and committed before archive/upload success. Fix: move commit to after successful upload, or trap-revert on failure (Medium)
+- [ ] **[MEDIUM]** `project.yml:38,54-57` - iPhone orientations missing UpsideDown + duplicated between INFOPLIST_KEY and info.properties. Fix: consolidate (Simple)
+- [ ] **[MEDIUM]** `LockScreenView.swift:39` - `.onAppear { auth.authenticate() }` — prefer `.task` (Simple)
+
+### Test Quality & Coverage
+- [ ] **[CRITICAL][MISSING]** `FundStore.swift` — 749 lines, zero tests. Fix: new `FundStoreTests.swift` with temp-directory integration tests (Complex)
+- [ ] **[CRITICAL][MISSING]** `FundDataStore.swift` — 405 lines, only `buildAuditEntries` tested. Fix: new in-memory state tests (Complex)
+- [ ] **[CRITICAL][MISSING]** `FundStore.importFromBackupJSON` never called by any test; existing test re-implements logic. Fix: direct call against temp file (Medium)
+- [ ] **[HIGH][MISSING]** `ViewCache.swift` — zero tests. Fix: new ViewCacheTests.swift for cache hit/miss/invalidation (Medium)
+- [ ] **[HIGH][MISSING]** `WidgetDataProvider` tests only cover Codable round-trip, not provider behavior. Fix: add `readSnapshot` nil path test (Simple)
+- [ ] **[HIGH][MISSING]** `AdvancedTools.recalculateEntryPrices` untested. Fix: add price computation + zero-shares guard tests (Simple)
+- [ ] **[MEDIUM][VACUOUS]** `StorageTests.swift:368-380` `testBackupJSONInvalidFormatHandling` tests Swift stdlib not EscapeMint. Fix: call actual `importFromBackupJSON` (Simple)
+- [ ] **[MEDIUM][WEAK]** `EngineTests.swift:954-998` backtest test monotonic prices never exercise sells. Fix: add volatile series + tight numeric assertions (Medium)
+- [ ] **[MEDIUM][WEAK]** `EngineTests.swift:219-237` nil recommendation tests use default state only. Fix: non-default FundState values (Simple)
+- [ ] **[MEDIUM][WEAK]** `EngineTests.swift:1221` cash interest `accuracy: 5.0` on $360 expected. Fix: tighten to 0.10 (Simple)
+
+---
+
 ## Better Swift Audit - 2026-03-26
 
 Summary: 80+ findings across 30+ files from 7 agents. 43 fixed across 8 commits.
