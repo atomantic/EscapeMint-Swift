@@ -671,18 +671,18 @@ struct DashboardView: View {
                 collapsedDashPlatforms.insert(key)
             }
         }
-        UserDefaults.standard.set(Array(collapsedDashPlatforms), forKey: "escapemint-dashboard-collapsed")
+        UserDefaults.standard.set(Array(collapsedDashPlatforms), forKey: AppStorageKeys.dashboardCollapsed)
     }
 
     private func loadDashCollapsedState() {
-        if let saved = UserDefaults.standard.stringArray(forKey: "escapemint-dashboard-collapsed") {
+        if let saved = UserDefaults.standard.stringArray(forKey: AppStorageKeys.dashboardCollapsed) {
             collapsedDashPlatforms = Set(saved)
         } else {
             let closedGrouped = Dictionary(grouping: closedSummaries, by: { $0.fund.platform })
             for platform in closedGrouped.keys {
                 collapsedDashPlatforms.insert(dashPlatformKey(platform, closed: true))
             }
-            UserDefaults.standard.set(Array(collapsedDashPlatforms), forKey: "escapemint-dashboard-collapsed")
+            UserDefaults.standard.set(Array(collapsedDashPlatforms), forKey: AppStorageKeys.dashboardCollapsed)
         }
     }
 

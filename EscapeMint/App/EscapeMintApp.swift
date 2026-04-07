@@ -379,11 +379,11 @@ struct MacContentView: View {
     }
 
     private func saveSidebarCollapsedState() {
-        UserDefaults.standard.set(Array(collapsedPlatforms), forKey: "escapemint-sidebar-collapsed")
+        UserDefaults.standard.set(Array(collapsedPlatforms), forKey: AppStorageKeys.sidebarCollapsed)
     }
 
     private func loadSidebarCollapsedState() {
-        if let saved = UserDefaults.standard.stringArray(forKey: "escapemint-sidebar-collapsed") {
+        if let saved = UserDefaults.standard.stringArray(forKey: AppStorageKeys.sidebarCollapsed) {
             collapsedPlatforms = Set(saved)
         } else {
             for (platform, _) in groupedClosed {

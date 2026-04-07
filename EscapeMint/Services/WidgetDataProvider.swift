@@ -54,6 +54,15 @@ final class WidgetDataProvider {
         do {
             let data = try JSONEncoder().encode(snapshot)
             try data.write(to: fileURL, options: .atomic)
+            // Widget extensions cannot read `.complete` files when the device is locked.
+            // `.completeUntilFirstUserAuthentication` lets the widget keep rendering after
+            // first unlock while still protecting the snapshot at rest.
+            #if os(iOS)
+            try? FileManager.default.setAttributes(
+                [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+                ofItemAtPath: fileURL.path
+            )
+            #endif
             #if canImport(WidgetKit)
             WidgetCenter.shared.reloadAllTimelines()
             #endif

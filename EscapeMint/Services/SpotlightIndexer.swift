@@ -56,11 +56,11 @@ final class SpotlightIndexer: Sendable {
     }
 
     private func buildDescription(_ fund: FundData) -> String {
+        // Intentionally omit monetary values. Spotlight results are visible system-wide
+        // (lock screen Spotlight overlay, Siri suggestions, Notification Center) without
+        // authenticating to EscapeMint, so leaking portfolio values would expose PII.
         let status = fund.config.status == .closed ? "Closed" : "Active"
         let type = fund.config.fund_type?.rawValue.capitalized ?? "Fund"
-        let entryCount = fund.entries.count
-        let latestValue = fund.entries.last.map { formatCurrency($0.value) } ?? "$0"
-
-        return "\(status) \(type) on \(fund.platform.capitalized) — \(entryCount) entries, latest value \(latestValue)"
+        return "\(status) \(type) on \(fund.platform.capitalized)"
     }
 }
