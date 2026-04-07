@@ -103,13 +103,20 @@ struct ChartBounds: Codable, Equatable {
 }
 
 struct FundEntry: Identifiable {
-    /// Deterministic identity derived from date + value so ForEach can diff stable rows across
-    /// reloads (iCloud sync, progressive load). Previously `UUID().uuidString`, which changed on
-    /// every deserialization and forced SwiftUI to tear down every visible row.
-    /// This is computed, not stored — equal content always yields equal IDs, so Identifiable
-    /// semantics are preserved. Duplicate (date, value) pairs across entries are resolved at the
-    /// `ForEach` callsite by combining with the row index (`Array.enumerated()`).
-    var id: String { "\(date)|\(value)" }
+    /// Deterministic identity derived from the entry's content so ForEach can diff stable rows
+    /// across reloads (iCloud sync, progressive load). Previously `UUID().uuidString`, which
+    /// changed on every deserialization and forced SwiftUI to tear down every visible row.
+    ///
+    /// The composite includes date + value + action + amount + shares + cash. In practice this
+    /// is effectively unique across real user data — two entries with identical values of
+    /// ALL these fields are either true duplicates (same deposit made twice on the same day)
+    /// or a data-entry mistake, and can safely collide on ID. This is computed, not stored —
+    /// equal content always yields equal IDs, so Identifiable semantics are preserved across
+    /// reloads.
+    var id: String {
+        let a = action?.rawValue ?? ""
+        return "\(date)|\(value)|\(a)|\(amount ?? 0)|\(shares ?? 0)|\(cash ?? 0)"
+    }
     var date: String
     var value: Double
     var cash: Double?
