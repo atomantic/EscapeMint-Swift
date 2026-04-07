@@ -57,11 +57,18 @@ final class WidgetDataProvider {
             // Widget extensions cannot read `.complete` files when the device is locked.
             // `.completeUntilFirstUserAuthentication` lets the widget keep rendering after
             // first unlock while still protecting the snapshot at rest.
+            // If the attribute call fails (unexpected container behavior / filesystem error),
+            // log it — the snapshot is still written, but its protection class defaulted to
+            // `.none` and that's an operational concern worth surfacing.
             #if os(iOS)
-            try? FileManager.default.setAttributes(
-                [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-                ofItemAtPath: fileURL.path
-            )
+            do {
+                try FileManager.default.setAttributes(
+                    [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+                    ofItemAtPath: fileURL.path
+                )
+            } catch {
+                Self.logger.warning("Failed to apply file protection to widget snapshot: \(error.localizedDescription, privacy: .public)")
+            }
             #endif
             #if canImport(WidgetKit)
             WidgetCenter.shared.reloadAllTimelines()
