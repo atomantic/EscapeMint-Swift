@@ -1,6 +1,19 @@
 import SwiftUI
 import Charts
 
+// MARK: - Shared Chart Placeholders
+
+/// Loading placeholder sized to the standard chart frame. Replaces 10 inline copies of
+/// `EMChartLoadingPlaceholder()` across
+/// `FundCharts`, `DerivativesCharts`, and `FundDetailView`.
+struct EMChartLoadingPlaceholder: View {
+    var body: some View {
+        ProgressView()
+            .frame(maxWidth: .infinity)
+            .frame(height: Layout.chartFrameHeight)
+    }
+}
+
 // MARK: - DateIdentifiable Protocol
 
 protocol DateIdentifiable: Identifiable {
@@ -381,7 +394,7 @@ struct ValueChartView: View {
                 }
                 .frame(height: Layout.chartFrameHeight)
             } else {
-                ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
+                EMChartLoadingPlaceholder()
             }
         }
         .task(id: "\(fundId)-\(entries.count)") {
@@ -453,7 +466,7 @@ struct PLChartView: View {
                 }
                 .frame(height: Layout.chartFrameHeight)
             } else {
-                ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
+                EMChartLoadingPlaceholder()
             }
         }
         .task(id: "\(fundId)-\(entries.count)") {
@@ -524,7 +537,7 @@ struct APYChartView: View {
                 }
                 .frame(height: Layout.chartFrameHeight)
             } else {
-                ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
+                EMChartLoadingPlaceholder()
             }
         }
         .task(id: "\(fundId)-\(entries.count)") {
@@ -610,7 +623,7 @@ struct CapturedProfitChartView: View {
                 }
                 .frame(height: Layout.chartFrameHeight)
             } else {
-                ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
+                EMChartLoadingPlaceholder()
             }
         }
         .task(id: "\(fundId)-\(entries.count)") {

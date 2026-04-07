@@ -316,7 +316,7 @@ struct FundDetailView: View {
             DerivativesMarginChart(points: pts, dollarDecimals: d)
             DerivativesCapturedProfitChart(points: pts, dollarDecimals: d)
         } else {
-            ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
+            EMChartLoadingPlaceholder()
         }
     }
 
