@@ -744,7 +744,11 @@ struct FundDetailView: View {
 
                 let count = fund.entries.count
 
-                ForEach(Array(fund.entries.reversed().enumerated()), id: \.element.id) { reverseIdx, entry in
+                // Use offset (position in reversed array) rather than entry.id for ForEach
+                // identity. Entries are chronologically ordered so offset is stable across
+                // reloads, and this avoids SwiftUI diff thrashing that would occur if two
+                // entries on the same date with the same value collided on their computed id.
+                ForEach(Array(fund.entries.reversed().enumerated()), id: \.offset) { reverseIdx, entry in
                     let actualIndex = count - 1 - reverseIdx
                     let computed = actualIndex < computedRows.count ? computedRows[actualIndex] : nil
                     entryRow(entry, entryIndex: actualIndex, columns: cols, config: fund.config, isEven: reverseIdx.isMultiple(of: 2), computed: computed)

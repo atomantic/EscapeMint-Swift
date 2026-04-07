@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - Currency & Percent Formatters
 
@@ -19,17 +20,23 @@ private let currencyFullFormatter: NumberFormatter = {
     return f
 }()
 
-nonisolated(unsafe) private var currencyFormatterCache: [Int: NumberFormatter] = [:]
+/// Thread-safe cache for currency formatters with non-default decimal counts.
+/// `NumberFormatter` itself is thread-safe for reads after construction since iOS 7,
+/// but the cache dictionary insertion is NOT — hence the lock. Callers come from both
+/// the main thread (view bodies) and detached background tasks (chart computation).
+private let currencyFormatterCacheLock = OSAllocatedUnfairLock(initialState: [Int: NumberFormatter]())
 private func cachedCurrencyFormatter(decimals: Int, pinMinimum: Bool) -> NumberFormatter {
     let key = pinMinimum ? decimals : -(decimals + 1)
-    if let cached = currencyFormatterCache[key] { return cached }
-    let f = NumberFormatter()
-    f.numberStyle = .currency
-    f.currencyCode = "USD"
-    if pinMinimum { f.minimumFractionDigits = decimals }
-    f.maximumFractionDigits = decimals
-    currencyFormatterCache[key] = f
-    return f
+    return currencyFormatterCacheLock.withLock { cache in
+        if let cached = cache[key] { return cached }
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = "USD"
+        if pinMinimum { f.minimumFractionDigits = decimals }
+        f.maximumFractionDigits = decimals
+        cache[key] = f
+        return f
+    }
 }
 
 private let percentFormatter: NumberFormatter = {

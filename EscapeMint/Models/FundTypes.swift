@@ -103,7 +103,13 @@ struct ChartBounds: Codable, Equatable {
 }
 
 struct FundEntry: Identifiable {
-    let id: String
+    /// Deterministic identity derived from date + value so ForEach can diff stable rows across
+    /// reloads (iCloud sync, progressive load). Previously `UUID().uuidString`, which changed on
+    /// every deserialization and forced SwiftUI to tear down every visible row.
+    /// This is computed, not stored — equal content always yields equal IDs, so Identifiable
+    /// semantics are preserved. Duplicate (date, value) pairs across entries are resolved at the
+    /// `ForEach` callsite by combining with the row index (`Array.enumerated()`).
+    var id: String { "\(date)|\(value)" }
     var date: String
     var value: Double
     var cash: Double?
@@ -134,7 +140,6 @@ struct FundEntry: Identifiable {
          margin_expense: Double? = nil, notes: String? = nil, contracts: Double? = nil,
          entry_price: Double? = nil, liquidation_price: Double? = nil, unrealized_pnl: Double? = nil,
          margin_locked: Double? = nil, fee: Double? = nil, margin: Double? = nil) {
-        self.id = UUID().uuidString
         self.date = date; self.value = value; self.cash = cash; self.action = action
         self.amount = amount; self.shares = shares; self.price = price
         self.dividend = dividend; self.expense = expense; self.cash_interest = cash_interest
