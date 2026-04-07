@@ -37,7 +37,7 @@ final class DCANotificationManager {
     private static let categoryId = "DCA_REMINDER"
 
     var isEnabled: Bool {
-        UserDefaults.standard.bool(forKey: "escapemint-dca-notifications")
+        UserDefaults.standard.bool(forKey: AppStorageKeys.dcaNotifications)
     }
 
     private init() {}
@@ -50,10 +50,10 @@ final class DCANotificationManager {
                 return
             }
             isAuthorized = true
-            UserDefaults.standard.set(true, forKey: "escapemint-dca-notifications")
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.dcaNotifications)
             await rescheduleAll()
         } else {
-            UserDefaults.standard.set(false, forKey: "escapemint-dca-notifications")
+            UserDefaults.standard.set(false, forKey: AppStorageKeys.dcaNotifications)
             cancelAll()
         }
     }
@@ -103,13 +103,12 @@ final class DCANotificationManager {
             let nextDate = computeNextDCADate(fund: fund, intervalDays: intervalDays)
             guard let fireDate = nextDate else { continue }
 
-            let summary = store.summary(byId: fund.id)
-            let amount = summary?.recommendation?.amount ?? fund.config.input_mid_usd ?? 0
-            let amountStr = amount > 0 ? " — $\(Int(amount)) recommended" : ""
-
+            // Intentionally omit the recommended dollar amount — notification bodies render
+            // on the lock screen and Notification Center without biometric auth, so leaking
+            // a user's DCA size would expose PII. Users see the amount after unlocking the app.
             let content = UNMutableNotificationContent()
             content.title = "DCA Reminder: \(fund.ticker.uppercased())"
-            content.body = "Time to DCA into \(fund.ticker.uppercased()) on \(fund.platform.capitalized)\(amountStr)"
+            content.body = "Time to review your \(fund.ticker.uppercased()) position on \(fund.platform.capitalized)"
             content.sound = .default
             content.categoryIdentifier = Self.categoryId
             content.userInfo = [NotificationUserInfoKey.fundId: fund.id]
