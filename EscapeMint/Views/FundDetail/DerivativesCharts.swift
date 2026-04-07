@@ -382,7 +382,7 @@ struct DerivativesPLChart: View {
                 }
                 .frame(height: Layout.chartFrameHeight)
             } else {
-                ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
+                EMChartLoadingPlaceholder()
             }
         }
     }
@@ -431,7 +431,7 @@ struct DerivativesAPYChart: View {
                 }
                 .frame(height: Layout.chartFrameHeight)
             } else {
-                ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
+                EMChartLoadingPlaceholder()
             }
         }
     }
@@ -485,7 +485,7 @@ struct DerivativesValueChart: View {
                 }
                 .frame(height: Layout.chartFrameHeight)
             } else {
-                ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
+                EMChartLoadingPlaceholder()
             }
         }
     }
@@ -653,7 +653,7 @@ struct DerivativesMarginChart: View {
                     .frame(height: Layout.chartFrameHeight)
                     .overlay { hoverOverlay() }
             } else {
-                ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
+                EMChartLoadingPlaceholder()
             }
         }
     }
@@ -718,7 +718,7 @@ struct DerivativesCapturedProfitChart: View {
                 }
                 .frame(height: Layout.chartFrameHeight)
             } else {
-                ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
+                EMChartLoadingPlaceholder()
             }
         }
     }

@@ -13,8 +13,27 @@ actor FundStore {
         return df
     }()
 
-    nonisolated(unsafe) private(set) var fundsDirectory: URL
-    nonisolated(unsafe) private(set) var isICloud: Bool
+    // Thread-safe directory state. `fundsDirectory` and `isICloud` may flip exactly once
+    // during `retryICloudIfNeeded()`, and the flip happens inside the actor. But view
+    // bodies and nonisolated readers access them off-actor, so the underlying storage is
+    // guarded by a lock rather than `nonisolated(unsafe)`. Computed-property accessors
+    // keep the original call-site syntax unchanged.
+    private struct DirectoryState: Sendable {
+        var fundsDirectory: URL
+        var isICloud: Bool
+    }
+    private static let stateLock = OSAllocatedUnfairLock<DirectoryState?>(initialState: nil)
+
+    nonisolated var fundsDirectory: URL {
+        // force-unwrap is safe: `init` sets state before the actor is ever accessible
+        Self.stateLock.withLock { $0! }.fundsDirectory
+    }
+    nonisolated var isICloud: Bool {
+        Self.stateLock.withLock { $0! }.isICloud
+    }
+    fileprivate static var currentFundsDirectory: URL {
+        stateLock.withLock { $0! }.fundsDirectory
+    }
 
     private init() {
         let fm = FileManager.default
@@ -81,8 +100,9 @@ actor FundStore {
             resolvedICloud = false
         }
 
-        self.fundsDirectory = resolvedDir
-        self.isICloud = resolvedICloud
+        Self.stateLock.withLock { state in
+            state = DirectoryState(fundsDirectory: resolvedDir, isICloud: resolvedICloud)
+        }
     }
 
     /// Retry iCloud resolution if it wasn't available at init (e.g. after system reboot).
@@ -111,8 +131,9 @@ actor FundStore {
                 try fm.createDirectory(at: funds, withIntermediateDirectories: true)
                 _ = try fm.contentsOfDirectory(at: funds, includingPropertiesForKeys: nil)
                 Self.logger.info("☁️ iCloud recovered on attempt \(attempt)")
-                fundsDirectory = funds
-                isICloud = true
+                Self.stateLock.withLock { state in
+                    state = DirectoryState(fundsDirectory: funds, isICloud: true)
+                }
                 return true
             } catch {
                 continue
@@ -160,9 +181,9 @@ actor FundStore {
             .compactMap { readFund(tsvURL: $0) }
     }
 
-    /// Read only JSON configs (no TSV entries) — returns FundData with empty entries for instant sidebar/nav
+    /// Read only JSON configs (no TSV entries) — returns FundData with empty entries for instant sidebar/nav.
     nonisolated func readAllFundConfigs() -> [FundData] {
-        let dir = fundsDirectory
+        let dir = Self.currentFundsDirectory
         guard let files = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
             return []
         }
@@ -171,9 +192,9 @@ actor FundStore {
             .compactMap { readFundConfig(jsonURL: $0) }
     }
 
-    /// Read entries for a single fund by its id — nonisolated for true parallel I/O
+    /// Read entries for a single fund by its id — nonisolated for true parallel I/O.
     nonisolated func readFundEntries(id: String) -> [FundEntry] {
-        let tsvURL = fundsDirectory.appendingPathComponent("\(id).tsv")
+        let tsvURL = Self.currentFundsDirectory.appendingPathComponent("\(id).tsv")
         guard let content = try? String(contentsOf: tsvURL, encoding: .utf8) else { return [] }
         return parseTSV(content)
     }
@@ -261,7 +282,12 @@ actor FundStore {
         updated.platform = existingConfig.platform
         updated.ticker = existingConfig.ticker
         let data = try JSONEncoder.pretty.encode(updated)
-        try data.write(to: configURL)
+        try data.write(to: configURL, options: .atomic)
+        // Re-apply file protection after atomic write — non-atomic in-place overwrites
+        // on older iOS can strip the protection attribute.
+        #if os(iOS)
+        try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: configURL.path)
+        #endif
     }
 
     func deleteFund(id: String) throws {
@@ -347,9 +373,9 @@ actor FundStore {
 
     func importFromDirectory(_ sourceDir: URL) throws -> Int {
         let fm = fileManager
-        guard let files = try? fm.contentsOfDirectory(at: sourceDir, includingPropertiesForKeys: nil) else {
-            return 0
-        }
+        // Propagate enumeration errors — previously `try?` silently swallowed a security-scope
+        // expiry or permission-denied failure, returning 0 with no user-facing indication.
+        let files = try fm.contentsOfDirectory(at: sourceDir, includingPropertiesForKeys: nil)
 
         let tsvFiles = files.filter { $0.pathExtension == "tsv" }
         var imported = 0
@@ -416,7 +442,10 @@ actor FundStore {
 
                 let configData = try JSONSerialization.data(withJSONObject: configWithMeta, options: [.prettyPrinted, .sortedKeys])
                 let configURL = fundsDirectory.appendingPathComponent("\(id).json")
-                try configData.write(to: configURL)
+                try configData.write(to: configURL, options: .atomic)
+                #if os(iOS)
+                try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: configURL.path)
+                #endif
 
             // Build TSV from entries
             var lines = [["date", "value", "cash", "action", "amount", "shares", "price", "dividend", "expense", "cash_interest", "fund_size", "margin_available", "margin_borrowed", "margin_expense", "notes", "contracts", "entry_price", "liquidation_price", "unrealized_pnl", "margin_locked", "fee", "margin"].joined(separator: "\t")]
@@ -452,9 +481,15 @@ actor FundStore {
                 let tsv = lines.joined(separator: "\n") + "\n"
                 let tsvURL = fundsDirectory.appendingPathComponent("\(id).tsv")
                 try tsv.write(to: tsvURL, atomically: true, encoding: .utf8)
+                #if os(iOS)
+                try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: tsvURL.path)
+                #endif
                 imported += 1
             } catch {
-                // Skip this fund, continue with others
+                // Log but keep importing other funds — one bad backup entry shouldn't
+                // abort a whole restore. Silent `continue` left operators unable to
+                // explain a partial restoration.
+                Self.logger.warning("skipping fund '\(id, privacy: .private)' during backup import: \(error.localizedDescription, privacy: .public)")
                 continue
             }
         }

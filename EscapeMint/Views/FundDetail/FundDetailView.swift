@@ -316,7 +316,7 @@ struct FundDetailView: View {
             DerivativesMarginChart(points: pts, dollarDecimals: d)
             DerivativesCapturedProfitChart(points: pts, dollarDecimals: d)
         } else {
-            ProgressView().frame(maxWidth: .infinity).frame(height: Layout.chartFrameHeight)
+            EMChartLoadingPlaceholder()
         }
     }
 
@@ -744,6 +744,11 @@ struct FundDetailView: View {
 
                 let count = fund.entries.count
 
+                // Use entry.id (computed composite of date + value + action + amount + shares +
+                // cash) for ForEach identity. Stable across reloads because it's derived from
+                // durable content fields. Offset would NOT be stable here: since the array is
+                // reversed, appending a new entry shifts every existing row's offset and causes
+                // SwiftUI to rebuild the entire visible list.
                 ForEach(Array(fund.entries.reversed().enumerated()), id: \.element.id) { reverseIdx, entry in
                     let actualIndex = count - 1 - reverseIdx
                     let computed = actualIndex < computedRows.count ? computedRows[actualIndex] : nil

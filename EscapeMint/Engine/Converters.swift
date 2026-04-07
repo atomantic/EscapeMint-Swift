@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 func entriesToTrades(_ entries: [FundEntry]) -> [Trade] {
     entries.compactMap { e in
@@ -99,13 +100,18 @@ func todayString() -> String {
 
 // MARK: - Stock Trading Day Detection
 
-nonisolated(unsafe) private var holidayCache: (year: Int, holidays: Set<String>)?
+/// Thread-safe year→holidays cache. `usMarketHolidays` is called from both main thread
+/// (DCANotificationManager) and detached background tasks (BacktestEngine, chart computation).
+/// A plain `nonisolated(unsafe) var` raced on concurrent first-use calls for different years.
+private let holidayCacheLock = OSAllocatedUnfairLock(initialState: [Int: Set<String>]())
 
 /// US stock market holidays (observed dates). Returns holidays for a given year.
 func usMarketHolidays(year: Int) -> Set<String> {
-    if let cached = holidayCache, cached.year == year { return cached.holidays }
+    if let cached = holidayCacheLock.withLock({ $0[year] }) {
+        return cached
+    }
     let holidays = computeUSMarketHolidays(year: year)
-    holidayCache = (year, holidays)
+    holidayCacheLock.withLock { $0[year] = holidays }
     return holidays
 }
 
