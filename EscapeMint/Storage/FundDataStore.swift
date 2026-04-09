@@ -368,7 +368,13 @@ final class FundDataStore {
             guard !Task.isCancelled else { return }
             await DCANotificationManager.shared.rescheduleAll()
             Task.detached { SpotlightIndexer.shared.indexFunds(currentFunds) }
+            // Widget extension is iOS-only. On macOS, touching the iOS-style
+            // (`group.*`) App Group container triggers the macOS 15 Sequoia
+            // "would like to access data from other apps" TCC prompt for no
+            // benefit, since nothing on macOS reads the snapshot.
+            #if os(iOS)
             WidgetDataProvider.shared.updateSnapshot()
+            #endif
         }
     }
 
