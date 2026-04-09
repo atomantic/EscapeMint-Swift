@@ -1088,18 +1088,30 @@ func computeActionableFunds(_ funds: [FundData], asOfDate: String? = nil) -> [Ac
         }
         guard isDue else { continue }
 
-        // Check if this fund needs platform cash
+        // Check if this fund needs platform cash.
+        // A fund only requires the cash fund to be funded if it can't cover
+        // the buy from other sources (e.g. available margin). If margin is
+        // enabled and has headroom, the trading fund can execute without the
+        // cash fund holding a balance, so don't trigger a cash-deposit alert.
         if config.manage_cash == false {
             let cashFundId = resolveCashFundId(config: config, platform: fund.platform)
+            let cashBalance: Double
             if let cashFund = fundById[cashFundId] {
-                let cashBalance = cashFund.entries.max(by: { $0.date < $1.date })?.cash
+                cashBalance = cashFund.entries.max(by: { $0.date < $1.date })?.cash
                     ?? cashFund.entries.max(by: { $0.date < $1.date })?.value ?? 0
-                if cashBalance < 0.01 {
-                    cashFundsNeeded.insert(cashFundId)
-                }
             } else {
-                // No cash fund exists at all
-                cashFundsNeeded.insert(resolveCashFundId(config: config, platform: fund.platform))
+                cashBalance = 0
+            }
+
+            var effectiveAvailable = cashBalance
+            if config.margin_enabled == true,
+               let latestEntry = fund.entries.last,
+               let marginAvail = latestEntry.margin_available, marginAvail > 0 {
+                effectiveAvailable += marginAvail
+            }
+
+            if effectiveAvailable < 0.01 {
+                cashFundsNeeded.insert(cashFundId)
             }
         }
 

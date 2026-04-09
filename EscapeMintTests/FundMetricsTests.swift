@@ -524,6 +524,54 @@ final class FundMetricsTests: XCTestCase {
         XCTAssertGreaterThan(actionable[0].daysOverdue, actionable[1].daysOverdue)
     }
 
+    /// Reproduces the M1 CASH / SAVE scenario: a trading fund with manage_cash=false
+    /// draws from a platform cash fund whose balance is zero, but the trading fund has
+    /// margin_enabled with available margin headroom — so buys can execute without cash.
+    /// The cash fund should NOT trigger a "Deposit cash to start DCA" alert in that case.
+    func testActionableFundsSkipsCashDepositWhenMarginAvailable() {
+        // Trading fund: manage_cash=false, margin_enabled=true, overdue buy
+        var trading = makeConfig(manageCash: false)
+        trading.margin_enabled = true
+        let tradingEntries = [
+            FundEntry(date: "2025-02-01", value: 1000, action: .BUY, amount: 100,
+                      margin_available: 500),
+        ]
+        let tradingFund = FundData(platform: "m1", ticker: "SAVE", config: trading, entries: tradingEntries)
+
+        // Empty cash fund on same platform
+        var cash = makeConfig(fundType: .cash)
+        cash.manage_cash = true
+        let cashFund = FundData(platform: "m1", ticker: "cash", config: cash,
+                                entries: [FundEntry(date: "2025-02-01", value: 0, cash: 0)])
+
+        // 2025-03-14 is a Friday — SAVE is overdue
+        let actionable = computeActionableFunds([tradingFund, cashFund], asOfDate: "2025-03-14")
+
+        // SAVE should be actionable, but the cash fund should NOT be flagged for deposit
+        XCTAssertTrue(actionable.contains { $0.fund.id == tradingFund.id })
+        XCTAssertFalse(actionable.contains { $0.needsCashDeposit },
+                       "Cash fund must not alert when dependent fund has available margin")
+    }
+
+    /// Same scenario, but the trading fund has NO margin available — the cash fund
+    /// alert is expected to fire because the overdue fund genuinely needs cash.
+    func testActionableFundsFiresCashDepositWhenNoMargin() {
+        var trading = makeConfig(manageCash: false)
+        trading.margin_enabled = false
+        let tradingEntries = [
+            FundEntry(date: "2025-02-01", value: 1000, action: .BUY, amount: 100),
+        ]
+        let tradingFund = FundData(platform: "m1", ticker: "SAVE", config: trading, entries: tradingEntries)
+
+        var cash = makeConfig(fundType: .cash)
+        cash.manage_cash = true
+        let cashFund = FundData(platform: "m1", ticker: "cash", config: cash,
+                                entries: [FundEntry(date: "2025-02-01", value: 0, cash: 0)])
+
+        let actionable = computeActionableFunds([tradingFund, cashFund], asOfDate: "2025-03-14")
+        XCTAssertTrue(actionable.contains { $0.needsCashDeposit && $0.fund.id == cashFund.id })
+    }
+
     // MARK: - Recommendation Edge Cases
 
     func testRecommendationNoFundType() {
