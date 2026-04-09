@@ -2,10 +2,10 @@
 set -euo pipefail
 
 # EscapeMint Swift - Local TestFlight Deploy
-# Usage: ./deploy.sh [--skip-tests] [--macos] [--ios] [--all]
-# Default (no platform flag): iOS only
+# Usage: ./deploy.sh [--skip-tests] [--ios] [--macos]
+# Default (no platform flag): both iOS and macOS (keeps build numbers in sync)
+# --ios: iOS only
 # --macos: macOS only
-# --all: both iOS and macOS
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -47,9 +47,11 @@ for arg in "$@"; do
         --all) BUILD_IOS=true; BUILD_MACOS=true ;;
     esac
 done
-# Default to iOS if no platform specified
+# Default to all platforms if none specified — keeps iOS and macOS build numbers
+# in lockstep so App Store Connect shows the same build number on both deliverables.
 if ! $BUILD_IOS && ! $BUILD_MACOS; then
     BUILD_IOS=true
+    BUILD_MACOS=true
 fi
 
 # Auto-increment build number. If anything fails after this point, roll back

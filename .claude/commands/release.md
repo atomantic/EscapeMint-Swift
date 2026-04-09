@@ -11,7 +11,8 @@ Build, archive, and upload to TestFlight locally.
 
 2. **Run the deploy script**:
    - Execute `./deploy.sh` from the project root
-   - This will: increment build number, run tests, archive, export IPA, and upload to TestFlight
+   - By default this builds BOTH iOS and macOS so their build numbers stay in sync. Pass `--ios` or `--macos` to restrict to one platform.
+   - This will: increment build number, run tests, archive, export IPA/pkg, and upload to TestFlight
    - If tests already passed in this session, the user may want `./deploy.sh --skip-tests`
 
 3. **Monitor the upload**:
