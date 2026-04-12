@@ -89,23 +89,6 @@ func getCumulativeShares(entries: [FundEntry], beforeDate: String) -> Double {
     return total
 }
 
-/// Total shares across all entries
-func getTotalShares(entries: [FundEntry]) -> Double {
-    entries.reduce(0.0) { acc, entry in
-        guard let s = entry.shares else { return acc }
-        return acc + (entry.action == .SELL ? -abs(s) : abs(s))
-    }
-}
-
-/// Format total shares as a display hint
-func formatSharesHint(_ total: Double) -> String? {
-    guard total > 0 else { return nil }
-    if total == total.rounded() {
-        return String(format: "%.0f", total)
-    }
-    return String(format: "%.1f", total)
-}
-
 /// Compute fund_size for an entry based on all entries up to and including it.
 /// For manage_cash=false: fund_size = net invested (BUYs - SELLs), resets on full liquidation.
 /// For manage_cash=true: fund_size = previous fund_size + deposits - withdrawals (carried forward).
@@ -250,10 +233,6 @@ struct AddEntryView: View {
         getFeatures(fundType)
     }
 
-    private var totalSharesHint: String? {
-        formatSharesHint(getTotalShares(entries: existingEntries))
-    }
-
     var body: some View {
         NavigationStack {
             Form {
@@ -360,7 +339,7 @@ struct AddEntryView: View {
 
         Section(isExpanded: $showOptional) {
             if features.supportsShares {
-                NumericFieldRow(label: "Shares/Units", text: $shares, hint: totalSharesHint)
+                NumericFieldRow(label: "Shares/Units", text: $shares)
                 NumericFieldRow(label: "Price ($)", placeholder: "Per unit", text: $price)
                 Button("Calc Price/Equity") { calcPriceEquity() }
                     .font(.callout)

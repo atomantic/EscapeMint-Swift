@@ -59,10 +59,6 @@ struct EditEntryView: View {
 
     private var features: FundTypeFeatures { getFeatures(fundType) }
 
-    private var totalSharesHint: String? {
-        formatSharesHint(getTotalShares(entries: existingEntries))
-    }
-
     var body: some View {
         NavigationStack {
             Form {
@@ -155,7 +151,7 @@ struct EditEntryView: View {
 
         Section(isExpanded: $showOptional) {
             if features.supportsShares {
-                NumericFieldRow(label: "Shares/Units", text: $shares, hint: totalSharesHint)
+                NumericFieldRow(label: "Shares/Units", text: $shares)
                 NumericFieldRow(label: "Price ($)", placeholder: "Per unit", text: $price)
                 Button("Calc Price/Equity") { calcPriceEquity() }
                     .font(.callout)
