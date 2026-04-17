@@ -15,6 +15,12 @@ struct DashboardView: View {
     @State private var viewMode: ViewMode = .grid
     @State private var dismissedAlertIds: Set<String> = []
     @State private var collapsedDashPlatforms: Set<String> = []
+    // Cached groupings, refreshed only on revision/platformFilter changes so
+    // unrelated view invalidations (e.g. scrolling, nav) don't re-filter/re-group.
+    @State private var activeSummaries: [FundSummary] = []
+    @State private var closedSummaries: [FundSummary] = []
+    @State private var activeSummariesByPlatform: [String: [FundSummary]] = [:]
+    @State private var closedSummariesByPlatform: [String: [FundSummary]] = [:]
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var sizeClass
     #endif
@@ -32,20 +38,20 @@ struct DashboardView: View {
         case table = "Table"
     }
 
-    var activeSummaries: [FundSummary] {
-        let active = store.summaries.filter { $0.fund.config.status != .closed }
-        guard let filter = platformFilter else { return active }
-        return active.filter { $0.fund.platform == filter }
-    }
-
-    var closedSummaries: [FundSummary] {
-        let closed = store.summaries.filter { $0.fund.config.status == .closed }
-        guard let filter = platformFilter else { return closed }
-        return closed.filter { $0.fund.platform == filter }
-    }
-
-    var activeSummariesByPlatform: [String: [FundSummary]] {
-        Dictionary(grouping: activeSummaries, by: { $0.fund.platform })
+    private func refreshGroupings() {
+        let allSummaries = store.summaries
+        let filter = platformFilter
+        var active: [FundSummary] = []
+        var closed: [FundSummary] = []
+        active.reserveCapacity(allSummaries.count)
+        for s in allSummaries {
+            if let filter, s.fund.platform != filter { continue }
+            if s.fund.config.status == .closed { closed.append(s) } else { active.append(s) }
+        }
+        activeSummaries = active
+        closedSummaries = closed
+        activeSummariesByPlatform = Dictionary(grouping: active, by: { $0.fund.platform })
+        closedSummariesByPlatform = Dictionary(grouping: closed, by: { $0.fund.platform })
     }
 
     var platforms: [String] { store.platforms }
@@ -85,14 +91,18 @@ struct DashboardView: View {
             if !on { cache.cancelDashboard() }
         }
         .onChange(of: store.revision) { _, _ in
+            refreshGroupings()
             guard store.isLoaded else { return }
             if showCharts && !store.funds.isEmpty { recomputeChartsIfNeeded() }
         }
         .onChange(of: store.isLoaded) { _, loaded in
+            if loaded { refreshGroupings() }
             if loaded && showCharts && !store.funds.isEmpty { recomputeChartsIfNeeded() }
         }
+        .onChange(of: platformFilter) { _, _ in refreshGroupings() }
         .onAppear {
             loadDashCollapsedState()
+            refreshGroupings()
             if showCharts && store.isLoaded { recomputeChartsIfNeeded() }
         }
     }
@@ -486,9 +496,8 @@ struct DashboardView: View {
         }
 
         if !closedSummaries.isEmpty {
-            let closedGrouped = Dictionary(grouping: closedSummaries, by: { $0.fund.platform })
-            ForEach(closedGrouped.keys.sorted(), id: \.self) { platform in
-                if let platformFunds = closedGrouped[platform] {
+            ForEach(closedSummariesByPlatform.keys.sorted(), id: \.self) { platform in
+                if let platformFunds = closedSummariesByPlatform[platform] {
                     Section {
                         if !isDashCollapsed(platform, closed: true) {
                             #if os(macOS)

@@ -154,23 +154,25 @@ func computeFundSizeForEntry(_ newEntry: FundEntry, existingEntries: [FundEntry]
     }
 }
 
-/// Auto-sync a trade to the platform's cash fund when the trading fund doesn't manage its own cash.
-/// BUY → WITHDRAW from cash, SELL → DEPOSIT to cash.
+/// Build the auto-sync cash-fund entry for a trade when the trading fund doesn't
+/// manage its own cash. BUY → WITHDRAW from cash, SELL → DEPOSIT to cash.
+/// Returns the pending write so the caller can batch it with the trade entry into
+/// a single `appendEntries` call (one recompute instead of two).
 @MainActor
-func autoSyncCashFund(fundId: String, entry: FundEntry, config: FundConfig) async {
+func buildCashSyncWrite(fundId: String, entry: FundEntry, config: FundConfig) -> (fundId: String, entry: FundEntry)? {
     let manageCash = config.manage_cash != false
     guard !manageCash, let amt = entry.amount, amt > 0,
           (entry.action == .BUY || entry.action == .SELL) else {
-        addEntryLogger.debug("autoSyncCashFund skipped for \(fundId, privacy: .private): manageCash=\(config.manage_cash != false), amount=\(entry.amount ?? 0), action=\(entry.action?.rawValue ?? "nil")")
-        return
+        addEntryLogger.debug("cash sync skipped for \(fundId, privacy: .private): manageCash=\(config.manage_cash != false), amount=\(entry.amount ?? 0), action=\(entry.action?.rawValue ?? "nil")")
+        return nil
     }
 
     let platform = fundId.components(separatedBy: "-").first ?? ""
     let cashFundId = "\(platform)-cash"
     let store = FundDataStore.shared
     guard let cashFund = store.funds.first(where: { $0.id == cashFundId }) else {
-        addEntryLogger.debug("autoSyncCashFund no cash fund found for platform '\(platform, privacy: .private)' (expected \(cashFundId, privacy: .private))")
-        return
+        addEntryLogger.debug("cash sync no cash fund found for platform '\(platform, privacy: .private)' (expected \(cashFundId, privacy: .private))")
+        return nil
     }
 
     let ticker = fundId.replacingOccurrences(of: "\(platform)-", with: "").uppercased()
@@ -186,7 +188,7 @@ func autoSyncCashFund(fundId: String, entry: FundEntry, config: FundConfig) asyn
     )
     cashEntry.fund_size = cashFund.entries.last?.fund_size ?? 0
     cashEntry.notes = "Auto: \(entry.action?.rawValue ?? "") \(ticker) $\(String(format: "%.2f", amt))"
-    await store.appendEntry(fundId: cashFundId, entry: cashEntry)
+    return (cashFundId, cashEntry)
 }
 
 struct AddEntryView: View {
@@ -435,10 +437,12 @@ struct AddEntryView: View {
         // Compute fund_size
         entry.fund_size = computeFundSizeForEntry(entry, existingEntries: existingEntries, config: fundConfig)
 
+        let cashWrite = buildCashSyncWrite(fundId: fundId, entry: entry, config: fundConfig)
+        var writes: [(fundId: String, entry: FundEntry)] = [(fundId, entry)]
+        if let cashWrite { writes.append(cashWrite) }
         dismiss()
         Task {
-            await FundDataStore.shared.appendEntry(fundId: fundId, entry: entry)
-            await autoSyncCashFund(fundId: fundId, entry: entry, config: fundConfig)
+            await FundDataStore.shared.appendEntries(writes: writes)
             onSaved()
         }
     }

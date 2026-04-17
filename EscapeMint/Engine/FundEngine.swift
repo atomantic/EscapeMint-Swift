@@ -899,7 +899,19 @@ func resolveCashFundId(config: FundConfig, platform: String) -> String {
 
 func computePortfolioMetrics(_ funds: [FundData], asOfDate: String? = nil) -> PortfolioMetrics {
     let today = asOfDate ?? todayString()
-    var computed: [(FundMetrics, FundState)] = funds.map { computeFundMetricsForFund($0, asOfDate: today) }
+    let computed: [(FundMetrics, FundState)] = funds.map { computeFundMetricsForFund($0, asOfDate: today) }
+    return computePortfolioAggregate(funds, perFundMetrics: computed)
+}
+
+/// Aggregate pre-computed per-fund metrics into portfolio totals.
+/// Split from `computePortfolioMetrics` so callers (FundDataStore) can cache
+/// per-fund metrics and reuse them when only a subset of funds has changed.
+/// `perFundMetrics` must be parallel with `funds`.
+func computePortfolioAggregate(
+    _ funds: [FundData],
+    perFundMetrics: [(FundMetrics, FundState)]
+) -> PortfolioMetrics {
+    var computed = perFundMetrics
 
     // Resolve cash from platform cash funds for manage_cash=false funds
     let fundById = Dictionary(uniqueKeysWithValues: funds.map { ($0.id, $0) })

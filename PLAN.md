@@ -321,12 +321,12 @@ Platforms: iOS 17+, macOS 14+ | Build system: XcodeGen
 ### Architecture & SOLID
 - [ ] **[HIGH]** `ViewCache.swift:1-253` - 23 properties, 5+ concerns — Fix: split into focused managers (Complex, deferred)
 - [ ] **[HIGH]** `FundDetailView.swift:142-166` - Business logic in .task block — Fix: extract to ViewModel (Medium, deferred)
-- [ ] **[HIGH]** `AddEntryView.swift:129-159` - autoSyncCashFund domain logic in view — Fix: move to Engine (Medium, deferred)
+- [x] `AddEntryView.swift` — autoSyncCashFund refactored to pure `buildCashSyncWrite`; trade + cash entries now batched through `FundDataStore.appendEntries` (single recompute)
 - [ ] **[HIGH]** `FundStore.swift:1-629` - Mixed concerns (I/O + parsing + import/export) — Fix: extract services (Complex, deferred)
-- [ ] **[MEDIUM]** `DashboardView.swift:31-44` - Filtering in computed properties every render (Medium, deferred)
+- [x] `DashboardView` — active/closed summaries + platform groupings cached in @State, refreshed on revision/platformFilter changes
 
 ### Bugs, Performance & Error Handling
-- [ ] **[HIGH]** `DashboardView.swift:31-44` - activeSummaries/closedSummaries recomputed every render — Fix: cache with revision key (Medium)
+- [x] `DashboardView` activeSummaries/closedSummaries — cached in @State, refreshed on revision/platformFilter changes. `FundDataStore` now caches per-fund metrics so mutations only recompute touched funds. Startup collapsed from 3× recompute to 1×.
 - [ ] **[HIGH]** `FundStore.swift:312` - Silent error in directory creation during import — Fix: propagate or log error (Simple)
 - [ ] **[HIGH]** `ICloudSyncMonitor.swift:79-97` - Race condition: cancelled task can still complete between cancel and guard — Fix: use version counter (Medium)
 - [ ] **[MEDIUM]** `ViewCache.swift:14-25` - startLoading() task not stored for cancellation — Fix: store in property (Simple)

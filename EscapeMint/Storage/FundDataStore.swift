@@ -32,6 +32,23 @@ final class FundDataStore {
     private(set) var actionableFunds: [ActionableFund] = []
     private(set) var platforms: [String] = []
 
+    /// Per-fund metrics cache. Keyed by fundId → (version, metrics, state).
+    /// `fundVersions[fundId]` is bumped on any mutation to that fund's entries or
+    /// config. On recompute, funds whose cached version matches the current
+    /// version skip `computeFundMetricsForFund` entirely — so adding one entry
+    /// to one fund no longer walks every other fund's full history.
+    private var fundVersions: [String: Int] = [:]
+    private struct CachedFundMetrics {
+        let version: Int
+        let metrics: FundMetrics
+        let state: FundState
+    }
+    private var fundMetricsCache: [String: CachedFundMetrics] = [:]
+
+    private func bumpFundVersion(_ fundId: String) {
+        fundVersions[fundId, default: 0] += 1
+    }
+
     /// Audit entries are computed lazily — only when first accessed after a recompute
     private var _auditEntries: [AuditEntry]?
     var auditEntries: [AuditEntry] {
@@ -112,7 +129,8 @@ final class FundDataStore {
             }
         }.value
 
-        // Back on main actor — apply in batches with yields between them
+        // Apply entry data in batches (yielding between) for UI fairness,
+        // but defer the engine recompute until all entries are in place.
         let batchSize = max(1, allEntries.count / 3) // ~3 batches
         for batchStart in stride(from: 0, to: allEntries.count, by: batchSize) {
             let batchEnd = min(batchStart + batchSize, allEntries.count)
@@ -123,10 +141,9 @@ final class FundDataStore {
                 }
             }
             loadedFundCount = batchEnd
-            await recompute()
-            // Yield to let the main run loop process UI events (button taps, scrolls)
             await Task.yield()
         }
+        await recompute()
     }
 
     // MARK: - Reload from Disk
@@ -135,6 +152,9 @@ final class FundDataStore {
         let loaded = await FundStore.shared.readAllFunds()
         funds = loaded
         loadedFundCount = loaded.count
+        // Entries re-read from disk may differ — drop cached per-fund metrics.
+        fundMetricsCache.removeAll()
+        for fund in loaded { bumpFundVersion(fund.id) }
         isConfigLoaded = true
         isLoaded = true
         await recompute()
@@ -155,6 +175,7 @@ final class FundDataStore {
     func addFund(_ fund: FundData) async {
         funds.append(fund)
         loadedFundCount = funds.count
+        bumpFundVersion(fund.id)
         await recompute()
         do {
             try await FundStore.shared.writeFund(fund)
@@ -167,6 +188,7 @@ final class FundDataStore {
     func updateFund(_ fund: FundData) async {
         if let idx = funds.firstIndex(where: { $0.id == fund.id }) {
             funds[idx] = fund
+            bumpFundVersion(fund.id)
             await recompute()
         }
         do {
@@ -180,6 +202,8 @@ final class FundDataStore {
     func deleteFund(id: String) async {
         funds.removeAll { $0.id == id }
         loadedFundCount = funds.count
+        fundVersions.removeValue(forKey: id)
+        fundMetricsCache.removeValue(forKey: id)
         await recompute()
         do {
             try await FundStore.shared.deleteFund(id: id)
@@ -190,16 +214,39 @@ final class FundDataStore {
     }
 
     func appendEntry(fundId: String, entry: FundEntry) async {
-        if let idx = funds.firstIndex(where: { $0.id == fundId }) {
-            funds[idx].entries.append(entry)
-            ViewCache.shared.invalidateFundCache(fundId: fundId)
-            await recompute()
+        await appendEntries(writes: [(fundId, entry)])
+    }
+
+    /// Append multiple entries in one atomic recompute + one iCloud sync marker.
+    /// The snapshot pattern keeps `funds` and derived state in sync within the
+    /// same frame (no intermediate stale-summary render).
+    func appendEntries(writes: [(fundId: String, entry: FundEntry)]) async {
+        guard !writes.isEmpty else { return }
+        var snapshot = funds
+        var touched: [String] = []
+        for (fundId, entry) in writes {
+            if let idx = snapshot.firstIndex(where: { $0.id == fundId }) {
+                snapshot[idx].entries.append(entry)
+                touched.append(fundId)
+            }
         }
-        do {
-            try await FundStore.shared.appendEntry(fundId: fundId, entry: entry)
+        for fundId in touched {
+            bumpFundVersion(fundId)
+            ViewCache.shared.invalidateFundCache(fundId: fundId)
+        }
+        await recomputeWith(snapshot)
+
+        var didWrite = false
+        for (fundId, entry) in writes {
+            do {
+                try await FundStore.shared.appendEntry(fundId: fundId, entry: entry)
+                didWrite = true
+            } catch {
+                Self.logger.error("appendEntries disk write failed for \(fundId): \(error)")
+            }
+        }
+        if didWrite {
             ICloudSyncMonitor.shared.markLocalWrite()
-        } catch {
-            Self.logger.error("appendEntry disk write failed: \(error)")
         }
     }
 
@@ -209,6 +256,7 @@ final class FundDataStore {
             // so the view never sees new entries with stale summaries
             var snapshot = funds
             snapshot[idx].entries = entries
+            bumpFundVersion(fundId)
             ViewCache.shared.invalidateFundCache(fundId: fundId)
             await recomputeWith(snapshot)
         }
@@ -224,6 +272,7 @@ final class FundDataStore {
         if let idx = funds.firstIndex(where: { $0.id == fundId }) {
             var snapshot = funds
             snapshot[idx].config = config
+            bumpFundVersion(fundId)
             await recomputeWith(snapshot)
         }
         do {
@@ -313,19 +362,43 @@ final class FundDataStore {
         let summaryMap: [String: FundSummary]
         let actionableFunds: [ActionableFund]
         let platforms: [String]
+        let freshMetrics: [(FundMetrics, FundState)]
     }
 
     private func recompute() async {
         await recomputeWith(funds)
     }
 
-    /// Compute derived state from the given snapshot and apply atomically.
-    /// When called from replaceEntries/updateConfig, the snapshot contains the
-    /// pending mutation so `funds` and summaries update in the same frame.
+    /// Per-fund metrics are cached by `(fundId, version)`. Funds whose version
+    /// is unchanged since the last recompute reuse their cached metrics — so
+    /// appending one entry to one fund only walks that fund's entries, not the
+    /// entire portfolio's.
     private func recomputeWith(_ snapshot: [FundData]) async {
-        // Run all expensive engine computation off the main thread
-        let result = await Task.detached(priority: .userInitiated) {
-            let portfolio = computePortfolioMetrics(snapshot)
+        let today = todayString()
+        var cachedPerFund: [(FundMetrics, FundState)?] = Array(repeating: nil, count: snapshot.count)
+        var stale: [(index: Int, fundId: String, version: Int)] = []
+        stale.reserveCapacity(snapshot.count)
+        for (i, fund) in snapshot.enumerated() {
+            let version = fundVersions[fund.id, default: 0]
+            if let cached = fundMetricsCache[fund.id], cached.version == version {
+                cachedPerFund[i] = (cached.metrics, cached.state)
+            } else {
+                stale.append((i, fund.id, version))
+            }
+        }
+
+        let staleIndices = stale.map(\.index)
+        let staleFunds = staleIndices.map { snapshot[$0] }
+        let result: ComputeResult = await Task.detached(priority: .userInitiated) {
+            let fresh = staleFunds.map { computeFundMetricsForFund($0, asOfDate: today) }
+            var perFund: [(FundMetrics, FundState)] = []
+            perFund.reserveCapacity(snapshot.count)
+            var freshIter = fresh.makeIterator()
+            for slot in cachedPerFund {
+                if let slot { perFund.append(slot) }
+                else if let next = freshIter.next() { perFund.append(next) }
+            }
+            let portfolio = computePortfolioAggregate(snapshot, perFundMetrics: perFund)
             let summaries = computeSummariesFromPortfolio(funds: snapshot, portfolio: portfolio)
                 .sorted { $0.currentValue > $1.currentValue }
             var map: [String: FundSummary] = [:]
@@ -337,9 +410,18 @@ final class FundDataStore {
                 summaries: summaries,
                 summaryMap: map,
                 actionableFunds: actionable,
-                platforms: platforms
+                platforms: platforms,
+                freshMetrics: fresh
             )
         }.value
+
+        // Update per-fund cache with fresh metrics, drop entries for vanished funds.
+        for (j, entry) in stale.enumerated() {
+            let (m, s) = result.freshMetrics[j]
+            fundMetricsCache[entry.fundId] = CachedFundMetrics(version: entry.version, metrics: m, state: s)
+        }
+        let liveIds = Set(snapshot.map(\.id))
+        fundMetricsCache = fundMetricsCache.filter { liveIds.contains($0.key) }
 
         // Apply funds + derived state atomically so the view never sees
         // new entries with stale summaries
