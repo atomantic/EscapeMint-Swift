@@ -284,13 +284,16 @@ struct DashboardView: View {
 
     @ViewBuilder
     private var iosDashboardCharts: some View {
+        let hasActive = !activeSummaries.isEmpty
         VStack(spacing: 12) {
             if isWide {
-                // iPad: pie charts in a row
-                HStack(alignment: .top, spacing: 8) {
-                    FundAllocationChart(summaries: activeSummaries)
-                    PortfolioAllocationChart(summaries: activeSummaries)
-                    PlatformAllocationChart(summaries: activeSummaries)
+                // iPad: pie charts in a row (only when there are active funds)
+                if hasActive {
+                    HStack(alignment: .top, spacing: 8) {
+                        FundAllocationChart(summaries: activeSummaries)
+                        PortfolioAllocationChart(summaries: activeSummaries)
+                        PlatformAllocationChart(summaries: activeSummaries)
+                    }
                 }
                 // iPad: time series in 2-column grid
                 LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 8) {
@@ -304,9 +307,11 @@ struct DashboardView: View {
                 }
             } else {
                 // iPhone: single column
-                FundAllocationChart(summaries: activeSummaries)
-                PortfolioAllocationChart(summaries: activeSummaries)
-                PlatformAllocationChart(summaries: activeSummaries)
+                if hasActive {
+                    FundAllocationChart(summaries: activeSummaries)
+                    PortfolioAllocationChart(summaries: activeSummaries)
+                    PlatformAllocationChart(summaries: activeSummaries)
+                }
                 DashboardAPYChart(points: cache.dashboardTimeSeries)
                 DashboardGainChart(points: cache.dashboardTimeSeries)
                 DashboardFundSizeChart(points: cache.dashboardTimeSeries)
@@ -401,11 +406,13 @@ struct DashboardView: View {
 
     @ViewBuilder
     private var dashboardCharts: some View {
-        // Allocation pie charts row
-        HStack(alignment: .top, spacing: 8) {
-            FundAllocationChart(summaries: activeSummaries)
-            PortfolioAllocationChart(summaries: activeSummaries)
-            PlatformAllocationChart(summaries: activeSummaries)
+        // Allocation pie charts row (only when there are active funds)
+        if !activeSummaries.isEmpty {
+            HStack(alignment: .top, spacing: 8) {
+                FundAllocationChart(summaries: activeSummaries)
+                PortfolioAllocationChart(summaries: activeSummaries)
+                PlatformAllocationChart(summaries: activeSummaries)
+            }
         }
 
         // Time series charts — 3-column grid for density
