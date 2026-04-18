@@ -21,6 +21,8 @@ struct DashboardView: View {
     @State private var closedSummaries: [FundSummary] = []
     @State private var activeSummariesByPlatform: [String: [FundSummary]] = [:]
     @State private var closedSummariesByPlatform: [String: [FundSummary]] = [:]
+    @State private var filteredPortfolio = PortfolioMetrics()
+    @State private var cashFundCount: Int = 0
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var sizeClass
     #endif
@@ -52,6 +54,12 @@ struct DashboardView: View {
         closedSummaries = closed
         activeSummariesByPlatform = Dictionary(grouping: active, by: { $0.fund.platform })
         closedSummariesByPlatform = Dictionary(grouping: closed, by: { $0.fund.platform })
+        let allFiltered = active + closed
+        filteredPortfolio = computePortfolioAggregate(
+            allFiltered.map { $0.fund },
+            perFundMetrics: allFiltered.map { ($0.metrics, $0.state) }
+        )
+        cashFundCount = allFiltered.filter { $0.isCash }.count
     }
 
     var platforms: [String] { store.platforms }
@@ -222,7 +230,7 @@ struct DashboardView: View {
     private var iosHeaderControls: some View {
         VStack(spacing: 8) {
             HStack {
-                Text("\(store.portfolio.activeFunds) active \u{2022} \(store.portfolio.closedFunds) closed")
+                Text("\(filteredPortfolio.activeFunds) active \u{2022} \(filteredPortfolio.closedFunds) closed")
                     .font(.caption).foregroundColor(.textSecondary)
                 Spacer()
                 if hasEntryData {
@@ -238,7 +246,7 @@ struct DashboardView: View {
             }
             if platforms.count > 1 {
                 Picker("Platform", selection: $platformFilter) {
-                    Text("All Platforms").tag(nil as String?)
+                    Text("All").tag(nil as String?)
                     ForEach(platforms, id: \.self) { p in
                         Text(p.capitalized).tag(p as String?)
                     }
@@ -254,11 +262,11 @@ struct DashboardView: View {
 
     @ViewBuilder
     private var iosMetricsGrid: some View {
-        let p = store.portfolio
+        let p = filteredPortfolio
         let colCount = isWide ? 3 : 2
         let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: colCount)
         LazyVGrid(columns: columns, spacing: 8) {
-            MetricCard(label: "Fund Size", value: formatCurrency(p.totalFundSize), sub: "\(store.funds.count) funds")
+            MetricCard(label: "Fund Size", value: formatCurrency(p.totalFundSize), sub: "\(p.funds.count) funds")
             MetricCard(label: "Value", value: formatCurrency(p.totalValue), sub: "\(p.activeFunds) active")
             MetricCard(label: "Realized", value: formatCurrency(p.totalRealizedGains), color: p.totalRealizedGains > 0 ? .mint : .red)
             MetricCard(label: "R.APY", value: formatPercent(p.realizedAPY), color: p.realizedAPY > 0 ? .mint : .red)
@@ -266,7 +274,7 @@ struct DashboardView: View {
             MetricCard(label: "Liquid", value: formatCurrency(p.totalGainUsd), color: p.totalGainUsd >= 0 ? .mint : .red)
             MetricCard(label: "L.APY", value: formatPercent(p.liquidAPY), color: p.liquidAPY > 0 ? .mint : .red)
             MetricCard(label: "Projected", value: formatCurrency(p.projectedAnnualReturn), color: p.projectedAnnualReturn > 0 ? .mint : .red)
-            MetricCard(label: "Cash", value: formatCurrency(p.cashBalance), sub: "\(store.summaries.filter { $0.isCash }.count) cash funds")
+            MetricCard(label: "Cash", value: formatCurrency(p.cashBalance), sub: "\(cashFundCount) cash funds")
             MetricCard(label: "Interest", value: formatCurrency(p.totalInterest), sub: "Earned to date")
         }
         .padding(.horizontal)
@@ -321,7 +329,7 @@ struct DashboardView: View {
                     .font(.largeTitle).fontWeight(.bold)
                     .foregroundColor(.textPrimary)
                 if !store.funds.isEmpty {
-                    Text("\(store.portfolio.activeFunds) active \u{2022} \(store.portfolio.closedFunds) closed")
+                    Text("\(filteredPortfolio.activeFunds) active \u{2022} \(filteredPortfolio.closedFunds) closed")
                         .font(.subheadline).foregroundColor(.textSecondary)
                 }
             }
@@ -342,7 +350,7 @@ struct DashboardView: View {
             // Platform filter
             if platforms.count > 1 {
                 Picker("Platform", selection: $platformFilter) {
-                    Text("All Platforms").tag(nil as String?)
+                    Text("All").tag(nil as String?)
                     ForEach(platforms, id: \.self) { p in
                         Text(p.capitalized).tag(p as String?)
                     }
@@ -367,15 +375,15 @@ struct DashboardView: View {
 
     @ViewBuilder
     private var metricsGrid: some View {
-        let p = store.portfolio
-        let avgDays = store.funds.count > 0 ? p.totalDaysActive / store.funds.count : 0
+        let p = filteredPortfolio
+        let fundCount = p.funds.count
+        let avgDays = fundCount > 0 ? p.totalDaysActive / fundCount : 0
         let unrealizedPct = p.totalStartInput > 0 ? p.totalUnrealizedGains / p.totalStartInput : 0
         let liquidPct = p.totalStartInput > 0 ? p.totalGainUsd / p.totalStartInput : 0
         let hasCash = p.cashBalance > 0.01
         let colCount = hasCash ? 9 : 8
-        let cashFundCount = store.summaries.filter { $0.isCash }.count
         LazyVGrid(columns: Array(repeating: .init(.flexible(), spacing: 10), count: colCount), spacing: 10) {
-            MetricCard(label: "Total Fund Size", value: formatCurrency(p.totalFundSize), sub: "\(store.funds.count) funds", tooltip: "Total capital allocated across all funds")
+            MetricCard(label: "Total Fund Size", value: formatCurrency(p.totalFundSize), sub: "\(fundCount) funds", tooltip: "Total capital allocated across all funds")
             MetricCard(label: "Current Value", value: formatCurrency(p.totalValue), sub: "\(p.activeFunds) active", tooltip: "Current market value of all positions")
             MetricCard(label: "Realized Gain", value: formatCurrency(p.totalRealizedGains), sub: "Divs + Interest + Sells", color: p.totalRealizedGains > 0 ? .mint : .red, tooltip: "Profits already extracted: dividends, interest, and sell profits minus expenses")
             MetricCard(label: "Realized APY", value: formatPercentSigned(p.realizedAPY), sub: "\(avgDays) avg days", color: p.realizedAPY > 0 ? .mint : .red, tooltip: "Annualized realized return. Time-Weighted Fund Size: \(formatCurrency(p.totalTimeWeightedFundSize))")
