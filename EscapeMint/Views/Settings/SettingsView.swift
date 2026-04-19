@@ -23,6 +23,7 @@ struct SettingsView: View {
     @State private var testFundCount = 0
     @AppStorage(AppStorageKeys.showIntroOnLaunch) var showIntroOnLaunch = false
     @AppStorage(AppStorageKeys.advancedTools) var advancedToolsEnabled = false
+    @AppStorage(AppStorageKeys.advancedEntryMode) var advancedEntryMode = false
     @State private var showIntroGuide = false
     @State private var backupFileURL: URL?
     @State private var showShareSheet = false
@@ -183,6 +184,14 @@ struct SettingsView: View {
         Section("Intro Guide") {
             Toggle("Show intro on launch", isOn: $showIntroOnLaunch)
             Button("Show Intro Guide") { showIntroGuide = true }
+        }
+
+        Section {
+            Toggle("Advanced entry form", isOn: $advancedEntryMode)
+        } header: {
+            Text("Entry Mode")
+        } footer: {
+            Text("Off: guided wizard walks you through equity, recommendation, and action. On: single-screen form with every field exposed.")
         }
     }
 

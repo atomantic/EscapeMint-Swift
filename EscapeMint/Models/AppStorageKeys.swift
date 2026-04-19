@@ -9,4 +9,5 @@ enum AppStorageKeys {
     static let appearanceMode = "appearanceMode"
     static let sidebarCollapsed = "escapemint-sidebar-collapsed"
     static let dashboardCollapsed = "escapemint-dashboard-collapsed"
+    static let advancedEntryMode = "escapemint-advanced-entry-mode"
 }

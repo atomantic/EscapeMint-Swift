@@ -30,6 +30,11 @@ enum FundAction: String, Codable, CaseIterable {
     case FUNDING, INTEREST, REBATE, FEE
 }
 
+enum EquityInputMethod: String, Codable, CaseIterable {
+    case direct
+    case shares_price
+}
+
 struct FundConfig: Codable {
     // Metadata (prefixed with __ in JSON)
     var platform: String?
@@ -71,6 +76,9 @@ struct FundConfig: Codable {
     // Display
     var dollar_decimals: Int?
 
+    // Guided-entry behavior
+    var equity_input: EquityInputMethod?
+
     // Chart bounds (persisted per-fund)
     var chart_bounds: [String: ChartBounds]?
 
@@ -86,6 +94,7 @@ struct FundConfig: Codable {
         case accumulate, dividend_reinvest, interest_reinvest, expense_from_fund
         case initial_margin_rate, maintenance_margin_rate, contract_multiplier
         case dollar_decimals
+        case equity_input
         case chart_bounds
     }
 }
@@ -93,6 +102,15 @@ struct FundConfig: Codable {
 extension FundConfig {
     /// Effective dollar decimal places (defaults to 2)
     var dollarDec: Int { dollar_decimals ?? 2 }
+
+    /// Effective equity-input method for the guided entry wizard.
+    /// Defaults to `.direct` for all fund types — the common case is a user who can
+    /// see the fund's current dollar value on their trading platform. `.shares_price`
+    /// is an advanced opt-in for platforms (e.g. Crypto.com) where equity isn't
+    /// directly observable and the user reasons in shares + price instead.
+    var effectiveEquityInput: EquityInputMethod {
+        equity_input ?? .direct
+    }
 }
 
 struct ChartBounds: Codable, Equatable {

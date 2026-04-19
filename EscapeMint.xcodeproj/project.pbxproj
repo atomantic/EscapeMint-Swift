@@ -109,6 +109,8 @@
 		9DC304A05E7B231C017F74C4 /* BacktestCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE273771E41052451E80DD9F /* BacktestCharts.swift */; };
 		9E11DB41559D7F147E9C1B15 /* PlatformsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC7805190DCC3C9CC32685C4 /* PlatformsView.swift */; };
 		A091E84FEB7B129C8C758FD1 /* FundTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 123ED17F2A466332A31D87A3 /* FundTypes.swift */; };
+		A0D70C96C27E642E9AAFBA9A /* GuidedAddEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B0F9CBFA841C5EAF45B1A2F /* GuidedAddEntryView.swift */; };
+		A1B268951A0C5D4BE33B80E0 /* GuidedAddEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B0F9CBFA841C5EAF45B1A2F /* GuidedAddEntryView.swift */; };
 		A795E282C3CCB5CE7DB24527 /* brgnx-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 7DD4A3D62A314EF39C7556F6 /* brgnx-weekly.json */; };
 		A8962E758080AB26AF506BD0 /* FormulaParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBCB0FDCE94E2404ABEFEA3C /* FormulaParserTests.swift */; };
 		AA668949A41CFE6BE61CC085 /* InfoTipLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E641E9CCCCA375177111F7A /* InfoTipLabel.swift */; };
@@ -222,6 +224,7 @@
 		2E641E9CCCCA375177111F7A /* InfoTipLabel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoTipLabel.swift; sourceTree = "<group>"; };
 		2FA36F78945896AA5A44225F /* gld-weekly.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "gld-weekly.json"; sourceTree = "<group>"; };
 		32158CA7F35E33173F819524 /* LivePriceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivePriceService.swift; sourceTree = "<group>"; };
+		3B0F9CBFA841C5EAF45B1A2F /* GuidedAddEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedAddEntryView.swift; sourceTree = "<group>"; };
 		3F80087125ABA29D4B680493 /* FundCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundCardView.swift; sourceTree = "<group>"; };
 		4141AFA78E93A2BB544FFD49 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		42D65DB13952E5D475D4A596 /* BacktestTransactions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacktestTransactions.swift; sourceTree = "<group>"; };
@@ -505,6 +508,7 @@
 				5178FBFF2608094D106457C0 /* EditFundView.swift */,
 				78DC2F09A67B37D9062AFAC8 /* FundCharts.swift */,
 				C16280FEC2F986BC0F5C70C5 /* FundDetailView.swift */,
+				3B0F9CBFA841C5EAF45B1A2F /* GuidedAddEntryView.swift */,
 			);
 			path = FundDetail;
 			sourceTree = "<group>";
@@ -793,6 +797,7 @@
 				F339FA95C574744D9FAFC2AD /* FundStore.swift in Sources */,
 				CBF230C3FE1A6EB5F2D9E4CF /* FundTypeConfig.swift in Sources */,
 				9D4F95A5410881EFEE36142F /* FundTypes.swift in Sources */,
+				A1B268951A0C5D4BE33B80E0 /* GuidedAddEntryView.swift in Sources */,
 				EDA3DAD9464F50D8179EE797 /* ICloudSyncMonitor.swift in Sources */,
 				AA668949A41CFE6BE61CC085 /* InfoTipLabel.swift in Sources */,
 				F4AE21EA90918C341A6946AD /* IntroCharts.swift in Sources */,
@@ -859,6 +864,7 @@
 				43ABDDC343390B9A629C8276 /* FundStore.swift in Sources */,
 				5E57D2379D4A66CC5609FA44 /* FundTypeConfig.swift in Sources */,
 				A091E84FEB7B129C8C758FD1 /* FundTypes.swift in Sources */,
+				A0D70C96C27E642E9AAFBA9A /* GuidedAddEntryView.swift in Sources */,
 				6436802C391D89F147AC5E19 /* ICloudSyncMonitor.swift in Sources */,
 				E78FE5892BCCB09037698360 /* InfoTipLabel.swift in Sources */,
 				DBD3CC62B6F1522CA01C89ED /* IntroCharts.swift in Sources */,

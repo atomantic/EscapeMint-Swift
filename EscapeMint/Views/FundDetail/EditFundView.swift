@@ -24,6 +24,7 @@ struct EditFundView: View {
     @State private var interestReinvest: Bool
     @State private var expenseFromFund: Bool
     @State private var dollarDecimals: String
+    @State private var equityInput: EquityInputMethod
     @State private var showDeleteConfirm = false
     @State private var isSaving = false
     @State private var selectedTab = 0
@@ -50,6 +51,7 @@ struct EditFundView: View {
         _interestReinvest = State(initialValue: fund.config.interest_reinvest ?? false)
         _expenseFromFund = State(initialValue: fund.config.expense_from_fund ?? false)
         _dollarDecimals = State(initialValue: fund.config.dollar_decimals.map(String.init) ?? "2")
+        _equityInput = State(initialValue: fund.config.effectiveEquityInput)
     }
 
     private var isTradingFund: Bool {
@@ -140,6 +142,19 @@ struct EditFundView: View {
         Section("Display") {
             dcaTipField("Dollar decimals", tip: "Number of decimal places for dollar values. Use 5 for low-price crypto like DOGE ($0.09424).", text: $dollarDecimals, placeholder: "2")
         }
+
+        if !isCashFund(fund.config.fund_type) {
+            Section {
+                Picker("Equity input", selection: $equityInput) {
+                    Text("Direct (enter portfolio value)").tag(EquityInputMethod.direct)
+                    Text("Shares × price").tag(EquityInputMethod.shares_price)
+                }
+            } header: {
+                Text("Guided Entry")
+            } footer: {
+                Text("Shares × price is useful for platforms like Crypto.com where you observe holdings and price separately rather than a portfolio value.")
+            }
+        }
     }
 
     @ViewBuilder
@@ -191,6 +206,7 @@ struct EditFundView: View {
         config.expense_from_fund = expenseFromFund
         let dd = Int(dollarDecimals) ?? 2
         config.dollar_decimals = dd == 2 ? nil : dd
+        config.equity_input = equityInput == .direct ? nil : equityInput
 
         let platformChanged = platform != fund.platform
         let tickerChanged = ticker != fund.ticker

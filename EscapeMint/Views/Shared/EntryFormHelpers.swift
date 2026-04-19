@@ -1,6 +1,51 @@
 import Foundation
 import SwiftUI
 
+/// Compute a live DCA recommendation using a user-supplied current equity, so the guided
+/// Add-Entry wizard can show what the engine suggests BEFORE the user records the action.
+///
+/// Mirrors the state assembly in `FundSummary.init` (FundTypes.swift) but replaces the
+/// last-entry-derived `actualValueUsd` with the value the user just reported. For
+/// `manage_cash=false` funds, `cashAvailableUsd` is sourced from the platform cash fund
+/// exactly like `FundSummary` does.
+@MainActor
+func recommendationForLiveEquity(fund: FundData, currentEquity: Double) -> Recommendation? {
+    let today = todayString()
+    let trades = entriesToTrades(fund.entries)
+    let cashflows = entriesToCashFlows(fund.entries)
+    let divs = entriesToDividends(fund.entries)
+    let exps = entriesToExpenses(fund.entries)
+    var state = computeFundState(
+        config: fund.config,
+        trades: trades,
+        cashflows: cashflows,
+        dividends: divs,
+        expenses: exps,
+        actualValue: currentEquity,
+        asOfDate: today
+    )
+
+    // For funds that don't manage their own cash, cash lives in the platform cash fund.
+    if fund.config.manage_cash == false {
+        let cashFundId = resolveCashFundId(config: fund.config, platform: fund.platform)
+        if let cashFund = FundDataStore.shared.funds.first(where: { $0.id == cashFundId }),
+           let latest = cashFund.entries.max(by: { $0.date < $1.date }) {
+            state.cashAvailableUsd = latest.cash ?? latest.value
+        } else {
+            state.cashAvailableUsd = 0
+        }
+    }
+
+    // Margin-aware: if margin is enabled, treat available margin as borrowable cash.
+    if fund.config.margin_enabled == true,
+       let latestEntry = fund.entries.last,
+       let marginAvail = latestEntry.margin_available, marginAvail > 0 {
+        state.cashAvailableUsd += marginAvail
+    }
+
+    return computeRecommendation(config: fund.config, state: state)
+}
+
 /// Calculate price from amount/shares and derive equity from prior shares.
 /// Returns (price, equity) or nil if inputs are invalid.
 func calcPriceAndEquity(amount: String, shares: String, existingEntries: [FundEntry], date: Date, dollarDecimals: Int = 2) -> (price: String, value: String)? {

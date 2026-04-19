@@ -25,6 +25,7 @@ struct FundDetailView: View {
     @State private var advancedToolsMessage = ""
     @State private var showAdvancedToast = false
     @AppStorage(AppStorageKeys.advancedTools) private var advancedToolsEnabled = false
+    @AppStorage(AppStorageKeys.advancedEntryMode) private var advancedEntryMode = false
 
     private var fund: FundData? { store.fund(byId: fundId) }
     private var summary: FundSummary? { store.summary(byId: fundId) }
@@ -76,7 +77,11 @@ struct FundDetailView: View {
         }
         .sheet(isPresented: $showAddEntry) {
             if let fund {
-                AddEntryView(fundId: fund.id, fundType: fund.config.fund_type ?? .stock, fundConfig: fund.config, existingEntries: fund.entries, recommendation: summary?.isDueForAction == true ? summary?.recommendation : nil) {}
+                if advancedEntryMode {
+                    AddEntryView(fundId: fund.id, fundType: fund.config.fund_type ?? .stock, fundConfig: fund.config, existingEntries: fund.entries, recommendation: summary?.isDueForAction == true ? summary?.recommendation : nil) {}
+                } else {
+                    GuidedAddEntryView(fundId: fund.id) {}
+                }
             }
         }
         .sheet(isPresented: $showEditFund) {
