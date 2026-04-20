@@ -25,8 +25,7 @@ struct SettingsView: View {
     @AppStorage(AppStorageKeys.advancedTools) var advancedToolsEnabled = false
     @AppStorage(AppStorageKeys.advancedEntryMode) var advancedEntryMode = false
     @State private var showIntroGuide = false
-    @State private var backupFileURL: URL?
-    @State private var showShareSheet = false
+    @State private var backupShareItem: BackupShareItem?
     @State private var auth = AuthManager.shared
     @State private var notifications = DCANotificationManager.shared
     #if os(iOS)
@@ -40,10 +39,8 @@ struct SettingsView: View {
             .sheet(isPresented: $showIntroGuide) {
                 IntroGuideView(isPresented: $showIntroGuide)
             }
-            .sheet(isPresented: $showShareSheet) {
-                if let url = backupFileURL {
-                    ShareSheetView(items: [url])
-                }
+            .sheet(item: $backupShareItem) { item in
+                ShareSheetView(items: [item.url])
             }
             .alert("Clear All Data?", isPresented: $showClearConfirm) {
                 Button("Cancel", role: .cancel) {}
@@ -369,8 +366,7 @@ struct SettingsView: View {
                     showToast("Backup saved")
                 }
                 #else
-                backupFileURL = url
-                showShareSheet = true
+                backupShareItem = BackupShareItem(url: url)
                 #endif
             } catch {
                 showToast("Export failed")
@@ -432,6 +428,11 @@ struct SettingsView: View {
             }
         }
     }
+}
+
+struct BackupShareItem: Identifiable {
+    let id = UUID()
+    let url: URL
 }
 
 #if os(iOS)
