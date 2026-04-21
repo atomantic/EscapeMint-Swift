@@ -234,6 +234,20 @@ final class FundDataStore {
             bumpFundVersion(fundId)
             ViewCache.shared.invalidateFundCache(fundId: fundId)
         }
+
+        // Optimistic fast-path: apply updated funds + freshly-computed summaries
+        // for the touched funds inline on MainActor so UI (recommendation card,
+        // Equity, etc.) reflects the new entry this frame, without waiting for
+        // the full-portfolio recompute's detached hop to complete. Portfolio
+        // aggregates lag by one write until `recomputeWith` finishes below.
+        funds = snapshot
+        for fundId in touched {
+            if let fund = snapshot.first(where: { $0.id == fundId }) {
+                summaryMap[fundId] = FundSummary(fund, allFunds: snapshot)
+            }
+        }
+        revision += 1
+
         await recomputeWith(snapshot)
 
         var didWrite = false
