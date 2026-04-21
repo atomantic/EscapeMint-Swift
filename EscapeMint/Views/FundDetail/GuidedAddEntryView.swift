@@ -40,9 +40,18 @@ struct GuidedAddEntryView: View {
     @State private var actualAction: FundAction = .BUY
     @State private var actualAmount: String = ""
     @State private var actualShares: String = ""
+    /// Marks this SELL as a full exit — forces post-action equity to 0 so the engine's
+    /// liquidation detection fires even when slippage makes actualAmount ≠ currentEquity.
+    @State private var exitedPosition: Bool = false
+    @State private var userTouchedExit: Bool = false
 
-    // Step 3
+    // Step 3 — editable optional fields
     @State private var notes: String = ""
+    @State private var dividendStr: String = ""
+    @State private var marginAvailableStr: String = ""
+    @State private var marginBorrowedStr: String = ""
+    @State private var cashInterestStr: String = ""
+    @State private var feeStr: String = ""
 
     @State private var didSeed: Bool = false
     @State private var isSaving = false
@@ -64,6 +73,14 @@ struct GuidedAddEntryView: View {
     private var cumulativeSharesHeld: Double {
         guard let fund else { return 0 }
         return getCumulativeShares(entries: fund.entries, beforeDate: isoDateFormatter.string(from: date))
+    }
+
+    /// Single source of truth for "this entry fully closes the position."
+    private var isFullExit: Bool {
+        guard let fund else { return false }
+        return exitedPosition
+            && actualAction == .SELL
+            && !isCashFund(fund.config.fund_type)
     }
 
     /// The fund's current equity, derived from whichever step-1 inputs apply.
@@ -114,7 +131,11 @@ struct GuidedAddEntryView: View {
                             actualAction: $actualAction,
                             actualAmount: $actualAmount,
                             actualShares: $actualShares,
-                            capturesShares: equityInput == .shares_price
+                            capturesShares: equityInput == .shares_price,
+                            exitedPosition: Binding(
+                                get: { exitedPosition },
+                                set: { exitedPosition = $0; userTouchedExit = true }
+                            )
                         )
                     default:
                         GuidedStep3(
@@ -123,8 +144,14 @@ struct GuidedAddEntryView: View {
                             currentEquity: finalEquity,
                             action: actualAction,
                             actualAmount: parseFormulaValue(actualAmount),
-                            actualShares: parseFormulaValue(actualShares),
                             showShares: equityInput == .shares_price,
+                            exitedPosition: isFullExit,
+                            sharesBinding: $actualShares,
+                            dividend: $dividendStr,
+                            marginAvailable: $marginAvailableStr,
+                            marginBorrowed: $marginBorrowedStr,
+                            cashInterest: $cashInterestStr,
+                            fee: $feeStr,
                             notes: $notes
                         )
                     }
@@ -230,6 +257,17 @@ struct GuidedAddEntryView: View {
             // "how many shares would $X buy?" using a meaningful reference amount.
             preliminaryDcaAmount = preliminaryDcaReference(fund: fund)
         }
+        // Carry forward margin values from last entry so the user sees their current state
+        // and can nudge the numbers rather than retyping from scratch.
+        if let last = fund.entries.last {
+            let dd = fund.config.dollarDec
+            if let ma = last.margin_available, ma > 0 {
+                marginAvailableStr = String(format: "%.\(dd)f", ma)
+            }
+            if let mb = last.margin_borrowed, mb > 0 {
+                marginBorrowedStr = String(format: "%.\(dd)f", mb)
+            }
+        }
     }
 
     /// Picks a sensible $ reference amount for the step-1 shares-at-DCA question.
@@ -258,8 +296,22 @@ struct GuidedAddEntryView: View {
                 if equityInput == .shares_price && actualShares.isEmpty {
                     actualShares = sharesForDca
                 }
+                // Auto-toggle "Exited position" when the engine recommends a full harvest:
+                // non-accumulate mode + SELL at (or above) current equity. Don't clobber a
+                // user override once they've interacted with the toggle.
+                if !userTouchedExit
+                   && !isCashFund(fund.config.fund_type)
+                   && rec.action == .SELL
+                   && fund.config.accumulate != true
+                   && finalEquity > 0
+                   && rec.amount >= finalEquity - 0.01 {
+                    exitedPosition = true
+                } else if !userTouchedExit {
+                    exitedPosition = false
+                }
             } else {
                 actualAction = isCashFund(fund.config.fund_type) ? .DEPOSIT : .HOLD
+                if !userTouchedExit { exitedPosition = false }
             }
         }
         withAnimation(.easeInOut(duration: 0.18)) { step += 1 }
@@ -275,8 +327,9 @@ struct GuidedAddEntryView: View {
         }
 
         let amt = r(parseFormulaValue(actualAmount))
-        let shares = parseFormulaValue(actualShares)
+        var shares = parseFormulaValue(actualShares)
         let isCash = isCashFund(fund.config.fund_type)
+        let fullExit = isFullExit && amt > 0
 
         // Execution price for shares-price mode: prefer actual dollars/shares, fall back
         // to the step-1 derived price if only one was captured.
@@ -293,6 +346,17 @@ struct GuidedAddEntryView: View {
         var equityForEntry = finalEquity
         if equityInput == .shares_price && execPrice > 0 {
             equityForEntry = cumulativeSharesHeld * execPrice
+        }
+
+        // Full exit: force the engine's liquidation detection to fire. `valueLiquidated`
+        // requires entry.value ≤ amount (pre-action equity sold for the exact SELL
+        // amount, leaving $0). For share-tracking funds, also force the sold share
+        // count to match the entire position so sumShares → 0 (sharesLiquidated path).
+        if fullExit {
+            equityForEntry = amt
+            if equityInput == .shares_price && cumulativeSharesHeld > 0 {
+                shares = cumulativeSharesHeld
+            }
         }
 
         var entry: FundEntry
@@ -315,6 +379,19 @@ struct GuidedAddEntryView: View {
             if amt != 0 { entry.amount = amt }
             if shares != 0 { entry.shares = shares }
             if execPrice > 0 { entry.price = r(execPrice) }
+        }
+        func assign(_ str: String, _ keyPath: WritableKeyPath<FundEntry, Double?>) {
+            let v = r(parseFormulaValue(str))
+            if v != 0 { entry[keyPath: keyPath] = v }
+        }
+        assign(dividendStr, \.dividend)
+        assign(marginAvailableStr, \.margin_available)
+        assign(marginBorrowedStr, \.margin_borrowed)
+        assign(cashInterestStr, \.cash_interest)
+        assign(feeStr, \.expense)
+        if fullExit {
+            let marker = "Exited position"
+            notes = notes.isEmpty ? marker : "\(marker) | \(notes)"
         }
         if !notes.isEmpty { entry.notes = notes }
 
@@ -572,6 +649,7 @@ private struct GuidedStep2: View {
     @Binding var actualAmount: String
     @Binding var actualShares: String
     let capturesShares: Bool
+    @Binding var exitedPosition: Bool
 
     private var dd: Int { fund.config.dollarDec }
 
@@ -579,6 +657,10 @@ private struct GuidedStep2: View {
         isCashFund(fund.config.fund_type)
             ? [.DEPOSIT, .WITHDRAW, .HOLD]
             : [.BUY, .SELL, .HOLD]
+    }
+
+    private var canExit: Bool {
+        !isCashFund(fund.config.fund_type) && actualAction == .SELL
     }
 
     var body: some View {
@@ -616,6 +698,10 @@ private struct GuidedStep2: View {
                         .disabled(actualAction == .HOLD)
                     }
 
+                    if canExit {
+                        exitToggle
+                    }
+
                     Text(capturesShares
                          ? "Enter the real dollars spent and shares received — market slippage means these often differ slightly from the recommendation."
                          : "Enter the real executed amount — market slippage means a $100 buy might settle at $100.01.")
@@ -631,6 +717,27 @@ private struct GuidedStep2: View {
             }
         }
         .background(Color.bg.ignoresSafeArea())
+    }
+
+    @ViewBuilder
+    private var exitToggle: some View {
+        Toggle(isOn: $exitedPosition) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Exited position")
+                    .font(.subheadline).fontWeight(.medium)
+                    .foregroundColor(.textPrimary)
+                Text("Zero out remaining equity and close the cycle — use this when you sold everything, even if the dollar amount differs from your last recorded equity.")
+                    .font(.caption)
+                    .foregroundColor(.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .tint(.mint)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.bgCard)
+        )
     }
 
     @ViewBuilder
@@ -681,14 +788,25 @@ private struct GuidedStep3: View {
     let currentEquity: Double
     let action: FundAction
     let actualAmount: Double
-    let actualShares: Double
     let showShares: Bool
+    let exitedPosition: Bool
+    @Binding var sharesBinding: String
+    @Binding var dividend: String
+    @Binding var marginAvailable: String
+    @Binding var marginBorrowed: String
+    @Binding var cashInterest: String
+    @Binding var fee: String
     @Binding var notes: String
 
     private var dd: Int { fund.config.dollarDec }
+    private var features: FundTypeFeatures { getFeatures(fund.config.fund_type) }
+    private var isCash: Bool { isCashFund(fund.config.fund_type) }
+
+    private var parsedShares: Double { parseFormulaValue(sharesBinding) }
 
     /// Projected fund equity once this entry is applied. BUY/DEPOSIT add, SELL/WITHDRAW subtract.
     private var postActionEquity: Double {
+        if exitedPosition { return 0 }
         switch action {
         case .BUY, .DEPOSIT: return currentEquity + actualAmount
         case .SELL, .WITHDRAW: return max(0, currentEquity - actualAmount)
@@ -696,53 +814,156 @@ private struct GuidedStep3: View {
         }
     }
 
+    private struct DetailRow: Identifiable {
+        let id: String
+        let label: String
+        let text: Binding<String>
+        let prefix: String?
+        let placeholder: String
+    }
+
+    private var detailRows: [DetailRow] {
+        var rows: [DetailRow] = []
+        if features.supportsShares && !showShares {
+            rows.append(DetailRow(id: "shares", label: "Shares / Units", text: $sharesBinding, prefix: nil, placeholder: "0"))
+        }
+        if features.supportsDividends {
+            rows.append(DetailRow(id: "dividend", label: "Dividend", text: $dividend, prefix: "$", placeholder: "0.00"))
+        }
+        if features.supportsMargin {
+            rows.append(DetailRow(id: "margin_avail", label: "Margin available", text: $marginAvailable, prefix: "$", placeholder: "0.00"))
+            rows.append(DetailRow(id: "margin_borrow", label: "Margin borrowed", text: $marginBorrowed, prefix: "$", placeholder: "0.00"))
+        }
+        if isCash {
+            rows.append(DetailRow(id: "cash_interest", label: "Interest earned", text: $cashInterest, prefix: "$", placeholder: "0.00"))
+            rows.append(DetailRow(id: "fee", label: "Fee", text: $fee, prefix: "$", placeholder: "0.00"))
+        }
+        return rows
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                VStack(spacing: 0) {
-                    summaryRow("Fund", value: "\(fund.ticker.uppercased()) (\(fund.platform))")
-                    Divider()
-                    summaryRow("Date", value: isoDateFormatter.string(from: date))
-                    Divider()
-                    summaryRow("Action", value: action.rawValue, color: Color.forAction(action))
-                    if action != .HOLD {
-                        Divider()
-                        summaryRow("Amount", value: formatCurrency(actualAmount, decimals: dd))
-                        if showShares && actualShares > 0 {
-                            Divider()
-                            summaryRow("Shares", value: cleanShares(actualShares))
-                        }
-                    }
-                    Divider()
-                    summaryRow("Equity (before)", value: formatCurrency(currentEquity, decimals: dd))
-                    if action != .HOLD && actualAmount > 0 {
-                        Divider()
-                        summaryRow("Equity (after)", value: formatCurrency(postActionEquity, decimals: dd))
-                    }
-                }
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.bgCard)
-                )
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
+                summaryCard
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Notes (optional)")
-                        .font(.caption).foregroundColor(.textMuted)
-                    TextField("", text: $notes, prompt: Text("Anything to remember about this entry?").foregroundColor(.textMuted.opacity(0.5)))
-                        .padding(12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(Color.bgCard)
-                        )
+                if !detailRows.isEmpty {
+                    detailsCard
+                        .padding(.horizontal, 20)
                 }
-                .padding(.horizontal, 20)
+
+                notesCard
+                    .padding(.horizontal, 20)
 
                 Spacer(minLength: 8)
             }
         }
         .background(Color.bg.ignoresSafeArea())
+    }
+
+    // MARK: Summary card (read-only recap)
+
+    @ViewBuilder
+    private var summaryCard: some View {
+        VStack(spacing: 0) {
+            summaryRow("Fund", value: "\(fund.ticker.uppercased()) (\(fund.platform))")
+            Divider()
+            summaryRow("Date", value: isoDateFormatter.string(from: date))
+            Divider()
+            summaryRow("Action", value: action.rawValue, color: Color.forAction(action))
+            if action != .HOLD {
+                Divider()
+                summaryRow("Amount", value: formatCurrency(actualAmount, decimals: dd))
+                if showShares && parsedShares > 0 {
+                    Divider()
+                    summaryRow("Shares", value: cleanShares(parsedShares))
+                }
+            }
+            Divider()
+            summaryRow("Equity (before)", value: formatCurrency(currentEquity, decimals: dd))
+            if action != .HOLD && actualAmount > 0 {
+                Divider()
+                summaryRow(
+                    "Equity (after)",
+                    value: exitedPosition
+                        ? "\(formatCurrency(0, decimals: dd)) (exited)"
+                        : formatCurrency(postActionEquity, decimals: dd),
+                    color: exitedPosition ? .mint : .textPrimary
+                )
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.bgCard)
+        )
+    }
+
+    // MARK: Details card (editable optional fields)
+
+    @ViewBuilder
+    private var detailsCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Details (optional)")
+                .font(.caption).fontWeight(.semibold).tracking(1)
+                .foregroundColor(.textMuted)
+                .padding(.horizontal, 14)
+                .padding(.top, 12)
+                .padding(.bottom, 6)
+
+            ForEach(Array(detailRows.enumerated()), id: \.element.id) { idx, row in
+                if idx > 0 { Divider() }
+                editableRow(label: row.label, text: row.text, prefix: row.prefix, placeholder: row.placeholder)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.bgCard)
+        )
+    }
+
+    @ViewBuilder
+    private func editableRow(label: String, text: Binding<String>, prefix: String? = nil, placeholder: String = "0.00") -> some View {
+        HStack {
+            Text(label)
+                .font(.subheadline)
+                .foregroundColor(.textMuted)
+            Spacer()
+            if let prefix {
+                Text(prefix)
+                    .font(.subheadline)
+                    .foregroundColor(.textMuted)
+            }
+            TextField("", text: text, prompt: Text(placeholder).foregroundColor(.textMuted.opacity(0.4)))
+                .formulaKeyboard()
+                .multilineTextAlignment(.trailing)
+                .font(.subheadline).fontWeight(.medium)
+                .foregroundColor(.textPrimary)
+                #if os(macOS)
+                .frame(maxWidth: 140)
+                .textFieldStyle(.plain)
+                #else
+                .frame(maxWidth: 140)
+                #endif
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+
+    // MARK: Notes
+
+    @ViewBuilder
+    private var notesCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Notes (optional)")
+                .font(.caption).foregroundColor(.textMuted)
+            TextField("", text: $notes, prompt: Text("Anything to remember about this entry?").foregroundColor(.textMuted.opacity(0.5)))
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.bgCard)
+                )
+        }
     }
 
     @ViewBuilder
