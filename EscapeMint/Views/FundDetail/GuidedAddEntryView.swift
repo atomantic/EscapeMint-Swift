@@ -45,6 +45,11 @@ struct GuidedAddEntryView: View {
     @State private var exitedPosition: Bool = false
     @State private var userTouchedExit: Bool = false
 
+    // Step 3 — editable summary overrides (seeded when advancing to step 3)
+    @State private var equityBeforeOverride: String = ""
+    @State private var equityAfterOverride: String = ""
+    @State private var didSeedStep3: Bool = false
+
     // Step 3 — editable optional fields
     @State private var notes: String = ""
     @State private var dividendStr: String = ""
@@ -140,12 +145,13 @@ struct GuidedAddEntryView: View {
                     default:
                         GuidedStep3(
                             fund: fund,
-                            date: date,
-                            currentEquity: finalEquity,
-                            action: actualAction,
-                            actualAmount: parseFormulaValue(actualAmount),
                             showShares: equityInput == .shares_price,
                             exitedPosition: isFullExit,
+                            date: $date,
+                            action: $actualAction,
+                            actualAmount: $actualAmount,
+                            equityBefore: $equityBeforeOverride,
+                            equityAfter: $equityAfterOverride,
                             sharesBinding: $actualShares,
                             dividend: $dividendStr,
                             marginAvailable: $marginAvailableStr,
@@ -314,6 +320,20 @@ struct GuidedAddEntryView: View {
                 if !userTouchedExit { exitedPosition = false }
             }
         }
+        if step == 2 && !didSeedStep3 {
+            let dd = fund.config.dollarDec
+            let before = finalEquity
+            let amt = parseFormulaValue(actualAmount)
+            let after: Double
+            switch actualAction {
+            case .BUY, .DEPOSIT: after = before + amt
+            case .SELL, .WITHDRAW: after = isFullExit ? 0 : max(0, before - amt)
+            default: after = before
+            }
+            equityBeforeOverride = String(format: "%.\(dd)f", max(0, before))
+            equityAfterOverride = String(format: "%.\(dd)f", max(0, after))
+            didSeedStep3 = true
+        }
         withAnimation(.easeInOut(duration: 0.18)) { step += 1 }
     }
 
@@ -341,11 +361,14 @@ struct GuidedAddEntryView: View {
 
         // Entry.value stores PRE-action equity — the engine applies the action's `amount`
         // itself to derive post-action state (see FundEngine.computeFundMetricsForFund).
-        // For shares-price mode, recompute pre-action equity using the real execution
-        // price so the stored value tracks today's market, not just step-1's estimate.
+        // Resolution order for pre-action equity: user override in step 3 wins, else
+        // shares-price mode recomputes from real execution price, else step-1 value.
         var equityForEntry = finalEquity
         if equityInput == .shares_price && execPrice > 0 {
             equityForEntry = cumulativeSharesHeld * execPrice
+        }
+        if !equityBeforeOverride.trimmingCharacters(in: .whitespaces).isEmpty {
+            equityForEntry = max(0, parseFormulaValue(equityBeforeOverride))
         }
 
         // Full exit: force the engine's liquidation detection to fire. `valueLiquidated`
@@ -784,12 +807,13 @@ private struct GuidedStep2: View {
 
 private struct GuidedStep3: View {
     let fund: FundData
-    let date: Date
-    let currentEquity: Double
-    let action: FundAction
-    let actualAmount: Double
     let showShares: Bool
     let exitedPosition: Bool
+    @Binding var date: Date
+    @Binding var action: FundAction
+    @Binding var actualAmount: String
+    @Binding var equityBefore: String
+    @Binding var equityAfter: String
     @Binding var sharesBinding: String
     @Binding var dividend: String
     @Binding var marginAvailable: String
@@ -798,45 +822,72 @@ private struct GuidedStep3: View {
     @Binding var fee: String
     @Binding var notes: String
 
+    private enum EntryField: Hashable { case amount, equityBefore, equityAfter }
+    @FocusState private var focusedField: EntryField?
+
     private var dd: Int { fund.config.dollarDec }
     private var features: FundTypeFeatures { getFeatures(fund.config.fund_type) }
     private var isCash: Bool { isCashFund(fund.config.fund_type) }
 
     private var parsedShares: Double { parseFormulaValue(sharesBinding) }
 
-    /// Projected fund equity once this entry is applied. BUY/DEPOSIT add, SELL/WITHDRAW subtract.
-    private var postActionEquity: Double {
-        if exitedPosition { return 0 }
+    private var allowedActions: [FundAction] {
+        isCash ? [.DEPOSIT, .WITHDRAW, .HOLD] : [.BUY, .SELL, .HOLD]
+    }
+
+    private func fmt(_ v: Double) -> String { String(format: "%.\(dd)f", max(0, v)) }
+
+    /// When amount or before changes due to user editing that specific field, recompute after.
+    private func syncAfterFromAmountAndBefore() {
+        let before = parseFormulaValue(equityBefore)
+        let amt = parseFormulaValue(actualAmount)
+        let after: Double
         switch action {
-        case .BUY, .DEPOSIT: return currentEquity + actualAmount
-        case .SELL, .WITHDRAW: return max(0, currentEquity - actualAmount)
-        default: return currentEquity
+        case .BUY, .DEPOSIT: after = before + amt
+        case .SELL, .WITHDRAW: after = exitedPosition ? 0 : max(0, before - amt)
+        default: after = before
         }
+        equityAfter = fmt(after)
+    }
+
+    /// When after is edited by the user, back-calculate amount from before & after.
+    private func syncAmountFromAfter() {
+        let before = parseFormulaValue(equityBefore)
+        let after = parseFormulaValue(equityAfter)
+        let amt: Double
+        switch action {
+        case .BUY, .DEPOSIT: amt = max(0, after - before)
+        case .SELL, .WITHDRAW: amt = max(0, before - after)
+        default: amt = 0
+        }
+        actualAmount = fmt(amt)
     }
 
     private struct DetailRow: Identifiable {
         let id: String
         let label: String
         let text: Binding<String>
-        let prefix: String?
+        /// Sign affix shown to the right of the value; when "-" is passed,
+        /// NumericFieldRow also strips user-entered minus signs.
+        let sign: String?
         let placeholder: String
     }
 
     private var detailRows: [DetailRow] {
         var rows: [DetailRow] = []
         if features.supportsShares && !showShares {
-            rows.append(DetailRow(id: "shares", label: "Shares / Units", text: $sharesBinding, prefix: nil, placeholder: "0"))
+            rows.append(DetailRow(id: "shares", label: "Shares / Units", text: $sharesBinding, sign: nil, placeholder: "0"))
         }
         if features.supportsDividends {
-            rows.append(DetailRow(id: "dividend", label: "Dividend", text: $dividend, prefix: "$", placeholder: "0.00"))
+            rows.append(DetailRow(id: "dividend", label: "Dividend ($)", text: $dividend, sign: nil, placeholder: "0.00"))
         }
         if features.supportsMargin {
-            rows.append(DetailRow(id: "margin_avail", label: "Margin available", text: $marginAvailable, prefix: "$", placeholder: "0.00"))
-            rows.append(DetailRow(id: "margin_borrow", label: "Margin borrowed", text: $marginBorrowed, prefix: "$", placeholder: "0.00"))
+            rows.append(DetailRow(id: "margin_avail", label: "Margin available ($)", text: $marginAvailable, sign: nil, placeholder: "0.00"))
+            rows.append(DetailRow(id: "margin_borrow", label: "Margin borrowed ($)", text: $marginBorrowed, sign: "-", placeholder: "0.00"))
         }
         if isCash {
-            rows.append(DetailRow(id: "cash_interest", label: "Interest earned", text: $cashInterest, prefix: "$", placeholder: "0.00"))
-            rows.append(DetailRow(id: "fee", label: "Fee", text: $fee, prefix: "$", placeholder: "0.00"))
+            rows.append(DetailRow(id: "cash_interest", label: "Interest earned ($)", text: $cashInterest, sign: nil, placeholder: "0.00"))
+            rows.append(DetailRow(id: "fee", label: "Fee ($)", text: $fee, sign: "-", placeholder: "0.00"))
         }
         return rows
     }
@@ -862,41 +913,101 @@ private struct GuidedStep3: View {
         .background(Color.bg.ignoresSafeArea())
     }
 
-    // MARK: Summary card (read-only recap)
+    // MARK: Summary card (editable entry)
 
     @ViewBuilder
     private var summaryCard: some View {
         VStack(spacing: 0) {
             summaryRow("Fund", value: "\(fund.ticker.uppercased()) (\(fund.platform))")
             Divider()
-            summaryRow("Date", value: isoDateFormatter.string(from: date))
+            dateRow
             Divider()
-            summaryRow("Action", value: action.rawValue, color: Color.forAction(action))
+            actionRow
             if action != .HOLD {
                 Divider()
-                summaryRow("Amount", value: formatCurrency(actualAmount, decimals: dd))
+                NumericFieldRow(label: "Amount ($)", placeholder: "0.00", text: $actualAmount)
+                    .focused($focusedField, equals: .amount)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
                 if showShares && parsedShares > 0 {
                     Divider()
                     summaryRow("Shares", value: cleanShares(parsedShares))
                 }
             }
             Divider()
-            summaryRow("Equity (before)", value: formatCurrency(currentEquity, decimals: dd))
-            if action != .HOLD && actualAmount > 0 {
+            NumericFieldRow(label: "Equity before ($)", placeholder: "0.00", text: $equityBefore)
+                .focused($focusedField, equals: .equityBefore)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+            if action != .HOLD {
                 Divider()
-                summaryRow(
-                    "Equity (after)",
-                    value: exitedPosition
-                        ? "\(formatCurrency(0, decimals: dd)) (exited)"
-                        : formatCurrency(postActionEquity, decimals: dd),
-                    color: exitedPosition ? .mint : .textPrimary
-                )
+                equityAfterRow
             }
         }
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(Color.bgCard)
         )
+        .onChange(of: actualAmount) { _, _ in
+            if focusedField == .amount { syncAfterFromAmountAndBefore() }
+        }
+        .onChange(of: equityBefore) { _, _ in
+            if focusedField == .equityBefore { syncAfterFromAmountAndBefore() }
+        }
+        .onChange(of: equityAfter) { _, _ in
+            if focusedField == .equityAfter { syncAmountFromAfter() }
+        }
+        .onChange(of: action) { _, _ in syncAfterFromAmountAndBefore() }
+    }
+
+    @ViewBuilder
+    private var dateRow: some View {
+        HStack {
+            Text("Date")
+                .font(.subheadline)
+                .foregroundColor(.textMuted)
+            Spacer()
+            DatePicker("", selection: $date, displayedComponents: .date)
+                .labelsHidden()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private var actionRow: some View {
+        HStack {
+            Text("Action")
+                .font(.subheadline)
+                .foregroundColor(.textMuted)
+            Spacer()
+            Picker("", selection: $action) {
+                ForEach(allowedActions, id: \.self) { a in
+                    Text(a.rawValue).tag(a)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(maxWidth: 220)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private var equityAfterRow: some View {
+        if exitedPosition {
+            summaryRow(
+                "Equity after",
+                value: "\(formatCurrency(0, decimals: dd)) (exited)",
+                color: .mint
+            )
+        } else {
+            NumericFieldRow(label: "Equity after ($)", placeholder: "0.00", text: $equityAfter)
+                .focused($focusedField, equals: .equityAfter)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+        }
     }
 
     // MARK: Details card (editable optional fields)
@@ -912,42 +1023,23 @@ private struct GuidedStep3: View {
                 .padding(.bottom, 6)
 
             ForEach(Array(detailRows.enumerated()), id: \.element.id) { idx, row in
-                if idx > 0 { Divider() }
-                editableRow(label: row.label, text: row.text, prefix: row.prefix, placeholder: row.placeholder)
+                if idx > 0 {
+                    Divider().padding(.leading, 14)
+                }
+                NumericFieldRow(
+                    label: row.label,
+                    placeholder: row.placeholder,
+                    text: row.text,
+                    sign: row.sign
+                )
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
             }
         }
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(Color.bgCard)
         )
-    }
-
-    @ViewBuilder
-    private func editableRow(label: String, text: Binding<String>, prefix: String? = nil, placeholder: String = "0.00") -> some View {
-        HStack {
-            Text(label)
-                .font(.subheadline)
-                .foregroundColor(.textMuted)
-            Spacer()
-            if let prefix {
-                Text(prefix)
-                    .font(.subheadline)
-                    .foregroundColor(.textMuted)
-            }
-            TextField("", text: text, prompt: Text(placeholder).foregroundColor(.textMuted.opacity(0.4)))
-                .formulaKeyboard()
-                .multilineTextAlignment(.trailing)
-                .font(.subheadline).fontWeight(.medium)
-                .foregroundColor(.textPrimary)
-                #if os(macOS)
-                .frame(maxWidth: 140)
-                .textFieldStyle(.plain)
-                #else
-                .frame(maxWidth: 140)
-                #endif
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
     }
 
     // MARK: Notes

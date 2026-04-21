@@ -28,6 +28,8 @@ struct NumericFieldRow: View {
         HStack {
             Text(label)
                 .foregroundColor(.textPrimary)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
             Spacer()
             if let sign {
                 Text(sign)
