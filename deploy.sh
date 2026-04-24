@@ -1,17 +1,21 @@
 #!/bin/bash
 set -euo pipefail
 
-# EscapeMint Swift - Local TestFlight Deploy
+# EscapeMint Swift - TestFlight Deploy (local + CI)
 #
-# Usage: ./deploy.sh [--skip-tests] [--ios] [--macos] [--watch] [--all]
+# Usage: ./deploy.sh [--skip-tests] [--no-bump] [--ios] [--macos] [--watch] [--all]
 #
 #   Default (no platform flag): every platform the project has a scheme for
 #     (keeps build numbers in lockstep so App Store Connect shows the same
 #     build number on every deliverable).
-#   --ios    : iOS only
-#   --macos  : macOS only
-#   --watch  : watchOS only (standalone watch app)
-#   --all    : iOS + macOS + watchOS (equivalent to no flag on a tri-platform project)
+#   --ios      : iOS only
+#   --macos    : macOS only
+#   --watch    : watchOS only (standalone watch app)
+#   --all      : iOS + macOS + watchOS (equivalent to no flag on a tri-platform project)
+#   --no-bump  : do NOT auto-increment CURRENT_PROJECT_VERSION, and do NOT
+#                create the final "build: bump to build N" commit. Intended for
+#                CI tag-triggered deploys, where the tagged ref already
+#                carries the final build number.
 #
 # Uploads are serial with a 60s gap between each to avoid Apple's CDN
 # rejecting concurrent uploads from the same API key ("another build is
@@ -71,6 +75,7 @@ HAS_WATCH=false; has_scheme "$SCHEME_WATCH" && HAS_WATCH=true
 # explicit flag referencing a missing scheme but silently skip missing schemes
 # under --all.
 SKIP_TESTS=false
+NO_BUMP=false
 BUILD_IOS=false
 BUILD_MACOS=false
 BUILD_WATCH=false
@@ -81,6 +86,7 @@ FAN_OUT=false
 for arg in "$@"; do
     case "$arg" in
         --skip-tests) SKIP_TESTS=true ;;
+        --no-bump)    NO_BUMP=true ;;
         --ios)   EXPLICIT_IOS=true ;;
         --macos) EXPLICIT_MACOS=true ;;
         --watch) EXPLICIT_WATCH=true ;;
@@ -131,26 +137,35 @@ echo "$MSG"
 # We snapshot the files to unique tempfiles instead of `git checkout --`, because
 # git-checkout would also discard any pre-existing uncommitted changes the operator
 # may have in these files (e.g. in-progress edits to project.yml or the pbxproj).
-ORIG_PROJECT_YML=$(mktemp)
-ORIG_PBXPROJ=$(mktemp)
-cp project.yml "$ORIG_PROJECT_YML"
-cp "$PROJECT/project.pbxproj" "$ORIG_PBXPROJ"
+#
+# --no-bump skips both the increment and the snapshot/rollback machinery — used
+# by CI tag-triggered deploys, where the tagged ref is the authoritative build
+# number and CI has no business writing back to the repo.
+if ! $NO_BUMP; then
+    ORIG_PROJECT_YML=$(mktemp)
+    ORIG_PBXPROJ=$(mktemp)
+    cp project.yml "$ORIG_PROJECT_YML"
+    cp "$PROJECT/project.pbxproj" "$ORIG_PBXPROJ"
 
-CURRENT_BUILD=$(grep CURRENT_PROJECT_VERSION project.yml | head -1 | awk '{print $2}')
-NEW_BUILD=$((CURRENT_BUILD + 1))
-echo "📦 Build number: $CURRENT_BUILD → $NEW_BUILD"
-/usr/bin/sed -i '' "s/CURRENT_PROJECT_VERSION: ${CURRENT_BUILD}/CURRENT_PROJECT_VERSION: ${NEW_BUILD}/" project.yml
+    CURRENT_BUILD=$(grep CURRENT_PROJECT_VERSION project.yml | head -1 | awk '{print $2}')
+    NEW_BUILD=$((CURRENT_BUILD + 1))
+    echo "📦 Build number: $CURRENT_BUILD → $NEW_BUILD"
+    /usr/bin/sed -i '' "s/CURRENT_PROJECT_VERSION: ${CURRENT_BUILD}/CURRENT_PROJECT_VERSION: ${NEW_BUILD}/" project.yml
 
-DEPLOY_SUCCESS=false
-rollback_build_bump() {
-    if [ "$DEPLOY_SUCCESS" = "false" ]; then
-        echo "↩️  Rolling back build number bump (deploy did not complete)..."
-        cp "$ORIG_PROJECT_YML" project.yml 2>/dev/null || true
-        cp "$ORIG_PBXPROJ" "$PROJECT/project.pbxproj" 2>/dev/null || true
-    fi
-    rm -f "$ORIG_PROJECT_YML" "$ORIG_PBXPROJ"
-}
-trap rollback_build_bump EXIT
+    DEPLOY_SUCCESS=false
+    rollback_build_bump() {
+        if [ "$DEPLOY_SUCCESS" = "false" ]; then
+            echo "↩️  Rolling back build number bump (deploy did not complete)..."
+            cp "$ORIG_PROJECT_YML" project.yml 2>/dev/null || true
+            cp "$ORIG_PBXPROJ" "$PROJECT/project.pbxproj" 2>/dev/null || true
+        fi
+        rm -f "$ORIG_PROJECT_YML" "$ORIG_PBXPROJ"
+    }
+    trap rollback_build_bump EXIT
+else
+    NEW_BUILD=$(grep CURRENT_PROJECT_VERSION project.yml | head -1 | awk '{print $2}')
+    echo "📦 Build number: $NEW_BUILD (--no-bump, using committed value)"
+fi
 
 echo "⚙️  Regenerating Xcode project..."
 xcodegen generate
@@ -429,10 +444,15 @@ echo "✅ Build $NEW_BUILD submitted to TestFlight."
 # is flipped AFTER `git commit` succeeds — if the commit itself fails (hooks, config
 # issues, etc.) under `set -e`, the EXIT trap still sees DEPLOY_SUCCESS=false and
 # rolls back the pre-commit file changes.
-git add project.yml "$PROJECT/project.pbxproj"
-git commit -m "build: bump to build $NEW_BUILD"
-DEPLOY_SUCCESS=true
-echo "📝 Committed build number bump"
+#
+# --no-bump skips the commit: nothing was bumped, and CI has no business writing
+# back to the repo.
+if ! $NO_BUMP; then
+    git add project.yml "$PROJECT/project.pbxproj"
+    git commit -m "build: bump to build $NEW_BUILD"
+    DEPLOY_SUCCESS=true
+    echo "📝 Committed build number bump"
+fi
 
 rm -rf "$BUILD_DIR"
 echo "🧹 Cleaned build artifacts"
