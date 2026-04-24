@@ -199,11 +199,52 @@ final class FundDataStore {
         }
     }
 
+    /// Atomic fund rename: single recompute + disk swap. Convenience wrapper
+    /// around `renameFunds` for a single-fund rename.
+    func renameFund(from oldId: String, to newFund: FundData) async {
+        await renameFunds([(oldId, newFund)])
+    }
+
+    /// Batch rename: apply N platform/ticker changes with a SINGLE recompute +
+    /// side-effect pass. Renaming a platform with 20 funds was previously
+    /// triggering 20 recomputes, notification reschedules, widget refreshes.
+    func renameFunds(_ edits: [(oldId: String, newFund: FundData)]) async {
+        guard !edits.isEmpty else { return }
+        var snapshot = funds
+        for (oldId, newFund) in edits {
+            if let idx = snapshot.firstIndex(where: { $0.id == oldId }) {
+                snapshot[idx] = newFund
+            }
+            forgetFund(id: oldId)
+            bumpFundVersion(newFund.id)
+        }
+        await recomputeWith(snapshot)
+        var anyWriteSucceeded = false
+        for (oldId, newFund) in edits {
+            do {
+                try await FundStore.shared.writeFund(newFund)
+                if oldId != newFund.id {
+                    try await FundStore.shared.deleteFund(id: oldId)
+                }
+                anyWriteSucceeded = true
+            } catch {
+                Self.logger.error("renameFunds disk op failed for \(oldId): \(error)")
+            }
+        }
+        if anyWriteSucceeded {
+            ICloudSyncMonitor.shared.markLocalWrite()
+        }
+    }
+
+    private func forgetFund(id: String) {
+        fundMetricsCache.removeValue(forKey: id)
+        fundVersions.removeValue(forKey: id)
+    }
+
     func deleteFund(id: String) async {
         funds.removeAll { $0.id == id }
         loadedFundCount = funds.count
-        fundVersions.removeValue(forKey: id)
-        fundMetricsCache.removeValue(forKey: id)
+        forgetFund(id: id)
         await recompute()
         do {
             try await FundStore.shared.deleteFund(id: id)

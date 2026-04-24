@@ -239,21 +239,25 @@ struct PlatformsView: View {
         let cleanName = newName.trimmingCharacters(in: .whitespaces).lowercased()
         guard !cleanName.isEmpty else { return }
 
-        if cleanName != oldName && platformInfos.contains(where: { $0.name == cleanName }) {
+        guard cleanName != oldName else {
+            editingPlatform = nil
+            return
+        }
+
+        if platformInfos.contains(where: { $0.name == cleanName }) {
             renameErrorMessage = "A platform named '\(cleanName)' already exists."
             showRenameError = true
             return
         }
 
         Task {
-            let platformFunds = store.funds.filter { $0.platform == oldName }
-            for fund in platformFunds {
-                let renamedFund = FundData(platform: cleanName, ticker: fund.ticker, config: fund.config, entries: fund.entries)
-                await store.addFund(renamedFund)
-                if renamedFund.id != fund.id {
-                    await store.deleteFund(id: fund.id)
+            let edits = store.funds
+                .filter { $0.platform == oldName }
+                .map { fund in
+                    (oldId: fund.id,
+                     newFund: FundData(platform: cleanName, ticker: fund.ticker, config: fund.config, entries: fund.entries))
                 }
-            }
+            await store.renameFunds(edits)
             editingPlatform = nil
         }
     }

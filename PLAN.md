@@ -4,10 +4,52 @@ Native SwiftUI app for iOS, iPadOS, and macOS. Same bundle ID as the App Store C
 
 ## Next Actions
 
-1. **Phase 2: iPhone/iPad Adaptation** — adapt macOS layouts for smaller screens (see below)
-2. **Phase 3: iCloud Sync** — cross-device sync via iCloud Documents
-3. **Phase 4: Polish & Submission** — screenshots, App Store review
-4. **Test coverage** — address deferred test quality findings from audits
+1. **Pre-Open-Source cleanup** — see audit below before flipping repo to public
+2. **Phase 2: iPhone/iPad Adaptation** — adapt macOS layouts for smaller screens (see below)
+3. **Phase 3: iCloud Sync** — cross-device sync via iCloud Documents
+4. **Phase 4: Polish & Submission** — screenshots, App Store review
+5. **Test coverage** — address deferred test quality findings from audits
+
+---
+
+## Pre-Open-Source Audit — 2026-04-24
+
+Audit for flipping the repo public. Secrets already scrubbed (`.env.example` + `.claude/commands/release.md`) and `LivePriceService` dead-code removed. This section covers what's left: real bugs, test gaps, and public-release polish.
+
+### Pre-Open-Source blockers
+- [x] ~~**[HIGH]** CI workflow disabled + stale~~ — renamed `ci.yml.disabled` → `ci.yml`, updated to `EscapeMint_iOS` / `EscapeMint_macOS` schemes, now runs both platforms' tests on every PR
+- [x] ~~**[HIGH]** `README.md` is 16 lines~~ — replaced with Quick Start (clone → xcodegen → build/test), command-line build commands for iOS + macOS, project layout, and link to CONTRIBUTING
+- [x] ~~**[MEDIUM]** `PLAN.md` is 454 lines with 3 stacked historical audits~~ — wrapped 2026-03-19, 2026-03-26, 2026-04-07 audits in `<details>` blocks so the top of the file stays scannable
+- [x] ~~**[MEDIUM]** `CLAUDE.md` banner for public visitors~~ — added one-line note at top pointing human contributors to README + CONTRIBUTING
+- [x] ~~**[LOW]** No `CONTRIBUTING.md`~~ — created with setup, test command, code style, PR format, bug/security reporting
+
+### Fresh bug findings (real, verified)
+- [ ] **[HIGH]** `FundDataStore.replaceEntries` / `updateConfig` / `renameFund` (lines 289, 307, 187) — memory is updated optimistically via `recomputeWith`, but disk write failures are only logged (`Self.logger.error`). User sees the UI update; if `FundStore.writeFund` / `replaceEntries` throws, data is silently lost on next relaunch / iCloud reload. Fix: surface write failures to the caller (return `Result` or throw) so views can show a toast; don't invert the recompute order (UI responsiveness is valuable) (Medium)
+- [ ] **[HIGH]** `FundStore.importFromBackupJSON` can leave half-written fund files on disk. If the config JSON write succeeds but TSV write fails (or vice versa), the imported-count reported to the user is wrong. Fix: write both to a staging filename, rename-into-place only on success, or validate both files exist before counting (Medium)
+- [ ] **[MEDIUM]** `ICloudSyncMonitor.scheduleReload` (line 116) — cancels the debounce Task before a new one, but if a reload is already past the `sleep` and running `FundDataStore.reload()`, cancel is a no-op and a second reload will start behind it. MainActor serializes the bodies, but two reloads overlap in logical time. In practice iCloud sync is idempotent so the damage is mostly wasted I/O, but worth a guard. Fix: add an `isReloadInFlight` flag; coalesce while set (Simple)
+
+### Fresh test gaps (real, not already tracked)
+- [ ] **[HIGH][MISSING]** `FundDataStore.renameFund` — added 2026-04-24, zero tests. Fix: integration test that writes a fund, renames, verifies (a) new id in memory, (b) old id removed, (c) metricsCache + fundVersions cleaned up, (d) old file deleted + new file written (Simple)
+- [ ] **[HIGH][MISSING]** `DCANotificationManager.cancelAll` — fixed 2026-04-24 to use `removeAllPendingNotificationRequests()`. Fix: stub `UNUserNotificationCenter` call via an injectable protocol or just test that `pendingIdentifiers` is cleared and a second `setEnabled(false)` is idempotent (Medium)
+- [ ] **[MEDIUM][MISSING]** `GuidedAddEntryView` — brand-new multi-step wizard (3+ branches: direct-equity, shares-price, exit-toggle), zero tests. Fix: extract the step-transition + recommendation-recompute logic to a testable helper, add unit tests (Medium)
+- [ ] **[MEDIUM][WEAK]** `StorageTests.swift:359` `testBackupJSONSkipsTestFunds` only covers `importFromBackupJSON` path; directory-based import skipping (`FundStore.importFromDirectory`) is untested. Fix: add directory-import parallel test (Simple)
+- [ ] **[LOW]** `Converters` TSV escape test only covers `\t` and `\n`; emoji / RTL / combining marks untested. Minor — not a blocker, but users pasting notes will find it eventually (Simple)
+
+### Functional gaps visible in the code
+- [ ] **[LOW]** Settings view toggles for DCA notifications call `setEnabled(true/false)` but the permission-denied path only logs — user sees the toggle appear to succeed. Fix: on permission-denied, revert the toggle state and show a toast (Simple)
+- [ ] **[LOW]** Backtest date-range TextField accepts any string; invalid ISO dates silently fall back to `availableRange`. UX nit, not a correctness bug. Fix (deferred from CODEX_REVIEW finding #5): switch to `DatePicker` bound to `Date` (Medium)
+- [ ] **[LOW]** `BacktestEngine` with a single-asset portfolio has no explicit test; likely works but edge case unverified. Fix: add `testRunBacktestSingleAsset` (Simple)
+
+### Which older PLAN.md items to address before going public
+
+Of the accumulated deferred items, the ones actually worth closing before public release (ordered by ROI):
+
+1. **[HIGH]** Remove/fix CI — see Pre-Open-Source Blockers above.
+2. **[HIGH]** `FundStore.swift` nonisolated(unsafe) directory-state race (2026-04-07 audit) — real data-race risk, bad look in a public Swift 6 codebase.
+3. **[HIGH]** `importFromBackupJSON` silent error swallowing (2026-04-07 audit) — overlaps with the fresh "half-written fund files" finding above; fix together.
+4. **[MEDIUM]** Missing `#Preview` macros (2026-03-26 audit) — a public SwiftUI repo without previews feels unprofessional, and they're cheap to add.
+
+Everything else (big file splits, ViewCache refactor, Dynamic Type, etc.) is fine to ship as open todo. Open-source contributors often like finding low-hanging items in a public roadmap.
 
 ## High-Impact Feature Ideas
 
@@ -29,17 +71,7 @@ The app already computes `interval_days` per fund and knows exactly when the nex
 - Deep link notification tap → fund detail view
 - Badge count = number of overdue DCA actions (already computed for dock badge)
 
-### 3. Live Price Integration (CoinGecko / Yahoo Finance)
-Transform from manual-entry tracking to live portfolio valuation. Currently users only see values as of their last entry — live prices would show real-time portfolio value and unrealized gain/loss between entries.
-- Free tier APIs: CoinGecko (crypto, no key needed), Yahoo Finance (stocks)
-- Map fund tickers to API symbols (BTC→bitcoin, AAPL→AAPL)
-- Show live price + change on dashboard cards and fund detail header
-- Compute real-time unrealized P&L: `(livePrice - lastEntryPrice) * shares`
-- Cache prices locally with 5-min TTL to stay within rate limits
-- Optional — doesn't replace manual entries, just enriches between-entry visibility
-- Graceful degradation: works fully offline with last-cached prices
-
-### 4. Biometric Authentication (Face ID / Touch ID)
+### 3. Biometric Authentication (Face ID / Touch ID)
 Financial data is sensitive — a biometric lock is table stakes for any finance app on the App Store. Users expect it and reviewers look for it.
 - `LAContext` with `.deviceOwnerAuthenticationWithBiometrics` on app foreground
 - Fallback to device passcode
@@ -48,7 +80,7 @@ Financial data is sensitive — a biometric lock is table stakes for any finance
 - `@AppStorage` flag — no server, no accounts, just local biometric gate
 - Minimal code (~50 lines for the auth manager + a gate view)
 
-### 5. Spotlight Search & Siri Shortcuts
+### 4. Spotlight Search & Siri Shortcuts
 Let users find funds instantly from the iOS home screen and ask Siri for portfolio status — makes the app feel like a first-class citizen on the platform.
 - **Spotlight**: Index funds via `CSSearchableIndex` — search "BTC" or "Coinbase" from home screen, deep link to fund detail
 - Update index on fund create/delete/rename
@@ -75,7 +107,8 @@ Let users find funds instantly from the iOS home screen and ask Siri for portfol
 
 ---
 
-## Better Swift Audit - 2026-04-07
+<details>
+<summary><strong>Better Swift Audit — 2026-04-07</strong> · 99 findings, 4 PRs merged (#3–#6), ~40 deferred</summary>
 
 Summary: 99 findings across 7 categories. 6 CRITICAL, 27 HIGH, 40 MEDIUM, 26 LOW.
 Platforms: iOS 17+, macOS 14+ | Build system: XcodeGen
@@ -194,9 +227,12 @@ Build verified: 242 → 243 tests pass on both iOS 17+ and macOS 14+. Zero failu
 - [ ] **[MEDIUM][WEAK]** `EngineTests.swift:219-237` nil recommendation tests use default state only. Fix: non-default FundState values (Simple)
 - [ ] **[MEDIUM][WEAK]** `EngineTests.swift:1221` cash interest `accuracy: 5.0` on $360 expected. Fix: tighten to 0.10 (Simple)
 
+</details>
+
 ---
 
-## Better Swift Audit - 2026-03-26
+<details>
+<summary><strong>Better Swift Audit — 2026-03-26</strong> · 80+ findings, 43 fixed across 8 commits</summary>
 
 Summary: 80+ findings across 30+ files from 7 agents. 43 fixed across 8 commits.
 Platforms: iOS 17+, macOS 14+ | Build system: XcodeGen
@@ -205,7 +241,6 @@ Platforms: iOS 17+, macOS 14+ | Build system: XcodeGen
 - [x] `FundStore`: `deleteFund`, `deleteAllFunds`, `updateConfig`, `backupFund` — replaced `try?` with proper error propagation
 - [x] `FundStore`: migrated all `print()` to `os.Logger` with privacy annotations
 - [x] `FundStore`: deduplicated backup DateFormatter to shared static property
-- [x] `LivePriceService.PriceData.isStale` — references `cacheTTLSeconds` constant instead of hardcoded 300
 - [x] `AddEntryView/DashboardView`: replaced `print()` with `os.Logger`
 - [x] Warnings: added missing `.none` case to LABiometryType switches
 
@@ -274,9 +309,12 @@ Platforms: iOS 17+, macOS 14+ | Build system: XcodeGen
 - [ ] **[CRITICAL]** `FundStore` actor methods — 0 integration tests for I/O layer
 - [ ] **[HIGH]** `importFromBackupJSON` — test never calls actual actor method
 
+</details>
+
 ---
 
-## Better Swift Audit - 2026-03-19
+<details>
+<summary><strong>Better Swift Audit — 2026-03-19</strong> · 31 findings after dedup</summary>
 
 Summary: 31 genuine findings across 18 files after deduplication and false-positive filtering.
 Platforms: iOS 17+, macOS 14+ | Build system: XcodeGen
@@ -346,6 +384,8 @@ Platforms: iOS 17+, macOS 14+ | Build system: XcodeGen
 - [ ] **[MEDIUM][WEAK]** `EngineTests.swift:954-993` - Backtest test only checks synthetic constant data — Fix: add volatility/downturn scenarios (Medium)
 - [ ] **[MEDIUM][WEAK]** TSV parsing tests missing edge cases (malformed, extra tabs) (Simple)
 - [ ] **[LOW][VACUOUS]** `EngineTests.swift:219-237` - Nil recommendation tests lack meaningful state setup (Simple)
+
+</details>
 
 ---
 

@@ -4,7 +4,7 @@ import XCTest
 final class EngineTests: XCTestCase {
 
     // MARK: - Helpers
-
+    
     /// Build a minimal stock FundConfig with sensible defaults for testing
     private func makeStockConfig(
         targetApy: Double = 0.10,

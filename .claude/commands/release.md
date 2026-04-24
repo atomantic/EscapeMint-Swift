@@ -26,6 +26,6 @@ Build, archive, and upload to TestFlight locally.
    - Inform the user the build should appear in TestFlight within 5-10 minutes
 
 5. **If deploy.sh doesn't exist or .env is missing**:
-   - Create `.env` from `.env.example`
-   - The API key is at `~/Library/Mobile Documents/com~apple~CloudDocs/AppDev/AuthKey_DLJTLUDW5X.p8`
+   - Create `.env` from `.env.example` and fill in your own values
+   - Point `APPSTORE_API_PRIVATE_KEY_PATH` at your own `AuthKey_<KEY_ID>.p8` file
    - See the `ios-app-store-connect-setup` skill for full setup details

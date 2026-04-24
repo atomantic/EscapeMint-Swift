@@ -76,9 +76,12 @@ final class DCANotificationManager {
     }
 
     func cancelAll() {
-        UNUserNotificationCenter.current().removePendingNotificationRequests(
-            withIdentifiers: pendingIdentifiers
-        )
+        // DCA reminders are the only notifications this app schedules, so a full
+        // clear is safe — and crucially this also removes requests scheduled in
+        // a prior launch (the `pendingIdentifiers` in-memory array is empty on
+        // a fresh launch, so the previous per-id removal would silently leak
+        // stale reminders after the user toggles reminders off).
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
         pendingIdentifiers = []
     }
 

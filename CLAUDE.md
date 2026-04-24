@@ -1,5 +1,7 @@
 # EscapeMint Swift
 
+> **For human contributors:** this file is a project brief for the Claude Code AI assistant. See [README.md](README.md) and [CONTRIBUTING.md](CONTRIBUTING.md) for the public-facing docs. The content below is useful background regardless of whether you're using AI tooling.
+
 Native SwiftUI port of the EscapeMint web app (`../EscapeMint/`). Portfolio management and DCA tracking for iOS, iPadOS, and macOS.
 
 ## Context

@@ -104,3 +104,19 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: net.shadowpuppet.EscapeMint.tests
+
+schemes:
+  EscapeMint_iOS:
+    build:
+      targets:
+        EscapeMint_iOS: all
+    test:
+      targets:
+        - EscapeMintTests_iOS
+  EscapeMint_macOS:
+    build:
+      targets:
+        EscapeMint_macOS: all
+    test:
+      targets:
+        - EscapeMintTests_macOS

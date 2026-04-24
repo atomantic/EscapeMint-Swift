@@ -133,47 +133,6 @@ final class ServicesTests: XCTestCase {
         }
     }
 
-    // MARK: - LivePriceService
-
-    @MainActor
-    func testLivePriceServiceInitialState() {
-        let service = LivePriceService.shared
-        XCTAssertTrue(service.prices.isEmpty, "Should start with no cached prices")
-        XCTAssertFalse(service.isFetching)
-        XCTAssertNil(service.lastFetched)
-    }
-
-    @MainActor
-    func testLivePriceServiceCacheLookup() {
-        let service = LivePriceService.shared
-        // No prices cached
-        XCTAssertNil(service.price(for: "BTC"))
-        XCTAssertNil(service.price(for: "nonexistent"))
-    }
-
-    @MainActor
-    func testLivePriceServiceUnrealizedPnLNoPrice() {
-        let service = LivePriceService.shared
-        let fund = FundData(
-            platform: "test", ticker: "BTC",
-            config: FundConfig(fund_type: .crypto),
-            entries: [FundEntry(date: "2026-01-01", value: 1000, shares: 0.01, price: 50000)]
-        )
-        // No cached price → returns nil
-        XCTAssertNil(service.unrealizedPnL(for: fund))
-    }
-
-    @MainActor
-    func testLivePriceServiceUnrealizedPnLNoShares() {
-        let service = LivePriceService.shared
-        let fund = FundData(
-            platform: "test", ticker: "XYZ",
-            config: FundConfig(fund_type: .stock),
-            entries: [FundEntry(date: "2026-01-01", value: 1000)]
-        )
-        XCTAssertNil(service.unrealizedPnL(for: fund))
-    }
-
     // MARK: - SpotlightIndexer
 
     func testSpotlightIndexerDoesNotCrash() {

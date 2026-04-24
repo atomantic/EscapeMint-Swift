@@ -131,11 +131,9 @@
 		CBF230C3FE1A6EB5F2D9E4CF /* FundTypeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84E4D35AF8187D701960FA42 /* FundTypeConfig.swift */; };
 		CC01A0E06B50D0B8B2FD6A86 /* AddEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFF252A47ECBD98740348309 /* AddEntryView.swift */; };
 		CC31BD57B8B4EC7862535B39 /* btc-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 62673091D474C5E9C408B22C /* btc-weekly.json */; };
-		CC916E391C6C94B25F6AC0EA /* LivePriceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32158CA7F35E33173F819524 /* LivePriceService.swift */; };
 		CDBED69DCFAFCF4B3A2D830B /* BacktestTransactions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42D65DB13952E5D475D4A596 /* BacktestTransactions.swift */; };
 		CDD968D5B4196DF0CEB2D798 /* spxl-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = A1CDA29D3BC058B300AC82EA /* spxl-weekly.json */; };
 		CE6E624BE9136E786FFF12F2 /* BacktestTransactions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42D65DB13952E5D475D4A596 /* BacktestTransactions.swift */; };
-		CF8D4B30B5A9F81241594D65 /* LivePriceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32158CA7F35E33173F819524 /* LivePriceService.swift */; };
 		CFB0DB85FA6B787056AADE51 /* coinbasetest-cash.json in Resources */ = {isa = PBXBuildFile; fileRef = 28D10063CEA04E34B422E48A /* coinbasetest-cash.json */; };
 		CFF07BF43EECAB7A8E1A4ECB /* EscapeMintApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89B67B9D0233CE75C2517D8B /* EscapeMintApp.swift */; };
 		D19B5BE222995BF7D3FFFF5E /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A6F3B49FC8BE5BDD0D59CDD /* AuthManager.swift */; };
@@ -223,7 +221,6 @@
 		28D10063CEA04E34B422E48A /* coinbasetest-cash.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "coinbasetest-cash.json"; sourceTree = "<group>"; };
 		2E641E9CCCCA375177111F7A /* InfoTipLabel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoTipLabel.swift; sourceTree = "<group>"; };
 		2FA36F78945896AA5A44225F /* gld-weekly.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "gld-weekly.json"; sourceTree = "<group>"; };
-		32158CA7F35E33173F819524 /* LivePriceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivePriceService.swift; sourceTree = "<group>"; };
 		3B0F9CBFA841C5EAF45B1A2F /* GuidedAddEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedAddEntryView.swift; sourceTree = "<group>"; };
 		3F80087125ABA29D4B680493 /* FundCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundCardView.swift; sourceTree = "<group>"; };
 		4141AFA78E93A2BB544FFD49 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -359,7 +356,6 @@
 			children = (
 				0A6F3B49FC8BE5BDD0D59CDD /* AuthManager.swift */,
 				EEEDEDE31CF3AEE44DEDE3EE /* DCANotificationManager.swift */,
-				32158CA7F35E33173F819524 /* LivePriceService.swift */,
 				B4BBCB99D2DC606FB7140405 /* SpotlightIndexer.swift */,
 				8F26600F8259B5BEBBFB1C99 /* WidgetDataProvider.swift */,
 			);
@@ -803,7 +799,6 @@
 				F4AE21EA90918C341A6946AD /* IntroCharts.swift in Sources */,
 				5D1ACA7E51AFB3F87310DE88 /* IntroContent.swift in Sources */,
 				73A0B128972CB4F65E452D7C /* IntroGuideView.swift in Sources */,
-				CF8D4B30B5A9F81241594D65 /* LivePriceService.swift in Sources */,
 				9ADC0757152CADB4FA9EDB74 /* LockScreenView.swift in Sources */,
 				2CE987711651869ABD5AE628 /* MetricCard.swift in Sources */,
 				0B7D62B3B1AC28C01294E542 /* NotificationNames.swift in Sources */,
@@ -870,7 +865,6 @@
 				DBD3CC62B6F1522CA01C89ED /* IntroCharts.swift in Sources */,
 				F7B47A9723F0B8D7DF9154CF /* IntroContent.swift in Sources */,
 				0C2B4BA0E0583D0D81935D4F /* IntroGuideView.swift in Sources */,
-				CC916E391C6C94B25F6AC0EA /* LivePriceService.swift in Sources */,
 				5054A9B1DC45CD5F64FE1290 /* LockScreenView.swift in Sources */,
 				FB0DD1BA773F836A3434D1D0 /* MetricCard.swift in Sources */,
 				7064B056C01915EFDB93C772 /* NotificationNames.swift in Sources */,
