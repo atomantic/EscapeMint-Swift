@@ -15,8 +15,11 @@ Pods/
 # OS
 .DS_Store
 
-# Screenshots
-*.png
+# Raw marketing/screenshot captures — commit only the README-referenced
+# subset via `git add -f screenshots/<file>`. Tracked app-icon PNGs under
+# EscapeMint/App/Assets.xcassets are unaffected (already committed).
+screenshots/*.png
+screenshots/ipad/
 
 # Editor/terminal themes
 .ghostty-theme
