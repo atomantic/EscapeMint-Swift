@@ -101,6 +101,17 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(parsed[0].notes, "line1\tcolumn2\nnewline")
     }
 
+    func testTSVNotesUnicodeRoundTrip() {
+        // Emoji, combining marks, RTL. All must survive TSV serialization
+        // since notes is the only free-form user-entered field.
+        let notes = "✅ café — Ω شكرا 🎉 a\u{0301}"  // emoji + accented + RTL + combining
+        let entry = FundEntry(date: "2025-01-01", value: 100, notes: notes)
+        let tsv = buildTSV([entry])
+        let parsed = parseTSV(tsv)
+        XCTAssertEqual(parsed.count, 1)
+        XCTAssertEqual(parsed[0].notes, notes)
+    }
+
     func testTSVWindowsLineEndings() {
         let tsv = "date\tvalue\tcash\taction\r\n2025-01-01\t1000\t\tBUY\r\n"
         let parsed = parseTSV(tsv)

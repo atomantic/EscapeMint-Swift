@@ -177,6 +177,13 @@ struct SettingsView: View {
         } footer: {
             Text("Get notified when a fund is due for its next DCA action based on its interval setting.")
         }
+        .toast(
+            isPresented: Binding(
+                get: { notifications.permissionDeniedMessage != nil },
+                set: { if !$0 { notifications.permissionDeniedMessage = nil } }
+            ),
+            message: notifications.permissionDeniedMessage ?? ""
+        )
 
         Section("Intro Guide") {
             Toggle("Show intro on launch", isOn: $showIntroOnLaunch)

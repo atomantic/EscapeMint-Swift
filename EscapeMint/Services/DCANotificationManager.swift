@@ -33,26 +33,36 @@ final class DCANotificationManager {
     static let shared = DCANotificationManager()
 
     private(set) var isAuthorized = false
+    private(set) var isEnabled: Bool
+    /// Set when a permission request was denied. SettingsView shows a toast
+    /// and clears this to dismiss. Without it, a permission denial would
+    /// leave the Toggle visually-on (optimistic binding flip) with no
+    /// notifications actually scheduled.
+    var permissionDeniedMessage: String?
+
     private static let logger = Logger(subsystem: "net.shadowpuppet.EscapeMint", category: "DCANotifications")
     private static let categoryId = "DCA_REMINDER"
 
-    var isEnabled: Bool {
-        UserDefaults.standard.bool(forKey: AppStorageKeys.dcaNotifications)
+    private init() {
+        self.isEnabled = UserDefaults.standard.bool(forKey: AppStorageKeys.dcaNotifications)
     }
-
-    private init() {}
 
     func setEnabled(_ enabled: Bool) async {
         if enabled {
             let granted = await requestPermission()
             if !granted {
                 Self.logger.info("Notification permission denied")
+                isEnabled = false
+                UserDefaults.standard.set(false, forKey: AppStorageKeys.dcaNotifications)
+                permissionDeniedMessage = "Enable notifications in System Settings to use DCA reminders."
                 return
             }
             isAuthorized = true
+            isEnabled = true
             UserDefaults.standard.set(true, forKey: AppStorageKeys.dcaNotifications)
             await rescheduleAll()
         } else {
+            isEnabled = false
             UserDefaults.standard.set(false, forKey: AppStorageKeys.dcaNotifications)
             cancelAll()
         }

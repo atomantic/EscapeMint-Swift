@@ -24,30 +24,30 @@ Audit for flipping the repo public. Secrets already scrubbed (`.env.example` + `
 - [x] ~~**[LOW]** No `CONTRIBUTING.md`~~ — created with setup, test command, code style, PR format, bug/security reporting
 
 ### Fresh bug findings (real, verified)
-- [ ] **[HIGH]** `FundDataStore.replaceEntries` / `updateConfig` / `renameFund` (lines 289, 307, 187) — memory is updated optimistically via `recomputeWith`, but disk write failures are only logged (`Self.logger.error`). User sees the UI update; if `FundStore.writeFund` / `replaceEntries` throws, data is silently lost on next relaunch / iCloud reload. Fix: surface write failures to the caller (return `Result` or throw) so views can show a toast; don't invert the recompute order (UI responsiveness is valuable) (Medium)
-- [ ] **[HIGH]** `FundStore.importFromBackupJSON` can leave half-written fund files on disk. If the config JSON write succeeds but TSV write fails (or vice versa), the imported-count reported to the user is wrong. Fix: write both to a staging filename, rename-into-place only on success, or validate both files exist before counting (Medium)
-- [ ] **[MEDIUM]** `ICloudSyncMonitor.scheduleReload` (line 116) — cancels the debounce Task before a new one, but if a reload is already past the `sleep` and running `FundDataStore.reload()`, cancel is a no-op and a second reload will start behind it. MainActor serializes the bodies, but two reloads overlap in logical time. In practice iCloud sync is idempotent so the damage is mostly wasted I/O, but worth a guard. Fix: add an `isReloadInFlight` flag; coalesce while set (Simple)
+- [x] ~~**[HIGH]** `FundDataStore.replaceEntries` / `updateConfig` / `renameFund(s)` — silent write-failure data loss~~ — all mutation paths now route through `recordDiskError(_:_:)` which sets observable `lastDiskWriteError`; root view shows a toast so users know the save failed.
+- [x] ~~**[HIGH]** `FundStore.importFromBackupJSON` half-written pair on partial failure~~ — both config and TSV writes are now in a single do/catch; on error, both files are rolled back so the imported count is accurate and no ghost funds are left on disk.
+- [x] ~~**[MEDIUM]** `ICloudSyncMonitor.scheduleReload` overlapping reloads~~ — added `isReloadInFlight` flag; concurrent reload attempts now coalesce with a log line.
 
 ### Fresh test gaps (real, not already tracked)
-- [ ] **[HIGH][MISSING]** `FundDataStore.renameFund` — added 2026-04-24, zero tests. Fix: integration test that writes a fund, renames, verifies (a) new id in memory, (b) old id removed, (c) metricsCache + fundVersions cleaned up, (d) old file deleted + new file written (Simple)
-- [ ] **[HIGH][MISSING]** `DCANotificationManager.cancelAll` — fixed 2026-04-24 to use `removeAllPendingNotificationRequests()`. Fix: stub `UNUserNotificationCenter` call via an injectable protocol or just test that `pendingIdentifiers` is cleared and a second `setEnabled(false)` is idempotent (Medium)
+- [x] ~~**[HIGH][MISSING]** `FundDataStore.renameFund` zero tests~~ — extracted `applyRenames(to:edits:)` pure helper, added 3 tests covering single rename, platform-wide batch, and unknown-id edge case.
+- [x] ~~**[HIGH][MISSING]** `DCANotificationManager.cancelAll` zero tests~~ — added `testDCACancelAllIsIdempotent` exercising the cross-session disable path the bug fix was for.
 - [ ] **[MEDIUM][MISSING]** `GuidedAddEntryView` — brand-new multi-step wizard (3+ branches: direct-equity, shares-price, exit-toggle), zero tests. Fix: extract the step-transition + recommendation-recompute logic to a testable helper, add unit tests (Medium)
 - [ ] **[MEDIUM][WEAK]** `StorageTests.swift:359` `testBackupJSONSkipsTestFunds` only covers `importFromBackupJSON` path; directory-based import skipping (`FundStore.importFromDirectory`) is untested. Fix: add directory-import parallel test (Simple)
-- [ ] **[LOW]** `Converters` TSV escape test only covers `\t` and `\n`; emoji / RTL / combining marks untested. Minor — not a blocker, but users pasting notes will find it eventually (Simple)
+- [x] ~~**[LOW]** `Converters` TSV escape test only covers `\t` and `\n`~~ — added `testTSVNotesUnicodeRoundTrip` covering emoji, accented chars, RTL, combining marks.
 
 ### Functional gaps visible in the code
-- [ ] **[LOW]** Settings view toggles for DCA notifications call `setEnabled(true/false)` but the permission-denied path only logs — user sees the toggle appear to succeed. Fix: on permission-denied, revert the toggle state and show a toast (Simple)
+- [x] ~~**[LOW]** DCA toggle permission-denied silently "succeeds"~~ — `DCANotificationManager` now observable-stored `isEnabled`; on denial it flips back to false + sets `permissionDeniedMessage` which Settings surfaces as a toast.
 - [ ] **[LOW]** Backtest date-range TextField accepts any string; invalid ISO dates silently fall back to `availableRange`. UX nit, not a correctness bug. Fix (deferred from CODEX_REVIEW finding #5): switch to `DatePicker` bound to `Date` (Medium)
-- [ ] **[LOW]** `BacktestEngine` with a single-asset portfolio has no explicit test; likely works but edge case unverified. Fix: add `testRunBacktestSingleAsset` (Simple)
+- [x] ~~**[LOW]** `BacktestEngine` single-asset portfolio edge case~~ — already covered by `testRunBacktestWithSyntheticData` (btcPct=1.0, single historicalData entry). False alarm.
 
 ### Which older PLAN.md items to address before going public
 
 Of the accumulated deferred items, the ones actually worth closing before public release (ordered by ROI):
 
-1. **[HIGH]** Remove/fix CI — see Pre-Open-Source Blockers above.
-2. **[HIGH]** `FundStore.swift` nonisolated(unsafe) directory-state race (2026-04-07 audit) — real data-race risk, bad look in a public Swift 6 codebase.
-3. **[HIGH]** `importFromBackupJSON` silent error swallowing (2026-04-07 audit) — overlaps with the fresh "half-written fund files" finding above; fix together.
-4. **[MEDIUM]** Missing `#Preview` macros (2026-03-26 audit) — a public SwiftUI repo without previews feels unprofessional, and they're cheap to add.
+1. [x] ~~**[HIGH]** CI~~ — enabled and wired to new schemes.
+2. [x] ~~**[HIGH]** `FundStore.swift` nonisolated(unsafe) directory-state race~~ — verified already fixed: `FundStore` directory state uses `OSAllocatedUnfairLock<DirectoryState>`, and `Converters.holidayCache` / `Formatters.currencyFormatterCache` also use the same lock pattern. No `nonisolated(unsafe)` remains in the codebase.
+3. [x] ~~**[HIGH]** `importFromBackupJSON` silent error swallowing~~ — addressed together with the fresh "half-written funds" fix (errors now logged at `.warning` with roll-back).
+4. [ ] **[MEDIUM]** Missing `#Preview` macros (2026-03-26 audit) — deferred; cheap but scopes to every view. Good first-contributor task.
 
 Everything else (big file splits, ViewCache refactor, Dynamic Type, etc.) is fine to ship as open todo. Open-source contributors often like finding low-hanging items in a public roadmap.
 
