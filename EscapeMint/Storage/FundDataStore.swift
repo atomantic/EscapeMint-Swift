@@ -25,6 +25,16 @@ final class FundDataStore {
     /// Incremented on every recompute — views can observe this to invalidate caches
     private(set) var revision: Int = 0
 
+    /// Set whenever a mutation's disk write fails. The root view observes this
+    /// and shows a toast so the user knows their change didn't persist, instead
+    /// of discovering it silently on next relaunch / iCloud reload.
+    var lastDiskWriteError: String?
+
+    private func recordDiskError(_ context: String, _ error: Error) {
+        Self.logger.error("\(context, privacy: .public) disk op failed: \(error)")
+        lastDiskWriteError = "Couldn't save changes (\(context)). Changes may be lost on next launch."
+    }
+
     // Pre-computed derived state (updated on every refresh)
     private(set) var portfolio = PortfolioMetrics()
     private(set) var summaries: [FundSummary] = []
@@ -181,7 +191,7 @@ final class FundDataStore {
             try await FundStore.shared.writeFund(fund)
             ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
-            Self.logger.error("addFund disk write failed: \(error)")
+            recordDiskError("adding fund", error)
         }
     }
 
@@ -195,7 +205,7 @@ final class FundDataStore {
             try await FundStore.shared.writeFund(fund)
             ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
-            Self.logger.error("updateFund disk write failed: \(error)")
+            recordDiskError("updating fund", error)
         }
     }
 
@@ -210,11 +220,8 @@ final class FundDataStore {
     /// triggering 20 recomputes, notification reschedules, widget refreshes.
     func renameFunds(_ edits: [(oldId: String, newFund: FundData)]) async {
         guard !edits.isEmpty else { return }
-        var snapshot = funds
+        let snapshot = Self.applyRenames(to: funds, edits: edits)
         for (oldId, newFund) in edits {
-            if let idx = snapshot.firstIndex(where: { $0.id == oldId }) {
-                snapshot[idx] = newFund
-            }
             forgetFund(id: oldId)
             bumpFundVersion(newFund.id)
         }
@@ -228,7 +235,7 @@ final class FundDataStore {
                 }
                 anyWriteSucceeded = true
             } catch {
-                Self.logger.error("renameFunds disk op failed for \(oldId): \(error)")
+                recordDiskError("renaming fund \(oldId)", error)
             }
         }
         if anyWriteSucceeded {
@@ -241,6 +248,18 @@ final class FundDataStore {
         fundVersions.removeValue(forKey: id)
     }
 
+    /// Pure helper for rename-snapshot computation. Exposed for tests so the
+    /// rename semantics can be verified without exercising disk I/O.
+    nonisolated static func applyRenames(to funds: [FundData], edits: [(oldId: String, newFund: FundData)]) -> [FundData] {
+        var snapshot = funds
+        for (oldId, newFund) in edits {
+            if let idx = snapshot.firstIndex(where: { $0.id == oldId }) {
+                snapshot[idx] = newFund
+            }
+        }
+        return snapshot
+    }
+
     func deleteFund(id: String) async {
         funds.removeAll { $0.id == id }
         loadedFundCount = funds.count
@@ -250,7 +269,7 @@ final class FundDataStore {
             try await FundStore.shared.deleteFund(id: id)
             ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
-            Self.logger.error("deleteFund disk delete failed: \(error)")
+            recordDiskError("deleting fund", error)
         }
     }
 
@@ -297,7 +316,7 @@ final class FundDataStore {
                 try await FundStore.shared.appendEntry(fundId: fundId, entry: entry)
                 didWrite = true
             } catch {
-                Self.logger.error("appendEntries disk write failed for \(fundId): \(error)")
+                recordDiskError("saving entry", error)
             }
         }
         if didWrite {
@@ -319,7 +338,7 @@ final class FundDataStore {
             try await FundStore.shared.replaceEntries(fundId: fundId, entries: entries)
             ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
-            Self.logger.error("replaceEntries disk write failed: \(error)")
+            recordDiskError("saving entries", error)
         }
     }
 
@@ -334,7 +353,7 @@ final class FundDataStore {
             try await FundStore.shared.updateConfig(fundId: fundId, config: config)
             ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
-            Self.logger.error("updateConfig disk write failed: \(error)")
+            recordDiskError("updating config", error)
         }
     }
 

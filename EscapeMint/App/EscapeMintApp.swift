@@ -150,6 +150,13 @@ struct ContentView: View {
         }
         .preferredColorScheme(appearance.mode.colorScheme)
         .privacySensitive()
+        .toast(
+            isPresented: Binding(
+                get: { store.lastDiskWriteError != nil },
+                set: { if !$0 { store.lastDiskWriteError = nil } }
+            ),
+            message: store.lastDiskWriteError ?? ""
+        )
         .onContinueUserActivity(CSSearchableItemActionType) { activity in
             guard let fundId = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String else { return }
             NotificationCenter.default.post(name: .selectFund, object: fundId)

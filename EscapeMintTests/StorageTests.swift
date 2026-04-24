@@ -497,6 +497,58 @@ final class StorageTests: XCTestCase {
         XCTAssertNil("fund/path".wholeMatch(of: pattern))
     }
 
+    // MARK: - FundDataStore.applyRenames
+
+    func testApplyRenamesSwapsFundByOldId() {
+        let btc = FundData(platform: "coinbase", ticker: "btc",
+                           config: FundConfig(fund_type: .crypto), entries: [])
+        let eth = FundData(platform: "coinbase", ticker: "eth",
+                           config: FundConfig(fund_type: .crypto), entries: [])
+        let renamedBTC = FundData(platform: "cb", ticker: "btc",
+                                  config: btc.config, entries: btc.entries)
+
+        let result = FundDataStore.applyRenames(
+            to: [btc, eth],
+            edits: [("coinbase-btc", renamedBTC)]
+        )
+
+        XCTAssertEqual(result.count, 2)
+        XCTAssertTrue(result.contains(where: { $0.id == "cb-btc" }))
+        XCTAssertFalse(result.contains(where: { $0.id == "coinbase-btc" }))
+        XCTAssertTrue(result.contains(where: { $0.id == "coinbase-eth" }),
+                      "Untouched funds should be preserved")
+    }
+
+    func testApplyRenamesBatchHandlesPlatformWideRename() {
+        let btc = FundData(platform: "coinbase", ticker: "btc",
+                           config: FundConfig(fund_type: .crypto), entries: [])
+        let eth = FundData(platform: "coinbase", ticker: "eth",
+                           config: FundConfig(fund_type: .crypto), entries: [])
+        let tqqq = FundData(platform: "robinhood", ticker: "tqqq",
+                            config: FundConfig(fund_type: .stock), entries: [])
+
+        let edits: [(oldId: String, newFund: FundData)] = [
+            ("coinbase-btc", FundData(platform: "cb", ticker: "btc", config: btc.config, entries: [])),
+            ("coinbase-eth", FundData(platform: "cb", ticker: "eth", config: eth.config, entries: [])),
+        ]
+        let result = FundDataStore.applyRenames(to: [btc, eth, tqqq], edits: edits)
+
+        let platforms = Set(result.map(\.platform))
+        XCTAssertEqual(platforms, ["cb", "robinhood"])
+        XCTAssertEqual(result.count, 3)
+    }
+
+    func testApplyRenamesIgnoresUnknownOldId() {
+        let btc = FundData(platform: "coinbase", ticker: "btc",
+                           config: FundConfig(fund_type: .crypto), entries: [])
+        let result = FundDataStore.applyRenames(
+            to: [btc],
+            edits: [("nonexistent-fund", btc)]
+        )
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].id, "coinbase-btc")
+    }
+
     // MARK: - DataStats
 
     func testDataStatsFormattedSize() {

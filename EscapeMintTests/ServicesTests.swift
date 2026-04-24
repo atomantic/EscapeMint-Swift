@@ -133,6 +133,21 @@ final class ServicesTests: XCTestCase {
         }
     }
 
+    // MARK: - DCANotificationManager.cancelAll
+
+    @MainActor
+    func testDCACancelAllIsIdempotent() async {
+        // Exercising the public API: disabling reminders twice in a row should
+        // leave the manager in a consistent disabled state without crashing —
+        // and must not rely on the in-memory `pendingIdentifiers` array having
+        // been populated this session (the bug fixed 2026-04-24).
+        let manager = DCANotificationManager.shared
+        await manager.setEnabled(false)
+        XCTAssertFalse(manager.isEnabled)
+        await manager.setEnabled(false)
+        XCTAssertFalse(manager.isEnabled)
+    }
+
     // MARK: - SpotlightIndexer
 
     func testSpotlightIndexerDoesNotCrash() {

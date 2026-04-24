@@ -113,6 +113,12 @@ final class ICloudSyncMonitor {
         }
     }
 
+    /// True while a `reload()` call is actually in progress. `debounceTask?.cancel()`
+    /// only stops a task that's still sleeping — if it's past the sleep and running
+    /// the reload body, cancel is a no-op and a second scheduled reload would
+    /// execute back-to-back. Gate on this flag to coalesce overlaps.
+    private var isReloadInFlight = false
+
     private func scheduleReload() {
         debounceTask?.cancel()
         debounceTask = Task { @MainActor in
@@ -126,10 +132,17 @@ final class ICloudSyncMonitor {
                 return
             }
 
-            Self.logger.info("☁️ reloading from iCloud changes")
+            guard !isReloadInFlight else {
+                Self.logger.info("☁️ reload already in flight — coalescing")
+                return
+            }
+
+            isReloadInFlight = true
             isSyncing = true
+            Self.logger.info("☁️ reloading from iCloud changes")
             await FundDataStore.shared.reload()
             isSyncing = false
+            isReloadInFlight = false
         }
     }
 

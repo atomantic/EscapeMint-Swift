@@ -434,61 +434,62 @@ actor FundStore {
                 continue
             }
 
+            let configURL = fundsDirectory.appendingPathComponent("\(id).json")
+            let tsvURL = fundsDirectory.appendingPathComponent("\(id).tsv")
+
             do {
-                // Build config JSON with platform/ticker metadata
                 var configWithMeta = configDict
                 configWithMeta["__platform"] = platform
                 configWithMeta["__ticker"] = ticker
 
                 let configData = try JSONSerialization.data(withJSONObject: configWithMeta, options: [.prettyPrinted, .sortedKeys])
-                let configURL = fundsDirectory.appendingPathComponent("\(id).json")
                 try configData.write(to: configURL, options: .atomic)
                 #if os(iOS)
                 try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: configURL.path)
                 #endif
 
-            // Build TSV from entries
-            var lines = [["date", "value", "cash", "action", "amount", "shares", "price", "dividend", "expense", "cash_interest", "fund_size", "margin_available", "margin_borrowed", "margin_expense", "notes", "contracts", "entry_price", "liquidation_price", "unrealized_pnl", "margin_locked", "fee", "margin"].joined(separator: "\t")]
-
-            for entry in entriesArray {
-                let cols: [String] = [
-                    entry["date"] as? String ?? "",
-                    formatNum(entry["value"]),
-                    formatNum(entry["cash"]),
-                    entry["action"] as? String ?? "",
-                    formatNum(entry["amount"]),
-                    formatNum(entry["shares"]),
-                    formatNum(entry["price"]),
-                    formatNum(entry["dividend"]),
-                    formatNum(entry["expense"]),
-                    formatNum(entry["cash_interest"]),
-                    formatNum(entry["fund_size"]),
-                    formatNum(entry["margin_available"]),
-                    formatNum(entry["margin_borrowed"]),
-                    formatNum(entry["margin_expense"]),
-                    (entry["notes"] as? String ?? "").replacingOccurrences(of: "\t", with: "\\t").replacingOccurrences(of: "\n", with: "\\n"),
-                    formatNum(entry["contracts"]),
-                    formatNum(entry["entry_price"]),
-                    formatNum(entry["liquidation_price"]),
-                    formatNum(entry["unrealized_pnl"]),
-                    formatNum(entry["margin_locked"]),
-                    formatNum(entry["fee"]),
-                    formatNum(entry["margin"])
-                ]
-                lines.append(cols.joined(separator: "\t"))
-            }
+                var lines = [["date", "value", "cash", "action", "amount", "shares", "price", "dividend", "expense", "cash_interest", "fund_size", "margin_available", "margin_borrowed", "margin_expense", "notes", "contracts", "entry_price", "liquidation_price", "unrealized_pnl", "margin_locked", "fee", "margin"].joined(separator: "\t")]
+                for entry in entriesArray {
+                    let cols: [String] = [
+                        entry["date"] as? String ?? "",
+                        formatNum(entry["value"]),
+                        formatNum(entry["cash"]),
+                        entry["action"] as? String ?? "",
+                        formatNum(entry["amount"]),
+                        formatNum(entry["shares"]),
+                        formatNum(entry["price"]),
+                        formatNum(entry["dividend"]),
+                        formatNum(entry["expense"]),
+                        formatNum(entry["cash_interest"]),
+                        formatNum(entry["fund_size"]),
+                        formatNum(entry["margin_available"]),
+                        formatNum(entry["margin_borrowed"]),
+                        formatNum(entry["margin_expense"]),
+                        (entry["notes"] as? String ?? "").replacingOccurrences(of: "\t", with: "\\t").replacingOccurrences(of: "\n", with: "\\n"),
+                        formatNum(entry["contracts"]),
+                        formatNum(entry["entry_price"]),
+                        formatNum(entry["liquidation_price"]),
+                        formatNum(entry["unrealized_pnl"]),
+                        formatNum(entry["margin_locked"]),
+                        formatNum(entry["fee"]),
+                        formatNum(entry["margin"])
+                    ]
+                    lines.append(cols.joined(separator: "\t"))
+                }
 
                 let tsv = lines.joined(separator: "\n") + "\n"
-                let tsvURL = fundsDirectory.appendingPathComponent("\(id).tsv")
                 try tsv.write(to: tsvURL, atomically: true, encoding: .utf8)
                 #if os(iOS)
                 try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: tsvURL.path)
                 #endif
                 imported += 1
             } catch {
-                // Log but keep importing other funds — one bad backup entry shouldn't
-                // abort a whole restore. Silent `continue` left operators unable to
-                // explain a partial restoration.
+                // Roll back partial state: if the config write succeeded but the TSV
+                // write (or any later step) failed, an orphan .json would be left on
+                // disk, presenting as a ghost fund with no entries. Remove both files
+                // so the user sees a clean "N of M imported" count.
+                try? fileManager.removeItem(at: configURL)
+                try? fileManager.removeItem(at: tsvURL)
                 Self.logger.warning("skipping fund '\(id, privacy: .private)' during backup import: \(error.localizedDescription, privacy: .public)")
                 continue
             }
