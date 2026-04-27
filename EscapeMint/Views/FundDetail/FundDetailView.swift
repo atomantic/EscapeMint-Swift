@@ -601,11 +601,7 @@ struct FundDetailView: View {
                 #endif
             }
 
-            #if os(macOS)
-            macEntriesTable(fund)
-            #else
-            iosEntriesList(fund)
-            #endif
+            entriesScrollTable(fund)
         }
         .padding(12)
         .background(Color.bgCard)
@@ -727,7 +723,7 @@ struct FundDetailView: View {
     }
 
     @ViewBuilder
-    private func macEntriesTable(_ fund: FundData) -> some View {
+    private func entriesScrollTable(_ fund: FundData) -> some View {
         let cols = orderedVisibleColumns(for: fund.config.fund_type)
         let contentWidth = cols.reduce(CGFloat(0)) { $0 + columnWidth($1.id) } + CGFloat(cols.count - 1) * 6 + 30
 
@@ -921,53 +917,13 @@ struct FundDetailView: View {
         .padding(.vertical, 3).padding(.horizontal, 4)
         .background(isEven ? Color.clear : Color.textPrimary.opacity(0.04))
         .cornerRadius(4)
-    }
-
-    @ViewBuilder
-    private func iosEntriesList(_ fund: FundData) -> some View {
-        // Column headers
-        HStack {
-            Text("Date").frame(width: 80, alignment: .leading)
-            Text("Action").frame(width: 45, alignment: .leading)
-            Spacer()
-            Text("Value").frame(width: 70, alignment: .trailing)
-            Text("Amount").frame(width: 70, alignment: .trailing)
-            Spacer().frame(width: 28) // ellipsis icon space
+        #if os(iOS)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            editTarget = EditTarget(entry: entry, index: entryIndex)
         }
-        .font(.caption2).fontWeight(.semibold).foregroundColor(.textMuted)
-        .padding(.horizontal, 6).padding(.bottom, 2)
-
-        let recentEntries = Array(fund.entries.suffix(30).reversed().enumerated())
-        ForEach(recentEntries, id: \.element.id) { reverseIdx, entry in
-            let actualIndex = fund.entries.count - 1 - reverseIdx
-            HStack {
-                Text(entry.date).font(.caption).foregroundColor(.textSecondary)
-                Text(entry.action?.rawValue ?? "HOLD").font(.caption).fontWeight(.medium)
-                    .foregroundColor(Color.forAction(entry.action))
-                Spacer()
-                Text(formatCurrency(entry.value, decimals: dd)).font(.caption).foregroundColor(.textPrimary)
-                if let amt = entry.amount {
-                    Text(formatCurrency(amt, decimals: dd)).font(.caption).foregroundColor(.textSecondary)
-                        .frame(width: 70, alignment: .trailing)
-                }
-                Image(systemName: "ellipsis.circle")
-                    .font(.caption).foregroundColor(.secondary)
-            }
-            .padding(.vertical, 4).padding(.horizontal, 6)
-            .background(reverseIdx.isMultiple(of: 2) ? Color.clear : Color.textPrimary.opacity(0.04))
-            .cornerRadius(6)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                editTarget = EditTarget(entry: entry, index: actualIndex)
-            }
-            .accessibilityAddTraits(.isButton)
-        }
-
-        if fund.entries.count > 30 {
-            Text("... and \(fund.entries.count - 30) more")
-                .font(.caption).foregroundColor(.textMuted)
-                .frame(maxWidth: .infinity)
-        }
+        .accessibilityAddTraits(.isButton)
+        #endif
     }
 
 }
