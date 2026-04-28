@@ -219,11 +219,11 @@ Build verified: 242 → 243 tests pass on both iOS 17+ and macOS 14+. Zero failu
 - [ ] **[CRITICAL][MISSING]** `FundStore.swift` — 749 lines, zero tests. Fix: new `FundStoreTests.swift` with temp-directory integration tests (Complex)
 - [ ] **[CRITICAL][MISSING]** `FundDataStore.swift` — 405 lines, only `buildAuditEntries` tested. Fix: new in-memory state tests (Complex)
 - [ ] **[CRITICAL][MISSING]** `FundStore.importFromBackupJSON` never called by any test; existing test re-implements logic. Fix: direct call against temp file (Medium)
-- [ ] **[HIGH][MISSING]** `ViewCache.swift` — zero tests. Fix: new ViewCacheTests.swift for cache hit/miss/invalidation (Medium)
-- [ ] **[HIGH][MISSING]** `WidgetDataProvider` tests only cover Codable round-trip, not provider behavior. Fix: add `readSnapshot` nil path test (Simple)
-- [ ] **[HIGH][MISSING]** `AdvancedTools.recalculateEntryPrices` untested. Fix: add price computation + zero-shares guard tests (Simple)
+- [x] ~~**[HIGH][MISSING]** `ViewCache.swift` — zero tests~~ — added `ViewCacheTests.swift` covering cache key stability, type-safe chart caching, per-fund invalidation, memory-pressure clearing, derivatives nil-eviction, and backtest state mutators (14 tests).
+- [x] ~~**[HIGH][MISSING]** `WidgetDataProvider` tests only cover Codable round-trip~~ — added `testReadSnapshotDoesNotCrash`, `testReadSnapshotConsistencyWhenPresent`, plus garbage/empty decoder rejection tests and a JSON-contract decode test.
+- [x] ~~**[HIGH][MISSING]** `AdvancedTools.recalculateEntryPrices` untested~~ — added 7 tests covering basic compute, abs-shares for sells, zero-amount/zero-shares guards, no-op when already correct, high-decimal crypto, field preservation, and empty input.
 - [ ] **[MEDIUM][VACUOUS]** `StorageTests.swift:368-380` `testBackupJSONInvalidFormatHandling` tests Swift stdlib not EscapeMint. Fix: call actual `importFromBackupJSON` (Simple)
-- [ ] **[MEDIUM][WEAK]** `EngineTests.swift:954-998` backtest test monotonic prices never exercise sells. Fix: add volatile series + tight numeric assertions (Medium)
+- [x] ~~**[MEDIUM][WEAK]** `EngineTests.swift:954-998` backtest test monotonic prices never exercise sells~~ — added `testRunBacktestVolatileMarketTriggersSells` (rally + pullback with low targetAPY) that asserts `totalSells > 0` and `totalExtracted > 0`.
 - [ ] **[MEDIUM][WEAK]** `EngineTests.swift:219-237` nil recommendation tests use default state only. Fix: non-default FundState values (Simple)
 - [ ] **[MEDIUM][WEAK]** `EngineTests.swift:1221` cash interest `accuracy: 5.0` on $360 expected. Fix: tighten to 0.10 (Simple)
 

@@ -232,4 +232,89 @@ final class AdvancedToolsTests: XCTestCase {
     func testInterpolatableColumnAllCases() {
         XCTAssertEqual(InterpolatableColumn.allCases.count, 4)
     }
+
+    // MARK: - recalculateEntryPrices
+
+    func testRecalculateEntryPricesBasic() {
+        // amount / |shares| → price. With 2 dollar_decimals, 500/10 = 50.00.
+        let entries = [
+            FundEntry(date: "2025-01-01", value: 1000, action: .BUY, amount: 500, shares: 10),
+            FundEntry(date: "2025-01-08", value: 1100, action: .BUY, amount: 600, shares: 12),
+        ]
+
+        let (result, updated) = recalculateEntryPrices(entries: entries, dollarDecimals: 2)
+        XCTAssertEqual(updated, 2)
+        XCTAssertEqual(result[0].price, 50.0)
+        XCTAssertEqual(result[1].price, 50.0)
+    }
+
+    func testRecalculateEntryPricesUsesAbsoluteShares() {
+        // Sell entries store shares as positive in the FundEntry but should still
+        // compute a positive price = amount / |shares|.
+        let entries = [
+            FundEntry(date: "2025-01-01", value: 1000, action: .SELL, amount: 200, shares: 4),
+        ]
+        let (result, updated) = recalculateEntryPrices(entries: entries, dollarDecimals: 2)
+        XCTAssertEqual(updated, 1)
+        XCTAssertEqual(result[0].price, 50.0)
+    }
+
+    func testRecalculateEntryPricesSkipsZeroOrMissing() {
+        // Zero amount, zero shares, and nil-amount rows must NOT be touched.
+        // Avoiding a divide-by-zero is the original bug guard.
+        let entries = [
+            FundEntry(date: "2025-01-01", value: 1000, action: .HOLD),                                   // no amount/shares
+            FundEntry(date: "2025-01-08", value: 1100, action: .BUY, amount: 0, shares: 10),             // zero amount
+            FundEntry(date: "2025-01-15", value: 1200, action: .BUY, amount: 500, shares: 0),            // zero shares
+            FundEntry(date: "2025-01-22", value: 1300, action: .BUY, amount: 500, shares: 10, price: 49) // pre-existing price
+        ]
+        let (result, updated) = recalculateEntryPrices(entries: entries, dollarDecimals: 2)
+        // Only the last row should be updated (price 49 → 50).
+        XCTAssertEqual(updated, 1)
+        XCTAssertNil(result[0].price)
+        XCTAssertNil(result[1].price)
+        XCTAssertNil(result[2].price)
+        XCTAssertEqual(result[3].price, 50.0)
+    }
+
+    func testRecalculateEntryPricesNoChangeWhenAlreadyCorrect() {
+        // If price is already correct, `updated` should not increment.
+        let entries = [
+            FundEntry(date: "2025-01-01", value: 1000, action: .BUY, amount: 500, shares: 10, price: 50.0),
+        ]
+        let (result, updated) = recalculateEntryPrices(entries: entries, dollarDecimals: 2)
+        XCTAssertEqual(updated, 0)
+        XCTAssertEqual(result[0].price, 50.0)
+    }
+
+    func testRecalculateEntryPricesHighDollarDecimalsForCheapCrypto() {
+        // DOGE-style asset: 100 shares for $9.42 → 0.0942 (5 decimals).
+        let entries = [
+            FundEntry(date: "2025-01-01", value: 9.42, action: .BUY, amount: 9.42, shares: 100),
+        ]
+        let (result, updated) = recalculateEntryPrices(entries: entries, dollarDecimals: 5)
+        XCTAssertEqual(updated, 1)
+        XCTAssertEqual(result[0].price!, 0.0942, accuracy: 0.000001)
+    }
+
+    func testRecalculateEntryPricesPreservesOtherFields() {
+        // Pure price recalculation must not perturb shares, amount, value, or date.
+        let entries = [
+            FundEntry(date: "2025-01-01", value: 1000, action: .BUY, amount: 500, shares: 10, dividend: 5, notes: "first"),
+        ]
+        let (result, _) = recalculateEntryPrices(entries: entries, dollarDecimals: 2)
+        XCTAssertEqual(result[0].date, "2025-01-01")
+        XCTAssertEqual(result[0].value, 1000)
+        XCTAssertEqual(result[0].amount, 500)
+        XCTAssertEqual(result[0].shares, 10)
+        XCTAssertEqual(result[0].action, .BUY)
+        XCTAssertEqual(result[0].dividend, 5)
+        XCTAssertEqual(result[0].notes, "first")
+    }
+
+    func testRecalculateEntryPricesEmpty() {
+        let (result, updated) = recalculateEntryPrices(entries: [], dollarDecimals: 2)
+        XCTAssertEqual(result.count, 0)
+        XCTAssertEqual(updated, 0)
+    }
 }

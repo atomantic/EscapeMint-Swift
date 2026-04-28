@@ -1411,6 +1411,59 @@ final class EngineTests: XCTestCase {
         XCTAssertNil(range)
     }
 
+    // MARK: - BacktestEngine: Volatile Market (exercises SELL path)
+
+    func testRunBacktestVolatileMarketTriggersSells() {
+        // The earlier `testRunBacktestWithSyntheticData` deliberately uses a monotonic
+        // uptrend, which never crosses the SELL threshold (gain vs expectedTarget).
+        // This test covers the missing branch: a strong rally followed by a pullback,
+        // with a *low* targetAPY so equity quickly exceeds the expected target by
+        // more than min_profit_usd (the SELL trigger in computeRecommendation).
+        // Without this, sell-side accounting (totalExtracted, costBasis reduction in
+        // harvest mode, equivShares scaling, full-liquidation reset) was untested.
+        var prices: [HistoricalData.PricePoint] = []
+        for i in 0..<26 {
+            // Steep ramp up: 100 → 350 over 26 weeks
+            prices.append(HistoricalData.PricePoint(
+                date: dateByAddingWeeks(i, from: "2024-01-01"),
+                value: 100.0 + Double(i) * 10.0
+            ))
+        }
+        for i in 0..<26 {
+            // Pullback then mild recovery
+            prices.append(HistoricalData.PricePoint(
+                date: dateByAddingWeeks(i + 26, from: "2024-01-01"),
+                value: 350.0 - Double(i) * 4.0
+            ))
+        }
+
+        let hist = HistoricalData(
+            ticker: "TEST", name: "Test Asset", type: "stock",
+            startDate: prices.first!.date, endDate: prices.last!.date,
+            dataPoints: prices.count, prices: prices, dividends: nil
+        )
+
+        var config = BacktestConfig()
+        config.spxlPct = 0; config.vtiPct = 0; config.brgnxPct = 0
+        config.tqqqPct = 0; config.btcPct = 1.0; config.gldPct = 0; config.slvPct = 0
+        config.initialCash = 5000
+        config.weeklyDCA = 100
+        config.targetAPY = 0.05  // Low target — actual gains exceed it quickly
+        config.accumulate = true
+
+        let result = runBacktest(config: config, historicalData: ["BTC": hist])
+        XCTAssertNotNil(result)
+
+        guard let result else { return }
+        // Both buys and sells must occur in this scenario
+        XCTAssertGreaterThan(result.totalBuys, 0, "DCA should buy on dips")
+        XCTAssertGreaterThan(result.totalSells, 0, "Rally should trigger sell signal")
+        // totalExtracted reflects sell-side cash returned to the account
+        XCTAssertGreaterThan(result.totalExtracted, 0)
+        // Drawdown is non-negative
+        XCTAssertGreaterThanOrEqual(result.maxDrawdown, 0)
+    }
+
     // MARK: - Harvest-Mode Partial Sell Cost Basis
 
     func testComputeEntryRowsHarvestPartialSell() {
