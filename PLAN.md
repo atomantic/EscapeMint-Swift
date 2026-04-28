@@ -5,16 +5,16 @@ For completed work see [DONE.md](DONE.md).
 
 ## Next Up
 
-1. **Service test coverage** — `AuthManager`, `SpotlightIndexer`, `WidgetDataProvider` have zero tests
-2. **GuidedAddEntryView wizard tests** — extract step-transition + recommendation-recompute helpers; cover direct-equity / shares-price / exit-toggle branches
+1. **Deepen service tests** — `AuthManager` has 4 happy-path tests but no lock-state-machine / keychain / biometric-flow coverage; `SpotlightIndexer` has crash-only smoke tests (no indexing assertions); `WidgetDataProvider.readSnapshot` has zero tests
+2. **GuidedAddEntryView wizard tests** — added 2026-04-21 with zero coverage; extract step-transition + recommendation-recompute helpers; cover direct-equity / shares-price / exit-toggle branches
 3. **AuthManager biometric pref → Keychain** — currently in `UserDefaults`, bypassable on jailbreak (use `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`)
-4. **Split `FundEngine.swift`** — 1347-line god file → TradeEngine / RecommendationEngine / PortfolioEngine
-5. **Dynamic Type & adaptive colors** — 7-10pt hardcoded font sizes need `@ScaledMetric`; 10+ `.foregroundColor(.white)` need adaptive variants
+4. **Split `FundEngine.swift`** — 1371-line god file → TradeEngine / RecommendationEngine / PortfolioEngine
+5. **Dynamic Type & adaptive colors** — 15× hardcoded 7-10pt fonts need `@ScaledMetric`; 8× `.foregroundColor(.white)` need adaptive variants
 
 ## Backlog
 
 ### Tests
-- [ ] `FundStore` actor integration tests (749 lines, zero coverage)
+- [ ] `FundStore` actor integration tests (785 lines, zero coverage)
 - [ ] `FundDataStore` stateful in-memory tests (only `buildAuditEntries` tested)
 - [ ] `ViewCache` cache lifecycle tests
 - [ ] `BacktestEngine` edge cases — negative prices, zero dividends, volatile series exercising sells
