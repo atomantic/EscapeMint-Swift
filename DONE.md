@@ -2,6 +2,12 @@
 
 Archived from PLAN.md. For release notes see git tags and `.changelogs/` (if present).
 
+## 2026-04-28 — Replan triage
+
+- `importFromDirectory` test coverage — `testDirectoryImportExport` (StorageTests.swift:271) covers the directory-path import that previously only had JSON-path coverage
+- **Home Screen Widgets (WidgetKit)** — small/medium widget views shipped in `EscapeMintWidget/EscapeMintWidget.swift` (Timeline provider + WidgetSnapshotData via App Group)
+- **Local Push Notifications for DCA Timing** — `DCANotificationManager.swift` (176 lines) wired into `FundDataStore` and `SettingsView`; permission denial surfaced via observable `isEnabled`
+
 ## 2026-04 — Pre-Open-Source Push (repo flipped public)
 
 - CI workflow re-enabled and wired to `EscapeMint_iOS` / `EscapeMint_macOS` schemes

@@ -14,11 +14,11 @@ For completed work see [DONE.md](DONE.md).
 ## Backlog
 
 ### Tests
-- [ ] `FundStore` actor integration tests (785 lines, zero coverage)
-- [ ] `FundDataStore` stateful in-memory tests (only `buildAuditEntries` tested)
+- [ ] `FundStore` concurrent-actor-access stress (StorageTests covers methods individually; no overlap-write tests)
+- [ ] `FundDataStore` stateful coverage beyond `buildAuditEntries` / `applyRenames` (mutation paths, summary recompute, error toasts)
+- [ ] `DCANotificationManager` — schedule/reschedule correctness, permission denial path (only `cancelAll` idempotency tested)
 - [ ] `ViewCache` cache lifecycle tests
 - [ ] `BacktestEngine` edge cases — negative prices, zero dividends, volatile series exercising sells
-- [ ] `importFromDirectory` parallel test (current `testBackupJSONSkipsTestFunds` only covers JSON path)
 - [ ] `AdvancedTools.recalculateEntryPrices` price computation + zero-shares guard
 - [ ] EngineTests weak assertions — nil recommendation non-default state, cash interest accuracy 5.0 → 0.10
 - [ ] `WidgetDataProvider.readSnapshot` nil-path test
@@ -59,12 +59,6 @@ For completed work see [DONE.md](DONE.md).
 - [ ] `SECURITY.md` — vulnerability disclosure policy, scope (no external auth, local-only biometric, App Group data on-device)
 
 ## Future / Ideas
-
-### Home Screen Widgets (WidgetKit)
-Show portfolio value, daily gain/loss, next DCA action without opening the app. Small (value + change), Medium (top 3 with sparklines), Large (actionable funds list), Lock Screen widget. App Group container is already wired.
-
-### Local Push Notifications for DCA Timing
-Schedule per-fund notifications based on `last entry + interval_days`. "Time to DCA into BTC — $150 recommended". Reschedule on each new entry, deep-link tap to fund detail, badge = overdue count, settings toggle per-fund and global.
 
 ### Siri Shortcuts / App Intents
 "What's my portfolio value?", "Show my top performer", morning portfolio summary. Spotlight indexing is already shipped — Siri integration via `AppIntent` remains.
