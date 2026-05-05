@@ -133,19 +133,12 @@ struct DashboardView: View {
     @ViewBuilder
     private var loadingBanner: some View {
         if !store.isLoaded {
-            HStack(spacing: 10) {
-                ProgressView()
-                    .controlSize(.small)
-                Text("Loading fund data\u{2026} \(store.loadedFundCount)/\(store.funds.count)")
-                    .font(.caption).foregroundColor(.textSecondary)
-                Spacer()
-                ProgressView(value: store.loadProgress)
-                    .frame(width: 120)
-                    .tint(.mint)
-            }
-            .padding(10)
-            .background(Color.bgCard)
-            .cornerRadius(8)
+            EscapeMintLoadingBanner(
+                message: store.loadingPhase.message,
+                progress: store.funds.isEmpty ? nil : store.loadProgress,
+                loadedCount: store.loadedFundCount,
+                totalCount: store.funds.count
+            )
         }
     }
 
@@ -755,4 +748,3 @@ struct DashboardView: View {
         #endif
     }
 }
-

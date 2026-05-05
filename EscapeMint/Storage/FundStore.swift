@@ -108,7 +108,11 @@ actor FundStore {
     /// Retry iCloud resolution if it wasn't available at init (e.g. after system reboot).
     /// Called during the loading screen before any funds are read.
     /// Returns true if iCloud became available and the funds directory was switched.
-    func retryICloudIfNeeded() async -> Bool {
+    func hasICloudAccount() -> Bool {
+        fileManager.ubiquityIdentityToken != nil
+    }
+
+    func retryICloudIfNeeded(maxAttempts: Int = 5, delay: Duration = .seconds(1)) async -> Bool {
         guard !isICloud else { return false }
 
         let fm = FileManager.default
@@ -119,9 +123,10 @@ actor FundStore {
             return false
         }
 
-        for attempt in 1...5 {
-            Self.logger.info("☁️ iCloud retry \(attempt)/5")
-            try? await Task.sleep(for: .seconds(1))
+        let attemptLimit = max(1, maxAttempts)
+        for attempt in 1...attemptLimit {
+            Self.logger.info("☁️ iCloud retry \(attempt)/\(attemptLimit)")
+            try? await Task.sleep(for: delay)
 
             guard let iCloudURL = fm.url(forUbiquityContainerIdentifier: Self.iCloudContainerId) else {
                 continue
@@ -139,7 +144,7 @@ actor FundStore {
                 continue
             }
         }
-        Self.logger.warning("☁️ iCloud unavailable after 5 retries, using local storage")
+        Self.logger.warning("☁️ iCloud unavailable after \(attemptLimit) retries, using local storage")
         return false
     }
 

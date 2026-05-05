@@ -8,8 +8,35 @@ import SwiftUI
 final class FundDataStore {
     static let shared = FundDataStore()
 
+    enum LoadingPhase: Equatable {
+        case idle
+        case checkingICloud
+        case loadingConfigs
+        case loadingEntries
+        case computingPortfolio
+        case ready
+
+        var message: String {
+            switch self {
+            case .idle:
+                "Preparing portfolio"
+            case .checkingICloud:
+                "Checking iCloud portfolio files"
+            case .loadingConfigs:
+                "Loading fund definitions"
+            case .loadingEntries:
+                "Streaming transaction history"
+            case .computingPortfolio:
+                "Computing portfolio signals"
+            case .ready:
+                "Portfolio ready"
+            }
+        }
+    }
+
     private(set) var funds: [FundData] = []
     private(set) var isLoaded = false
+    private(set) var loadingPhase: LoadingPhase = .idle
 
     /// True once configs are loaded (fund names/platforms visible). Entries may still be streaming.
     private(set) var isConfigLoaded = false
@@ -80,13 +107,22 @@ final class FundDataStore {
         // Yield immediately so the UI (intro guide sheet) can finish rendering
         await Task.yield()
 
+        loadingPhase = .checkingICloud
+
         // Initialize FundStore on a background thread — url(forUbiquityContainerIdentifier:)
         // can block 10+ seconds on first launch with a new Apple ID and MUST NOT run on main thread
         let isICloud = await Task.detached(priority: .userInitiated) { FundStore.shared.isICloud }.value
 
         // If iCloud wasn't available at init (e.g. after reboot), retry before loading
         if !isICloud {
+            #if os(macOS)
+            // macOS can sit behind this loading screen for a long time when iCloud
+            // is slow to hand back the ubiquity container. Do a short foreground
+            // retry, then keep trying after the UI is usable.
+            let recovered = await FundStore.shared.retryICloudIfNeeded(maxAttempts: 2, delay: .milliseconds(300))
+            #else
             let recovered = await FundStore.shared.retryICloudIfNeeded()
+            #endif
             if recovered {
                 Self.logger.info("☁️ iCloud recovered after retry, loading from iCloud")
             }
@@ -95,6 +131,7 @@ final class FundDataStore {
         await FundStore.shared.migrateToICloudIfNeeded()
 
         // Phase 1: Load configs off the main thread (nonisolated does synchronous file I/O)
+        loadingPhase = .loadingConfigs
         let configs = await Task.detached(priority: .userInitiated) {
             FundStore.shared.readAllFundConfigs()
         }.value
@@ -105,6 +142,8 @@ final class FundDataStore {
 
         if configs.isEmpty {
             isLoaded = true
+            loadingPhase = .ready
+            scheduleDeferredICloudRecoveryIfNeeded()
             return
         }
 
@@ -112,53 +151,81 @@ final class FundDataStore {
         await Task.yield()
 
         // Phase 2: Load all entries off the main thread, then apply in one shot
+        loadingPhase = .loadingEntries
         await loadEntriesProgressively()
         isLoaded = true
+        loadingPhase = .ready
+        scheduleDeferredICloudRecoveryIfNeeded()
     }
 
-    /// Load TSV entries concurrently off the main thread, apply in batches with yields
+    /// Load TSV entries concurrently off the main thread, apply in batches with yields.
+    /// Streaming results keeps the progress indicator moving even when one large
+    /// TSV file takes longer than the rest.
     private func loadEntriesProgressively() async {
         let fundIds = funds.map(\.id)
+        let batchSize = max(1, min(12, max(1, fundIds.count / 4)))
+        var pending: [(String, [FundEntry])] = []
+        pending.reserveCapacity(batchSize)
+        var completedCount = 0
 
-        // Do ALL file I/O in a single detached task — nothing touches the main thread
-        let allEntries: [(String, [FundEntry])] = await Task.detached(priority: .userInitiated) {
-            // Use a task group for parallel reads, collect all results
-            await withTaskGroup(of: (String, [FundEntry]).self, returning: [(String, [FundEntry])].self) { group in
-                for id in fundIds {
-                    group.addTask {
-                        let entries = FundStore.shared.readFundEntries(id: id)
-                        return (id, entries)
-                    }
-                }
-                var results: [(String, [FundEntry])] = []
-                results.reserveCapacity(fundIds.count)
-                for await result in group {
-                    results.append(result)
-                }
-                return results
-            }
-        }.value
-
-        // Apply entry data in batches (yielding between) for UI fairness,
-        // but defer the engine recompute until all entries are in place.
-        let batchSize = max(1, allEntries.count / 3) // ~3 batches
-        for batchStart in stride(from: 0, to: allEntries.count, by: batchSize) {
-            let batchEnd = min(batchStart + batchSize, allEntries.count)
-            for i in batchStart..<batchEnd {
-                let (id, entries) = allEntries[i]
-                if let idx = funds.firstIndex(where: { $0.id == id }) {
-                    funds[idx].entries = entries
+        await withTaskGroup(of: (String, [FundEntry]).self) { group in
+            for id in fundIds {
+                group.addTask(priority: .userInitiated) {
+                    let entries = FundStore.shared.readFundEntries(id: id)
+                    return (id, entries)
                 }
             }
-            loadedFundCount = batchEnd
+
+            for await result in group {
+                pending.append(result)
+                completedCount += 1
+                guard pending.count >= batchSize else {
+                    loadedFundCount = completedCount
+                    continue
+                }
+                applyLoadedEntries(pending)
+                pending.removeAll(keepingCapacity: true)
+                loadedFundCount = completedCount
+                await Task.yield()
+            }
+        }
+
+        if !pending.isEmpty {
+            applyLoadedEntries(pending)
+            loadedFundCount = completedCount
             await Task.yield()
         }
+        loadingPhase = .computingPortfolio
         await recompute()
+    }
+
+    private func applyLoadedEntries(_ loaded: [(String, [FundEntry])]) {
+        for (id, entries) in loaded {
+            if let idx = funds.firstIndex(where: { $0.id == id }) {
+                funds[idx].entries = entries
+            }
+        }
+    }
+
+    private func scheduleDeferredICloudRecoveryIfNeeded() {
+        guard !FundStore.shared.isICloud else { return }
+        guard deferredICloudRecoveryTask == nil else { return }
+        deferredICloudRecoveryTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { deferredICloudRecoveryTask = nil }
+            guard await FundStore.shared.hasICloudAccount() else { return }
+            let recovered = await FundStore.shared.retryICloudIfNeeded(maxAttempts: 4, delay: .seconds(1))
+            guard recovered else { return }
+            await FundStore.shared.migrateToICloudIfNeeded()
+            await self.reload()
+            ICloudSyncMonitor.shared.startMonitoring()
+        }
     }
 
     // MARK: - Reload from Disk
 
     func reload() async {
+        loadingPhase = .loadingEntries
         let loaded = await FundStore.shared.readAllFunds()
         funds = loaded
         loadedFundCount = loaded.count
@@ -168,6 +235,7 @@ final class FundDataStore {
         isConfigLoaded = true
         isLoaded = true
         await recompute()
+        loadingPhase = .ready
     }
 
     // MARK: - Accessors
@@ -535,6 +603,7 @@ final class FundDataStore {
     }
 
     private var sideEffectTask: Task<Void, Never>?
+    private var deferredICloudRecoveryTask: Task<Void, Never>?
 
     static func buildAuditEntries(from funds: [FundData]) -> [AuditEntry] {
         var entries: [AuditEntry] = []

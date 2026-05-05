@@ -78,6 +78,7 @@
 		66BD159218FE4D82FE08B1A9 /* coinbasetest-cash.json in Resources */ = {isa = PBXBuildFile; fileRef = 28D10063CEA04E34B422E48A /* coinbasetest-cash.json */; };
 		6C75E91B0F6FECF184432C98 /* StatBox.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D6554AB71D71AEFD5CB7BA /* StatBox.swift */; };
 		7064B056C01915EFDB93C772 /* NotificationNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DDEBB26B5A4523E7DF3AB87 /* NotificationNames.swift */; };
+		7202A09CF06020B67B8D4E86 /* EscapeMintLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 015479839B54BBA737A6903D /* EscapeMintLoadingView.swift */; };
 		73A0B128972CB4F65E452D7C /* IntroGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5439E3A322BB84FE60191A58 /* IntroGuideView.swift */; };
 		742EB8FE398D7704E9A21F98 /* FilePickerHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A93B5F48285731CDBAB58F06 /* FilePickerHelper.swift */; };
 		766BF0790E63551102726710 /* FundEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADF82E9F62C6337CA018D70F /* FundEngine.swift */; };
@@ -144,6 +145,7 @@
 		DBF3B221C34D9633C2A18EDF /* BacktestEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E725D16A17E4F0835D06D981 /* BacktestEngine.swift */; };
 		E0001C2ADB941F78F9699EBD /* SpotlightIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4BBCB99D2DC606FB7140405 /* SpotlightIndexer.swift */; };
 		E4E0DD9225F3EB3FF014E108 /* tqqq-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = AA7B587266915BE35EF3BDDF /* tqqq-weekly.json */; };
+		E52B732DFC6F5AB39688B125 /* EscapeMintLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 015479839B54BBA737A6903D /* EscapeMintLoadingView.swift */; };
 		E6C3021DF3A8B16A7C437147 /* robinhoodtest-spxl.tsv in Resources */ = {isa = PBXBuildFile; fileRef = 21D4714188FFBF94FFC7D146 /* robinhoodtest-spxl.tsv */; };
 		E78FE5892BCCB09037698360 /* InfoTipLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E641E9CCCCA375177111F7A /* InfoTipLabel.swift */; };
 		EBE4D6C7460001073E2F62AA /* AppStorageKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = C669BD8AC67F63BC10F2CFCF /* AppStorageKeys.swift */; };
@@ -200,6 +202,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		015479839B54BBA737A6903D /* EscapeMintLoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EscapeMintLoadingView.swift; sourceTree = "<group>"; };
 		0536F00CCC4E2347521E1B56 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		0653A0CB7C81F563F38D00C1 /* AppearanceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceManager.swift; sourceTree = "<group>"; };
 		0A6F3B49FC8BE5BDD0D59CDD /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
@@ -513,6 +516,7 @@
 			isa = PBXGroup;
 			children = (
 				78146FC52E9061B1A1504136 /* EntryFormHelpers.swift */,
+				015479839B54BBA737A6903D /* EscapeMintLoadingView.swift */,
 				A93B5F48285731CDBAB58F06 /* FilePickerHelper.swift */,
 				2E641E9CCCCA375177111F7A /* InfoTipLabel.swift */,
 				524A60C790216C69F3B6D153 /* LockScreenView.swift */,
@@ -782,6 +786,7 @@
 				952FF89A615E2D3D7D2B804A /* EditFundView.swift in Sources */,
 				16EA12C051E1C27B3CEF8647 /* EntryFormHelpers.swift in Sources */,
 				42536F85618CDA7693CC33F2 /* EscapeMintApp.swift in Sources */,
+				E52B732DFC6F5AB39688B125 /* EscapeMintLoadingView.swift in Sources */,
 				742EB8FE398D7704E9A21F98 /* FilePickerHelper.swift in Sources */,
 				17FB2541C0CEEC28CD1ABA20 /* Formatters.swift in Sources */,
 				00CF1D256E98CC6CDB47E710 /* FormulaParser.swift in Sources */,
@@ -848,6 +853,7 @@
 				4410F30862490B374CCE6632 /* EditFundView.swift in Sources */,
 				8E2AC520DB68235E8E35DE60 /* EntryFormHelpers.swift in Sources */,
 				CFF07BF43EECAB7A8E1A4ECB /* EscapeMintApp.swift in Sources */,
+				7202A09CF06020B67B8D4E86 /* EscapeMintLoadingView.swift in Sources */,
 				616D4F04771A242D1C8336EA /* FilePickerHelper.swift in Sources */,
 				50073187F0C73B8FB20E8A96 /* Formatters.swift in Sources */,
 				B979633DC473F06CC992BEDC /* FormulaParser.swift in Sources */,

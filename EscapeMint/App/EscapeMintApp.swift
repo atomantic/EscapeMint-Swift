@@ -195,16 +195,12 @@ struct ContentView: View {
 
     @ViewBuilder
     private var loadingView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "leaf.fill")
-                .font(.system(size: 48))
-                .foregroundColor(.mint)
-                .accessibilityHidden(true)
-            ProgressView()
-                .controlSize(.large)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.bg.ignoresSafeArea())
+        EscapeMintLoadingView(
+            message: store.loadingPhase.message,
+            progress: nil,
+            loadedCount: store.loadedFundCount,
+            totalCount: store.funds.count
+        )
     }
 
     #if os(iOS)

@@ -1,5 +1,10 @@
 import SwiftUI
 import UniformTypeIdentifiers
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
 #if os(iOS)
 private enum SettingsTab: String, CaseIterable, Hashable {
@@ -28,6 +33,9 @@ struct SettingsView: View {
     @State private var backupShareItem: BackupShareItem?
     @State private var auth = AuthManager.shared
     @State private var notifications = DCANotificationManager.shared
+    #if DEBUG
+    @State private var showLoadingPreview = false
+    #endif
     #if os(iOS)
     @State private var selectedTab: SettingsTab = .general
     #endif
@@ -39,6 +47,11 @@ struct SettingsView: View {
             .sheet(isPresented: $showIntroGuide) {
                 IntroGuideView(isPresented: $showIntroGuide)
             }
+            #if DEBUG
+            .sheet(isPresented: $showLoadingPreview) {
+                LoadingPreviewSheet()
+            }
+            #endif
             .sheet(item: $backupShareItem) { item in
                 ShareSheetView(items: [item.url])
             }
@@ -267,14 +280,7 @@ struct SettingsView: View {
     private var aboutSections: some View {
         Section {
             HStack(spacing: 14) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.mint.gradient)
-                        .frame(width: 60, height: 60)
-                    Image(systemName: "chart.line.uptrend.xyaxis")
-                        .font(.system(size: 26, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
+                SettingsAppIcon()
                 VStack(alignment: .leading, spacing: 4) {
                     Text("EscapeMint")
                         .font(.headline)
@@ -296,6 +302,16 @@ struct SettingsView: View {
         } footer: {
             Text("Shows recalculate and interpolate tools in fund detail views. Data is automatically backed up before each operation.")
         }
+
+        #if DEBUG
+        Section("Developer") {
+            Button {
+                showLoadingPreview = true
+            } label: {
+                Label("Preview Launch Loader", systemImage: "play.display")
+            }
+        }
+        #endif
 
         if let privacyURL = URL(string: "https://github.com/atomantic/EscapeMint/blob/main/docs/PRIVACY.md"),
            let termsURL = URL(string: "https://github.com/atomantic/EscapeMint/blob/main/docs/TERMS.md") {
@@ -435,6 +451,75 @@ struct SettingsView: View {
             }
         }
     }
+}
+
+#if DEBUG
+private struct LoadingPreviewSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            EscapeMintLoadingView(
+                message: FundDataStore.LoadingPhase.loadingEntries.message,
+                progress: 0.62,
+                detail: "Previewing launch animation",
+                loadedCount: 0,
+                totalCount: 0
+            )
+
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(Color.textSecondary, Color.bgCard)
+                    .padding(12)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.cancelAction)
+            .help("Close preview")
+            .padding()
+        }
+        #if os(macOS)
+        .frame(minWidth: 760, minHeight: 560)
+        #else
+        .ignoresSafeArea()
+        #endif
+    }
+}
+#endif
+
+private struct SettingsAppIcon: View {
+    var body: some View {
+        platformImage
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: 60, height: 60)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .accessibilityHidden(true)
+    }
+
+    private var platformImage: Image {
+        #if os(macOS)
+        return Image(nsImage: NSApplication.shared.applicationIconImage)
+        #else
+        if let image = UIImage(named: appIconName) {
+            return Image(uiImage: image)
+        } else {
+            return Image(systemName: "app.fill")
+        }
+        #endif
+    }
+
+    #if os(iOS)
+    private var appIconName: String {
+        let icons = Bundle.main.object(forInfoDictionaryKey: "CFBundleIcons") as? [String: Any]
+        let primary = icons?["CFBundlePrimaryIcon"] as? [String: Any]
+        let files = primary?["CFBundleIconFiles"] as? [String]
+        return files?.last ?? "AppIcon"
+    }
+    #endif
 }
 
 struct BackupShareItem: Identifiable {
