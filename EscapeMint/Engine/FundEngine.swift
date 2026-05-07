@@ -817,8 +817,11 @@ func computeFundMetricsForFund(_ fund: FundData, asOfDate: String) -> (metrics: 
     let projectedAnnualReturn = computeProjectedAnnualReturn(currentValue, realizedAPY)
     let twfs = daysActive > 0 ? (isCash ? twabNumerator : twapNumerator) / Double(daysActive) : 0
 
-    // Build FundState directly from single-pass data (avoids redundant entry walks)
-    let startInput = isCash ? cash : netInvested
+    // Build FundState directly from single-pass data (avoids redundant entry walks).
+    // Recommendation decisions must use the open position's cost basis, not net
+    // invested after prior harvests. Otherwise realized profit can mask a current
+    // unrealized loss and incorrectly permit a SELL recommendation.
+    let startInput = isCash ? cash : costBasis
     let gainUsdState = startInput > 0 ? currentValue - startInput : 0.0
     let rawGainPct = startInput > 0 ? (currentValue / startInput) - 1.0 : 0.0
     let gainPctState = rawGainPct.isFinite ? rawGainPct : 0.0
@@ -1368,4 +1371,3 @@ func computeEntryRows(entries: [FundEntry], config: FundConfig) -> [ComputedEntr
         )
     }
 }
-

@@ -127,6 +127,33 @@ final class AdvancedToolsTests: XCTestCase {
         XCTAssertEqual(result[2].date, "2025-02-01")
     }
 
+    func testComputeFundSizeForEntryCarriesPreviousFundSizeForBuy() {
+        let config = FundConfig(fund_type: .crypto, status: .active, accumulate: false)
+        let existing = [
+            FundEntry(date: "2025-12-28", value: 3297.78, action: .BUY, amount: 500, fund_size: 8800),
+            FundEntry(date: "2026-01-04", value: 4641.32, action: .BUY, amount: 250, fund_size: 8800),
+        ]
+        let newEntry = FundEntry(date: "2026-01-06", value: 4925.10, action: .BUY, amount: 250)
+
+        let fundSize = computeFundSizeForEntry(newEntry, existingEntries: existing, config: config)
+
+        XCTAssertEqual(fundSize, 9050, accuracy: 0.01)
+    }
+
+    func testComputeFundSizeForEntryDoesNotRebaseFromHistoricalHarvestMath() {
+        let config = FundConfig(fund_type: .crypto, status: .active, accumulate: false)
+        let existing = [
+            FundEntry(date: "2025-01-01", value: 0, action: .BUY, amount: 6000, shares: 100, fund_size: 6000),
+            FundEntry(date: "2025-08-25", value: 5181.13, action: .BUY, amount: 100, shares: 456.64, fund_size: 8000),
+            FundEntry(date: "2025-12-28", value: 3297.78, action: .BUY, amount: 500, shares: 3891.09, fund_size: 8800),
+        ]
+        let newEntry = FundEntry(date: "2026-01-04", value: 4641.32, action: .BUY, amount: 250, shares: 1591.95)
+
+        let fundSize = computeFundSizeForEntry(newEntry, existingEntries: existing, config: config)
+
+        XCTAssertEqual(fundSize, 9050, accuracy: 0.01)
+    }
+
     // MARK: - Interpolate Column
 
     func testInterpolateColumnBasic() {

@@ -191,6 +191,27 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(rec!.amount, 700, accuracy: 0.01)
     }
 
+    func testComputeRecommendationDoesNotSellUnrealizedLossEvenAboveTarget() {
+        let config = makeStockConfig(minProfit: 100, accumulate: false)
+        let state = FundState(
+            cashAvailableUsd: 4000,
+            expectedTargetUsd: 800,
+            actualValueUsd: 1000,
+            startInputUsd: 1200,
+            gainUsd: -200,
+            gainPct: -1.0 / 6.0,
+            targetDiffUsd: 200,
+            cashInterestUsd: 0,
+            realizedGainsUsd: 300
+        )
+
+        let rec = computeRecommendation(config: config, state: state)
+        XCTAssertNotNil(rec)
+        XCTAssertNotEqual(rec?.action, .SELL)
+        XCTAssertEqual(rec?.action, .BUY)
+        XCTAssertEqual(rec!.amount, 150, accuracy: 0.01)
+    }
+
     // MARK: - computeRecommendation: HOLD
 
     func testComputeRecommendationHold() {
@@ -1080,6 +1101,26 @@ final class EngineTests: XCTestCase {
         XCTAssertGreaterThan(result.metrics.daysActive, 180)
         XCTAssertEqual(result.state.gainUsd, 200, accuracy: 0.01)
         XCTAssertEqual(result.state.gainPct, 0.20, accuracy: 0.01)
+    }
+
+    func testComputeFundMetricsStateUsesOpenCostBasisAfterHarvest() {
+        let config = makeStockConfig(targetApy: 0.20, accumulate: false)
+        let entries = [
+            FundEntry(date: "2024-01-01", value: 0, action: .BUY, amount: 1000, shares: 10),
+            FundEntry(date: "2024-06-01", value: 1400, action: .SELL, amount: 600, shares: 3),
+            FundEntry(date: "2024-07-01", value: 700, action: .BUY, amount: 500, shares: 5),
+            FundEntry(date: "2025-01-01", value: 1000, action: .HOLD),
+        ]
+
+        let fund = FundData(platform: "test", ticker: "AAPL", config: config, entries: entries)
+        let result = computeFundMetricsForFund(fund, asOfDate: "2025-01-01")
+
+        XCTAssertEqual(result.metrics.realizedGains, 300, accuracy: 0.01)
+        XCTAssertEqual(result.metrics.unrealizedGains, -200, accuracy: 0.01)
+        XCTAssertEqual(result.metrics.startInput, 1200, accuracy: 0.01)
+        XCTAssertEqual(result.state.startInputUsd, 1200, accuracy: 0.01)
+        XCTAssertEqual(result.state.gainUsd, -200, accuracy: 0.01)
+        XCTAssertEqual(result.state.gainPct, -1.0 / 6.0, accuracy: 0.001)
     }
 
     // MARK: - Actionable Funds

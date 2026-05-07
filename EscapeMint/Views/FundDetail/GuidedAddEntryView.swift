@@ -480,9 +480,13 @@ private struct GuidedQuestion<Footer: View>: View {
 
             VStack(spacing: 10) {
                 Text(eyebrow)
-                    .font(.caption).fontWeight(.semibold)
-                    .tracking(2)
+                    .font(.title3).fontWeight(.bold)
+                    .tracking(0.5)
                     .foregroundColor(.mint)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(Color.mint.opacity(0.12))
+                    .cornerRadius(8)
                 Text(question)
                     .font(.title2).fontWeight(.semibold)
                     .multilineTextAlignment(.center)

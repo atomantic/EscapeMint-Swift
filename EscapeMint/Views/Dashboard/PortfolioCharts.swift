@@ -229,7 +229,7 @@ private struct FundMetricsCursor {
             : sumCashInterest + sumDividends + sumExtracted - sumExpenses
 
         let twNumerator = isCash ? twabNumerator : finalTwapNum
-        let startInput = isCash ? (latestEntry?.cash ?? latestEntry?.fund_size ?? latestEntry?.value ?? 0) : netInvested
+        let startInput = isCash ? (latestEntry?.cash ?? latestEntry?.fund_size ?? latestEntry?.value ?? 0) : costBasis
 
         return FundSnapshotMetrics(
             fundSize: computedFundSize, currentValue: currentValue,
@@ -971,4 +971,3 @@ private var emChartPlaceholder: some View {
         .frame(maxWidth: .infinity)
         .frame(height: 150)
 }
-
