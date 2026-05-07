@@ -21,6 +21,11 @@ struct CreateFundView: View {
     @State private var cashBalance = ""
     @State private var selectedTab = 0
 
+    init(initialPlatform: String = "", onCreated: @escaping () -> Void) {
+        self.onCreated = onCreated
+        _platform = State(initialValue: initialPlatform.lowercased().trimmingCharacters(in: .whitespaces))
+    }
+
     private var canCreate: Bool {
         !platform.isEmpty && !ticker.isEmpty
     }
