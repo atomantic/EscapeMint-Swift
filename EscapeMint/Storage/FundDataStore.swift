@@ -288,14 +288,15 @@ final class FundDataStore {
     /// triggering 20 recomputes, notification reschedules, widget refreshes.
     func renameFunds(_ edits: [(oldId: String, newFund: FundData)]) async {
         guard !edits.isEmpty else { return }
-        let snapshot = Self.applyRenames(to: funds, edits: edits)
-        for (oldId, newFund) in edits {
+        let preparedEdits = Self.prepareRenameEdits(edits)
+        let snapshot = Self.applyRenames(to: funds, edits: preparedEdits)
+        for (oldId, newFund) in preparedEdits {
             forgetFund(id: oldId)
             bumpFundVersion(newFund.id)
         }
         await recomputeWith(snapshot)
         var anyWriteSucceeded = false
-        for (oldId, newFund) in edits {
+        for (oldId, newFund) in preparedEdits {
             do {
                 try await FundStore.shared.writeFund(newFund)
                 if oldId != newFund.id {
@@ -326,6 +327,50 @@ final class FundDataStore {
             }
         }
         return snapshot
+    }
+
+    /// Preserve fund identity across platform/ticker renames. Legacy funds may
+    /// not have `__fund_id` yet, so the current file-backed ID is stamped into
+    /// the renamed config before the snapshot is recomputed or written.
+    nonisolated static func prepareRenameEdits(_ edits: [(oldId: String, newFund: FundData)]) -> [(oldId: String, newFund: FundData)] {
+        var preparedEdits = edits.map { edit in
+            var prepared = edit.newFund
+            if prepared.config.fund_id?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
+                prepared.config.fund_id = edit.oldId
+            }
+            return (oldId: edit.oldId, newFund: prepared)
+        }
+
+        let renamedIds = Dictionary(uniqueKeysWithValues: preparedEdits.map { ($0.oldId, $0.newFund.id) })
+        let defaultCashByOldPlatform = Dictionary(uniqueKeysWithValues: preparedEdits.compactMap { edit -> (String, String)? in
+            guard edit.newFund.ticker == "cash",
+                  let oldPlatform = oldPlatformName(from: edit.oldId, ticker: edit.newFund.ticker) else {
+                return nil
+            }
+            return (oldPlatform, edit.newFund.id)
+        })
+
+        for index in preparedEdits.indices {
+            var fund = preparedEdits[index].newFund
+            if let cashFundId = fund.config.cash_fund,
+               let renamedCashFundId = renamedIds[cashFundId] {
+                fund.config.cash_fund = renamedCashFundId
+            } else if fund.config.manage_cash == false,
+                      fund.config.cash_fund == nil,
+                      let oldPlatform = oldPlatformName(from: preparedEdits[index].oldId, ticker: fund.ticker),
+                      let renamedCashFundId = defaultCashByOldPlatform[oldPlatform] {
+                fund.config.cash_fund = renamedCashFundId
+            }
+            preparedEdits[index].newFund = fund
+        }
+
+        return preparedEdits
+    }
+
+    private nonisolated static func oldPlatformName(from oldId: String, ticker: String) -> String? {
+        let suffix = "-\(ticker)"
+        guard oldId.hasSuffix(suffix), oldId.count > suffix.count else { return nil }
+        return String(oldId.dropLast(suffix.count))
     }
 
     func deleteFund(id: String) async {

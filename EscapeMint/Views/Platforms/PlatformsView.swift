@@ -173,15 +173,11 @@ struct PlatformsView: View {
             HStack(spacing: 0) {
                 StatBox(label: "Fund Size", value: formatCurrency(info.totalFundSize), showCard: false)
                 StatBox(label: "Current Value", value: formatCurrency(info.totalValue), color: .mint, showCard: false)
-                StatBox(label: "Funds", value: "\(info.fundCount)", showCard: false)
-                StatBox(label: "Active", value: "\(info.activeFundCount)", showCard: false)
             }
             #else
             LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 8) {
                 StatBox(label: "Fund Size", value: formatCurrency(info.totalFundSize), showCard: false)
                 StatBox(label: "Value", value: formatCurrency(info.totalValue), color: .mint, showCard: false)
-                StatBox(label: "Funds", value: "\(info.fundCount)", showCard: false)
-                StatBox(label: "Active", value: "\(info.activeFundCount)", showCard: false)
             }
             #endif
         }

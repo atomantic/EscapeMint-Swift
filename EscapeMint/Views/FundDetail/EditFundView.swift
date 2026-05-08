@@ -208,8 +208,10 @@ struct EditFundView: View {
         config.dollar_decimals = dd == 2 ? nil : dd
         config.equity_input = equityInput == .direct ? nil : equityInput
 
-        let platformChanged = platform != fund.platform
-        let tickerChanged = ticker != fund.ticker
+        let cleanPlatform = platform.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let cleanTicker = ticker.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let platformChanged = cleanPlatform != fund.platform
+        let tickerChanged = cleanTicker != fund.ticker
 
         dismiss()
 
@@ -217,11 +219,10 @@ struct EditFundView: View {
         Task {
             if platformChanged || tickerChanged {
                 var newFund = fund
-                newFund.platform = platform
-                newFund.ticker = ticker
+                newFund.platform = cleanPlatform
+                newFund.ticker = cleanTicker
                 newFund.config = config
-                await store.addFund(newFund)
-                await store.deleteFund(id: fund.id)
+                await store.renameFund(from: fund.id, to: newFund)
             } else {
                 await store.updateConfig(fundId: fund.id, config: config)
             }

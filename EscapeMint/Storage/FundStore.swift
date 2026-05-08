@@ -31,6 +31,17 @@ actor FundStore {
     nonisolated var isICloud: Bool {
         Self.stateLock.withLock { $0! }.isICloud
     }
+    nonisolated static var shouldUseLocalStorageOnly: Bool {
+        let args = CommandLine.arguments
+        if args.contains("-loadTestData") || args.contains("-skipICloud") {
+            return true
+        }
+        #if targetEnvironment(simulator)
+        return !args.contains("-useICloudInSimulator")
+        #else
+        return false
+        #endif
+    }
     fileprivate static var currentFundsDirectory: URL {
         stateLock.withLock { $0! }.fundsDirectory
     }
@@ -42,8 +53,10 @@ actor FundStore {
         let resolvedDir: URL
         let resolvedICloud: Bool
 
-        // When loading test data (screenshots), skip iCloud to avoid sync race conditions
-        let skipICloud = CommandLine.arguments.contains("-loadTestData")
+        // Simulator iCloud container directory creation can hang indefinitely.
+        // Use local storage for normal simulator runs; pass -useICloudInSimulator
+        // when intentionally testing iCloud behavior.
+        let skipICloud = Self.shouldUseLocalStorageOnly
 
         if !skipICloud,
            let iCloudURL = fm.url(forUbiquityContainerIdentifier: Self.iCloudContainerId) {
@@ -109,11 +122,16 @@ actor FundStore {
     /// Called during the loading screen before any funds are read.
     /// Returns true if iCloud became available and the funds directory was switched.
     func hasICloudAccount() -> Bool {
-        fileManager.ubiquityIdentityToken != nil
+        guard !Self.shouldUseLocalStorageOnly else { return false }
+        return fileManager.ubiquityIdentityToken != nil
     }
 
     func retryICloudIfNeeded(maxAttempts: Int = 5, delay: Duration = .seconds(1)) async -> Bool {
         guard !isICloud else { return false }
+        guard !Self.shouldUseLocalStorageOnly else {
+            Self.logger.info("☁️ iCloud disabled for this launch, using local storage")
+            return false
+        }
 
         let fm = FileManager.default
 
@@ -209,6 +227,9 @@ actor FundStore {
         guard let configData = try? Data(contentsOf: jsonURL),
               var config = try? JSONDecoder().decode(FundConfig.self, from: configData),
               let platform = config.platform, let ticker = config.ticker else { return nil }
+        if config.fund_id?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
+            config.fund_id = jsonURL.deletingPathExtension().lastPathComponent
+        }
         config.platform = nil
         config.ticker = nil
         return FundData(platform: platform, ticker: ticker, config: config, entries: [])
@@ -237,6 +258,7 @@ actor FundStore {
 
         // Write config with metadata
         var configWithMeta = fund.config
+        configWithMeta.fund_id = fund.id
         configWithMeta.platform = fund.platform
         configWithMeta.ticker = fund.ticker
         let configData = try JSONEncoder.pretty.encode(configWithMeta)
@@ -444,6 +466,7 @@ actor FundStore {
 
             do {
                 var configWithMeta = configDict
+                configWithMeta["__fund_id"] = id
                 configWithMeta["__platform"] = platform
                 configWithMeta["__ticker"] = ticker
 

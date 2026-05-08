@@ -37,6 +37,7 @@ enum EquityInputMethod: String, Codable, CaseIterable {
 
 struct FundConfig: Codable {
     // Metadata (prefixed with __ in JSON)
+    var fund_id: String?
     var platform: String?
     var ticker: String?
 
@@ -83,6 +84,7 @@ struct FundConfig: Codable {
     var chart_bounds: [String: ChartBounds]?
 
     enum CodingKeys: String, CodingKey {
+        case fund_id = "__fund_id"
         case platform = "__platform"
         case ticker = "__ticker"
         case fund_type, status, category
@@ -283,7 +285,13 @@ struct FundSummary {
 }
 
 struct FundData: Identifiable {
-    var id: String { "\(platform)-\(ticker)" }
+    var id: String {
+        if let persistedId = config.fund_id?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !persistedId.isEmpty {
+            return persistedId
+        }
+        return "\(platform)-\(ticker)"
+    }
     var platform: String
     var ticker: String
     var config: FundConfig

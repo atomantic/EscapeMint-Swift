@@ -444,6 +444,14 @@ final class StorageTests: XCTestCase {
         XCTAssertNotEqual(fund1.id, fund2.id)
     }
 
+    func testFundDataIdUsesPersistedFundId() {
+        let fund = FundData(
+            platform: "rh", ticker: "tqqq",
+            config: FundConfig(fund_id: "robinhood-tqqq"), entries: []
+        )
+        XCTAssertEqual(fund.id, "robinhood-tqqq")
+    }
+
     // MARK: - Backup JSON Entry Serialization
 
     func testBackupEntryRoundTripThroughTSV() {
@@ -558,6 +566,37 @@ final class StorageTests: XCTestCase {
         )
         XCTAssertEqual(result.count, 1)
         XCTAssertEqual(result[0].id, "coinbase-btc")
+    }
+
+    func testPrepareRenameEditsStampsLegacyFundId() {
+        let renamed = FundData(platform: "rh", ticker: "tqqq",
+                               config: FundConfig(fund_type: .stock), entries: [])
+
+        let edits = FundDataStore.prepareRenameEdits([
+            ("robinhood-tqqq", renamed)
+        ])
+
+        XCTAssertEqual(edits.count, 1)
+        XCTAssertEqual(edits[0].newFund.id, "robinhood-tqqq")
+        XCTAssertEqual(edits[0].newFund.platform, "rh")
+    }
+
+    func testPrepareRenameEditsPinsDefaultCashFundForPlatformWideRename() {
+        var tradingConfig = FundConfig(fund_type: .stock)
+        tradingConfig.manage_cash = false
+        let tqqq = FundData(platform: "rh", ticker: "tqqq",
+                            config: tradingConfig, entries: [])
+        let cash = FundData(platform: "rh", ticker: "cash",
+                            config: FundConfig(fund_type: .cash), entries: [])
+
+        let edits = FundDataStore.prepareRenameEdits([
+            ("robinhood-tqqq", tqqq),
+            ("robinhood-cash", cash),
+        ])
+
+        let renamedTQQQ = edits.first { $0.oldId == "robinhood-tqqq" }!.newFund
+        XCTAssertEqual(renamedTQQQ.id, "robinhood-tqqq")
+        XCTAssertEqual(renamedTQQQ.config.cash_fund, "robinhood-cash")
     }
 
     // MARK: - DataStats
