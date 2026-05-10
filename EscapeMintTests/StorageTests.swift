@@ -400,6 +400,8 @@ final class StorageTests: XCTestCase {
         // Present but empty funds array → should return 0 imported, no throw
         let zeroFundsURL = tempDir.appendingPathComponent("zero.json")
         try #"{"version":"1.0.0","funds":[]}"#.data(using: .utf8)!.write(to: zeroFundsURL)
+        let zeroPreflightCount = try await store.backupJSONFundCount(zeroFundsURL)
+        XCTAssertEqual(zeroPreflightCount, 0)
         let zeroCount = try await store.importFromBackupJSON(zeroFundsURL)
         XCTAssertEqual(zeroCount, 0)
     }
@@ -597,6 +599,23 @@ final class StorageTests: XCTestCase {
         let renamedTQQQ = edits.first { $0.oldId == "robinhood-tqqq" }!.newFund
         XCTAssertEqual(renamedTQQQ.id, "robinhood-tqqq")
         XCTAssertEqual(renamedTQQQ.config.cash_fund, "robinhood-cash")
+    }
+
+    func testApplyPlatformDeletionRemovesOnlyMatchingPlatform() {
+        let oldDuplicate = FundData(platform: "robinhood", ticker: "tqqq",
+                                    config: FundConfig(fund_id: "robinhood-tqqq", fund_type: .stock), entries: [])
+        let renamedCurrent = FundData(platform: "rh", ticker: "tqqq",
+                                      config: FundConfig(fund_id: "rh-tqqq", fund_type: .stock), entries: [])
+        let coinbase = FundData(platform: "coinbase", ticker: "btc",
+                                config: FundConfig(fund_type: .crypto), entries: [])
+
+        let result = FundDataStore.applyPlatformDeletion(
+            to: [oldDuplicate, renamedCurrent, coinbase],
+            platform: " Robinhood "
+        )
+
+        XCTAssertEqual(result.map(\.id).sorted(), ["coinbase-btc", "rh-tqqq"])
+        XCTAssertFalse(result.contains { $0.platform == "robinhood" })
     }
 
     // MARK: - DataStats

@@ -14,12 +14,18 @@ private enum SettingsTab: String, CaseIterable, Hashable {
 }
 #endif
 
+private enum BackupImportMode {
+    case merge
+    case replace
+}
+
 struct SettingsView: View {
     @State private var appearance = AppearanceManager.shared
     @State private var fundCount = 0
     @State private var dataSize = "..."
     @State private var storageLocation = "..."
     @State private var showImportJSON = false
+    @State private var pendingBackupImportURL: URL?
     @State private var statusMessage = ""
     @State private var showStatus = false
     @State private var showClearConfirm = false
@@ -73,9 +79,28 @@ struct SettingsView: View {
             } message: {
                 Text("This will delete all \(testFundCount) test \(testFundCount == 1 ? "fund" : "funds") (coinbasetest, robinhoodtest platforms). Your real funds will not be affected.")
             }
+            .alert(
+                "Restore Backup",
+                isPresented: Binding(
+                    get: { pendingBackupImportURL != nil },
+                    set: { if !$0 { pendingBackupImportURL = nil } }
+                )
+            ) {
+                Button("Cancel", role: .cancel) {
+                    pendingBackupImportURL = nil
+                }
+                Button("Merge") {
+                    confirmBackupImport(mode: .merge)
+                }
+                Button("Replace All", role: .destructive) {
+                    confirmBackupImport(mode: .replace)
+                }
+            } message: {
+                Text("Merge adds the backup into your current funds and overwrites matching fund IDs. Replace All clears current funds before restoring this backup.")
+            }
             .fileImporter(isPresented: $showImportJSON, allowedContentTypes: [.json]) { result in
                 if case .success(let url) = result {
-                    importBackupJSON(from: url)
+                    prepareBackupImport(from: url)
                 }
             }
     }
@@ -346,20 +371,36 @@ struct SettingsView: View {
             canChooseDirectories: false,
             allowedContentTypes: [.json]
         ) { url in
-            self.importBackupJSON(from: url)
+            self.prepareBackupImport(from: url)
         }
         #else
         showImportJSON = true
         #endif
     }
 
-    private func importBackupJSON(from url: URL) {
+    private func prepareBackupImport(from url: URL) {
+        pendingBackupImportURL = url
+    }
+
+    private func confirmBackupImport(mode: BackupImportMode) {
+        guard let url = pendingBackupImportURL else { return }
+        pendingBackupImportURL = nil
+        importBackupJSON(from: url, mode: mode)
+    }
+
+    private func importBackupJSON(from url: URL, mode: BackupImportMode) {
         Task {
             let gotAccess = url.startAccessingSecurityScopedResource()
             defer { if gotAccess { url.stopAccessingSecurityScopedResource() } }
             do {
+                _ = try await FundStore.shared.backupJSONFundCount(url)
+                if mode == .replace {
+                    try await FundStore.shared.deleteAllFunds()
+                }
                 let count = try await FundStore.shared.importFromBackupJSON(url)
-                showToast("Restored \(count) fund(s) from backup")
+                ICloudSyncMonitor.shared.markLocalWrite()
+                let action = mode == .replace ? "Replaced data with" : "Merged"
+                showToast("\(action) \(count) fund(s) from backup")
             } catch {
                 showToast("Import failed. Please check the file format.")
             }

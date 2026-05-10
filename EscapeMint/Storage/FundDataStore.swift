@@ -386,6 +386,36 @@ final class FundDataStore {
         }
     }
 
+    func deletePlatform(named platform: String) async {
+        let cleanPlatform = platform.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !cleanPlatform.isEmpty else { return }
+
+        let removedIds = funds
+            .filter { $0.platform == cleanPlatform }
+            .map(\.id)
+        let snapshot = Self.applyPlatformDeletion(to: funds, platform: cleanPlatform)
+
+        for id in removedIds {
+            forgetFund(id: id)
+        }
+        loadedFundCount = min(loadedFundCount, snapshot.count)
+        await recomputeWith(snapshot)
+
+        do {
+            let deletedCount = try await FundStore.shared.deletePlatform(named: cleanPlatform)
+            if deletedCount > 0 || !removedIds.isEmpty {
+                ICloudSyncMonitor.shared.markLocalWrite()
+            }
+        } catch {
+            recordDiskError("deleting platform \(cleanPlatform)", error)
+        }
+    }
+
+    nonisolated static func applyPlatformDeletion(to funds: [FundData], platform: String) -> [FundData] {
+        let cleanPlatform = platform.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return funds.filter { $0.platform != cleanPlatform }
+    }
+
     func appendEntry(fundId: String, entry: FundEntry) async {
         await appendEntries(writes: [(fundId, entry)])
     }

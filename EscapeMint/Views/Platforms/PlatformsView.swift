@@ -2,13 +2,13 @@ import SwiftUI
 
 struct PlatformsView: View {
     private var store: FundDataStore { .shared }
-    @State private var showDeleteAlert = false
-    @State private var platformToDelete: String? = nil
+    @State private var platformToDelete: PlatformInfo? = nil
     @State private var showCreateFund = false
     @State private var editingPlatform: String? = nil
     @State private var editName: String = ""
     @State private var showRenameError = false
     @State private var renameErrorMessage = ""
+    @State private var isDeletingPlatform = false
 
     struct PlatformInfo: Identifiable {
         var id: String { name }
@@ -58,11 +58,24 @@ struct PlatformsView: View {
             }
         }
         #endif
-        .alert("Cannot Delete Platform", isPresented: $showDeleteAlert) {
-            Button("OK", role: .cancel) {}
+        .alert(
+            "Delete Platform?",
+            isPresented: Binding(
+                get: { platformToDelete != nil },
+                set: { if !$0 { platformToDelete = nil } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) {
+                platformToDelete = nil
+            }
+            if let info = platformToDelete {
+                Button("Delete \(info.fundCount) Fund\(info.fundCount == 1 ? "" : "s")", role: .destructive) {
+                    deletePlatform(info)
+                }
+            }
         } message: {
-            if let name = platformToDelete {
-                Text("\(name.capitalized) still has funds. Remove all funds from this platform before deleting it.")
+            if let info = platformToDelete {
+                Text("This permanently deletes every fund and entry on \(info.name.capitalized), including old synced files that can reappear from iCloud.")
             }
         }
         .alert("Rename Failed", isPresented: $showRenameError) {
@@ -199,6 +212,7 @@ struct PlatformsView: View {
         } label: {
             Label("Delete Platform", systemImage: "trash")
         }
+        .disabled(isDeletingPlatform)
     }
 
     // MARK: - Empty State
@@ -225,9 +239,16 @@ struct PlatformsView: View {
 
 
     private func attemptDelete(_ info: PlatformInfo) {
-        if info.fundCount > 0 {
-            platformToDelete = info.name
-            showDeleteAlert = true
+        platformToDelete = info
+    }
+
+    private func deletePlatform(_ info: PlatformInfo) {
+        platformToDelete = nil
+        isDeletingPlatform = true
+        Task {
+            await store.deletePlatform(named: info.name)
+            editingPlatform = nil
+            isDeletingPlatform = false
         }
     }
 

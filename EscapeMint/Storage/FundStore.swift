@@ -318,8 +318,41 @@ actor FundStore {
     }
 
     func deleteFund(id: String) throws {
-        let tsvURL = fundsDirectory.appendingPathComponent("\(id).tsv")
-        let configURL = fundsDirectory.appendingPathComponent("\(id).json")
+        try deleteFundFiles(id: id, in: fundsDirectory)
+        if isICloud, let localFunds = localFundsDirectory(), localFunds != fundsDirectory {
+            try deleteFundFiles(id: id, in: localFunds)
+        }
+    }
+
+    func deletePlatform(named platform: String) throws -> Int {
+        let cleanPlatform = platform.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !cleanPlatform.isEmpty else { return 0 }
+
+        var deletedIds = Set<String>()
+        let dirs = deletionDirectories()
+        for dir in dirs {
+            let ids = fundIds(onPlatform: cleanPlatform, in: dir)
+            for id in ids {
+                try deleteFundFiles(id: id, in: dir)
+                deletedIds.insert(id)
+            }
+        }
+        return deletedIds.count
+    }
+
+    func deleteAllFunds() throws {
+        try deleteAllFundFiles(in: fundsDirectory)
+
+        // When using iCloud, also clear the local Documents/funds/ directory
+        // to prevent migrateToICloudIfNeeded() from restoring deleted data on next launch
+        if isICloud, let localFunds = localFundsDirectory(), localFunds != fundsDirectory {
+            try deleteAllFundFiles(in: localFunds)
+        }
+    }
+
+    private func deleteFundFiles(id: String, in directory: URL) throws {
+        let tsvURL = directory.appendingPathComponent("\(id).tsv")
+        let configURL = directory.appendingPathComponent("\(id).json")
         if fileManager.fileExists(atPath: tsvURL.path) {
             try fileManager.removeItem(at: tsvURL)
         }
@@ -328,23 +361,40 @@ actor FundStore {
         }
     }
 
-    func deleteAllFunds() throws {
-        let dir = fundsDirectory
-        let files = try fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
+    private func deleteAllFundFiles(in directory: URL) throws {
+        guard fileManager.fileExists(atPath: directory.path) else { return }
+        let files = try fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
         for file in files {
             try fileManager.removeItem(at: file)
         }
+    }
 
-        // When using iCloud, also clear the local Documents/funds/ directory
-        // to prevent migrateToICloudIfNeeded() from restoring deleted data on next launch
-        if isICloud, let localDocs = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
-            let localFunds = localDocs.appendingPathComponent("funds")
-            if let localFiles = try? fileManager.contentsOfDirectory(at: localFunds, includingPropertiesForKeys: nil) {
-                for file in localFiles {
-                    try fileManager.removeItem(at: file)
-                }
-            }
+    private func deletionDirectories() -> [URL] {
+        var dirs = [fundsDirectory]
+        if isICloud, let localFunds = localFundsDirectory(), localFunds != fundsDirectory {
+            dirs.append(localFunds)
         }
+        return dirs
+    }
+
+    private func localFundsDirectory() -> URL? {
+        fileManager.urls(for: .documentDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("funds")
+    }
+
+    private func fundIds(onPlatform platform: String, in directory: URL) -> Set<String> {
+        guard let files = try? fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else {
+            return []
+        }
+        return Set(files.compactMap { file in
+            guard file.pathExtension == "json",
+                  let data = try? Data(contentsOf: file),
+                  let config = try? JSONDecoder().decode(FundConfig.self, from: data),
+                  config.platform?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == platform else {
+                return nil
+            }
+            return file.deletingPathExtension().lastPathComponent
+        })
     }
 
     /// Delete all funds belonging to test platforms (coinbasetest, robinhoodtest, demo, etc.)
@@ -428,6 +478,15 @@ actor FundStore {
     }
 
     // MARK: - Backup JSON Import
+
+    func backupJSONFundCount(_ jsonURL: URL) throws -> Int {
+        let data = try Data(contentsOf: jsonURL)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let fundsArray = json["funds"] as? [[String: Any]] else {
+            throw NSError(domain: "FundStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid backup format: missing 'funds' array"])
+        }
+        return fundsArray.count
+    }
 
     func importFromBackupJSON(_ jsonURL: URL) throws -> Int {
         // Ensure funds directory exists
