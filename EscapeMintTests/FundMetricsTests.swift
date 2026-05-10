@@ -118,6 +118,36 @@ final class FundMetricsTests: XCTestCase {
         XCTAssertEqual(result.metrics.totalCashInterest, 200, accuracy: 0.01)
     }
 
+    func testCashPLChartUsesRecordedInterestNotProjectedAPY() {
+        let config = makeConfig(fundType: .cash, cashApy: 0.50, manageCash: true)
+        let entries = [
+            FundEntry(date: "2026-01-01", value: 1000, cash: 1000, action: .DEPOSIT, amount: 1000),
+            FundEntry(date: "2026-02-01", value: 1005, cash: 1005, action: .HOLD),
+            FundEntry(date: "2026-03-01", value: 1012, cash: 1012, action: .HOLD, cash_interest: 7),
+            FundEntry(date: "2026-04-01", value: 1010, cash: 1010, action: .HOLD, expense: 2),
+        ]
+
+        let points = computePLPoints(entries: entries, config: config)
+
+        XCTAssertEqual(points.map(\.realized), [0, 0, 7, 5])
+        XCTAssertEqual(points.map(\.liquid), [0, 0, 7, 5])
+    }
+
+    func testCashPLChartCoalescesSameDayEntriesToFinalDailyPoint() {
+        let config = makeConfig(fundType: .cash, manageCash: true)
+        let entries = [
+            FundEntry(date: "2026-01-01", value: 1000, cash: 1000, action: .DEPOSIT, amount: 1000),
+            FundEntry(date: "2026-01-01", value: 1004, cash: 1004, action: .HOLD, cash_interest: 4),
+            FundEntry(date: "2026-02-01", value: 1006, cash: 1006, action: .HOLD, cash_interest: 2),
+        ]
+
+        let points = computePLPoints(entries: entries, config: config)
+
+        XCTAssertEqual(points.map(\.date), ["2026-01-01", "2026-02-01"])
+        XCTAssertEqual(points.map(\.realized), [4, 6])
+        XCTAssertEqual(Set(points.map(\.id)).count, points.count)
+    }
+
     func testCashFundFallbackToFundSize() {
         // When cash field is nil, engine should fall back to fund_size then value
         let config = makeConfig(fundType: .cash, cashApy: 0.04, manageCash: true, accumulate: true)

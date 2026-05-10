@@ -121,6 +121,30 @@ func sampleArray<T>(_ items: [T], maxPoints: Int = 60) -> [T] {
         .map(\.element)
 }
 
+private func sortedByDateStable(_ entries: [FundEntry]) -> [FundEntry] {
+    entries.enumerated()
+        .sorted {
+            if $0.element.date == $1.element.date { return $0.offset < $1.offset }
+            return $0.element.date < $1.element.date
+        }
+        .map(\.element)
+}
+
+private func latestPointPerDate<T: DateIdentifiable>(_ points: [T]) -> [T] {
+    var daily: [T] = []
+    daily.reserveCapacity(points.count)
+
+    for point in points {
+        if daily.last?.date == point.date {
+            daily[daily.count - 1] = point
+        } else {
+            daily.append(point)
+        }
+    }
+
+    return daily
+}
+
 // MARK: - Chart Data Point Structs
 
 struct PLPoint: DateIdentifiable {
@@ -166,18 +190,31 @@ func computePLPoints(entries: [FundEntry], config: FundConfig) -> [PLPoint] {
     // Use active status for chart computation — closed funds return zeros from computeFundState
     let cc = chartConfig(config)
     let isCash = isCashFund(config.fund_type)
-    let sampled = sampleArray(entries)
-    return sampled.map { entry in
-        let prior = entries.filter { $0.date <= entry.date }
-        let trades = entriesToTrades(prior)
-        let cashflows = entriesToCashFlows(prior)
-        let dividends = entriesToDividends(prior)
-        let expenses = entriesToExpenses(prior)
-        let state = computeFundState(config: cc, trades: trades, cashflows: cashflows, dividends: dividends, expenses: expenses, actualValue: entry.value, asOfDate: entry.date)
-        // Cash funds: unrealized=0, liquid=realized (no double-counting)
-        let liquid = isCash ? state.realizedGainsUsd : state.gainUsd + state.realizedGainsUsd
-        return PLPoint(id: entry.date, date: entry.date, realized: state.realizedGainsUsd, liquid: liquid)
+
+    let ordered = sortedByDateStable(entries)
+    let allPoints: [PLPoint]
+
+    if isCash {
+        var realized = 0.0
+        allPoints = ordered.map { entry in
+            realized += entry.cash_interest ?? 0
+            realized -= entry.expense ?? 0
+            return PLPoint(id: entry.date, date: entry.date, realized: realized, liquid: realized)
+        }
+    } else {
+        // Convert once; engine filters internally by asOfDate. Avoids O(N²) per-entry reconversion.
+        let trades = entriesToTrades(ordered)
+        let cashflows = entriesToCashFlows(ordered)
+        let dividends = entriesToDividends(ordered)
+        let expenses = entriesToExpenses(ordered)
+        allPoints = ordered.map { entry in
+            let state = computeFundState(config: cc, trades: trades, cashflows: cashflows, dividends: dividends, expenses: expenses, actualValue: entry.value, asOfDate: entry.date)
+            let liquid = state.gainUsd + state.realizedGainsUsd
+            return PLPoint(id: entry.date, date: entry.date, realized: state.realizedGainsUsd, liquid: liquid)
+        }
     }
+
+    return sampleArray(latestPointPerDate(allPoints))
 }
 
 func computeAPYPoints(entries: [FundEntry], config: FundConfig) -> [APYPoint] {
@@ -437,8 +474,12 @@ struct PLChartView: View {
                 let allValues = points.flatMap { [$0.realized, $0.liquid] }
                 Chart {
                     ForEach(points) { pt in
-                        let d = isoDateFormatter.date(from: pt.date) ?? Date()
-                        AreaMark(x: .value("Date", d), y: .value("Liquid", pt.liquid))
+                        let d = pt.dateValue
+                        AreaMark(
+                            x: .value("Date", d),
+                            yStart: .value("Baseline", 0),
+                            yEnd: .value("Liquid", pt.liquid)
+                        )
                             .foregroundStyle(Color.blue.opacity(0.1))
                             .interpolationMethod(.monotone)
                         LineMark(x: .value("Date", d), y: .value("Realized", pt.realized))
