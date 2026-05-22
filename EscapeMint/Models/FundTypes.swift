@@ -297,12 +297,18 @@ struct FundSummary {
            let cached = cache.closedMetrics {
             return (cached, fingerprint)
         }
-        let trades = entriesToTrades(fund.entries)
-        let dividends = entriesToDividends(fund.entries)
-        let expenses = entriesToExpenses(fund.entries)
-        let cashflows = entriesToCashFlows(fund.entries)
-        let startDate = getFundStartDate(fund.entries)
-        let endDate = fund.entries.last?.date ?? asOfDate
+        // Sort entries by date so endDate uses the chronological max, not whichever entry
+        // happened to be appended last. The codebase generally appends in date order, but a
+        // user editing a historical entry can violate that and the cache key MUST reflect
+        // chronological reality so cached metrics match what computeClosedFundMetrics would
+        // produce on a fresh recompute.
+        let sortedEntries = fund.entries.sorted { $0.date < $1.date }
+        let trades = entriesToTrades(sortedEntries)
+        let dividends = entriesToDividends(sortedEntries)
+        let expenses = entriesToExpenses(sortedEntries)
+        let cashflows = entriesToCashFlows(sortedEntries)
+        let startDate = getFundStartDate(sortedEntries)
+        let endDate = sortedEntries.last?.date ?? asOfDate
         // Accrue cash interest only up to endDate (last entry), not asOfDate. The cache key
         // does NOT include asOfDate, so feeding asOfDate here would let cache hits return stale
         // totalCashInterestUsd as time advances. Closed funds don't accrue further after their
@@ -334,6 +340,11 @@ struct FundSummary {
     /// without S/N tags: `status` is only ever `.closed` here (the only caller —
     /// `buildClosedMetrics` — filters non-closed funds first), and `cash_apy ?? 0` matches the
     /// compute path's own default so `nil` and `0.0` deliberately produce the same fingerprint.
+    /// Entries are hashed in date-sorted order so the fingerprint reflects content, not
+    /// incidental storage order — a user editing a historical entry could otherwise change
+    /// the storage order without changing the actual data, and we'd invalidate the cache
+    /// (or worse, return cached metrics that disagree with a fresh recompute on the same
+    /// sorted entries).
     /// Bytes are streamed into SHA256 incrementally to avoid allocating a large intermediate
     /// payload string.
     static func historyFingerprint(for fund: FundData) -> String {
@@ -356,8 +367,9 @@ struct FundSummary {
         feed("dividend_reinvest:\(fund.config.dividend_reinvest == true)\n")
         feed("interest_reinvest:\(fund.config.interest_reinvest == true)\n")
         feed("expense_from_fund:\(fund.config.expense_from_fund == true)\n")
-        feed("count:\(fund.entries.count)\n")
-        for e in fund.entries {
+        let sortedEntries = fund.entries.sorted { $0.date < $1.date }
+        feed("count:\(sortedEntries.count)\n")
+        for e in sortedEntries {
             feed(e.date); feed("|")
             feedDouble(e.value); feed("|")
             feedOptDouble(e.cash); feed("|")

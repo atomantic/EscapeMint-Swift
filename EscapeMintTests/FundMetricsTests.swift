@@ -759,6 +759,22 @@ final class FundMetricsTests: XCTestCase {
         XCTAssertEqual(FundSummary.historyFingerprint(for: a).count, 64)
     }
 
+    func testHistoryFingerprintIsInvariantToEntryStorageOrder() {
+        // Same entries in different storage order MUST produce the same fingerprint —
+        // otherwise an out-of-order edit (or a TSV that wasn't appended chronologically)
+        // would invalidate the cache despite identical metrics.
+        var configA = makeConfig(status: .closed)
+        configA.fund_type = .stock
+        let entries = [
+            FundEntry(date: "2024-01-01", value: 1000, action: .BUY, amount: 1000, shares: 10),
+            FundEntry(date: "2024-03-15", value: 1100, action: .HOLD),
+            FundEntry(date: "2024-06-01", value: 1200, action: .SELL, amount: 1200, shares: 10),
+        ]
+        let fundA = FundData(platform: "test", ticker: "AAPL", config: configA, entries: entries)
+        let fundB = FundData(platform: "test", ticker: "AAPL", config: configA, entries: entries.reversed())
+        XCTAssertEqual(FundSummary.historyFingerprint(for: fundA), FundSummary.historyFingerprint(for: fundB))
+    }
+
     func testHistoryFingerprintChangesWhenEntriesChange() {
         var fund = makeClosedFund()
         let before = FundSummary.historyFingerprint(for: fund)
