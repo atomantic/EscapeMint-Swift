@@ -696,11 +696,14 @@ final class FundDataStore {
 
         var updatedFunds = funds
         for item in updates {
-            if let idx = updatedFunds.firstIndex(where: { $0.id == item.id }) {
-                updatedFunds[idx].config = item.config
-            }
+            // Only mutate in-memory state after the disk write succeeds — otherwise the cached
+            // fingerprint sticks around in `funds` and the next recompute treats persistence as
+            // complete, so the failed write never gets retried.
             do {
                 try await FundStore.shared.updateConfig(fundId: item.id, config: item.config)
+                if let idx = updatedFunds.firstIndex(where: { $0.id == item.id }) {
+                    updatedFunds[idx].config = item.config
+                }
             } catch {
                 recordDiskError("persisting history cache", error)
             }

@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 enum FundType: String, Codable, CaseIterable {
     case cash
@@ -297,23 +298,30 @@ struct FundSummary {
         return computeClosedFundMetrics(trades: trades, dividends: dividends, expenses: expenses, cashInterest: ci, startDate: startDate, endDate: endDate)
     }
 
+    /// Deterministic fingerprint for the inputs to `computeClosedFundMetrics` / `computeCashInterest`.
+    /// MUST be stable across process restarts (Swift's `Hasher` is not — it's seeded per-process,
+    /// which would invalidate every persisted cache on next launch).
+    /// MUST include every config field that those compute functions read — if you add a new
+    /// metrics-affecting field to `FundConfig` (or change what the compute path reads), update
+    /// this list or the cache will return stale results.
+    /// O(n) over entries: still much cheaper than the multi-pass closed-metrics computation it gates,
+    /// but if entry counts grow large, consider storing a rolling fingerprint on `FundData` at
+    /// load/mutation time instead of recomputing here.
     static func historyFingerprint(for fund: FundData) -> String {
-        var hasher = Hasher()
-        hasher.combine(fund.config.status?.rawValue ?? "")
-        hasher.combine(fund.config.manage_cash ?? false)
+        var components: [String] = []
+        components.append("status:\(fund.config.status?.rawValue ?? "")")
+        components.append("manage_cash:\(fund.config.manage_cash == true)")
+        components.append("cash_apy:\(fund.config.cash_apy ?? 0)")
+        components.append("dividend_reinvest:\(fund.config.dividend_reinvest == true)")
+        components.append("interest_reinvest:\(fund.config.interest_reinvest == true)")
+        components.append("expense_from_fund:\(fund.config.expense_from_fund == true)")
+        components.append("count:\(fund.entries.count)")
         for e in fund.entries {
-            hasher.combine(e.date)
-            hasher.combine(e.value)
-            hasher.combine(e.cash ?? -1)
-            hasher.combine(e.action?.rawValue ?? "")
-            hasher.combine(e.amount ?? -1)
-            hasher.combine(e.shares ?? -1)
-            hasher.combine(e.dividend ?? -1)
-            hasher.combine(e.expense ?? -1)
-            hasher.combine(e.cash_interest ?? -1)
-            hasher.combine(e.fund_size ?? -1)
+            components.append("\(e.date)|\(e.value)|\(e.cash ?? -1)|\(e.action?.rawValue ?? "")|\(e.amount ?? -1)|\(e.shares ?? -1)|\(e.dividend ?? -1)|\(e.expense ?? -1)|\(e.cash_interest ?? -1)|\(e.fund_size ?? -1)")
         }
-        return String(hasher.finalize())
+        let payload = components.joined(separator: "\n")
+        let digest = SHA256.hash(data: Data(payload.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
     }
 }
 
