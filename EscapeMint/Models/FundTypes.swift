@@ -301,11 +301,16 @@ struct FundSummary {
         let dividends = entriesToDividends(fund.entries)
         let expenses = entriesToExpenses(fund.entries)
         let cashflows = entriesToCashFlows(fund.entries)
-        let ci = fund.config.manage_cash == true
-            ? computeCashInterest(config: fund.config, trades: trades, cashflows: cashflows, asOfDate: asOfDate)
-            : 0
         let startDate = getFundStartDate(fund.entries)
         let endDate = fund.entries.last?.date ?? asOfDate
+        // Accrue cash interest only up to endDate (last entry), not asOfDate. The cache key
+        // does NOT include asOfDate, so feeding asOfDate here would let cache hits return stale
+        // totalCashInterestUsd as time advances. Closed funds don't accrue further after their
+        // last entry by convention, so endDate is the correct cutoff and the result is now
+        // immutable for a given (entries, config) — exactly what the fingerprint cache assumes.
+        let ci = fund.config.manage_cash == true
+            ? computeCashInterest(config: fund.config, trades: trades, cashflows: cashflows, asOfDate: endDate)
+            : 0
         let metrics = computeClosedFundMetrics(trades: trades, dividends: dividends, expenses: expenses, cashInterest: ci, startDate: startDate, endDate: endDate)
         return (metrics, fingerprint)
     }

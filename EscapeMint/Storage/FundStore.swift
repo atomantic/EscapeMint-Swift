@@ -323,11 +323,12 @@ actor FundStore {
         return true
     }
 
-    /// Read-modify-write of just the `history_cache` slot on a fund's config JSON. Unlike
-    /// `updateConfig`, this never replaces the whole on-disk config — concurrent edits to
-    /// other fields (chart_bounds, etc) made between recompute and the write can't be
-    /// clobbered by a stale in-memory snapshot. Returns `false` if the fund file doesn't
-    /// exist yet (addFund/recompute can race writeFund).
+    /// Read-modify-write of the `history_cache` slot on a fund's config JSON. The write is
+    /// still a full atomic rewrite of the file, but the encoded bytes are based on the latest
+    /// *on-disk* config (re-read here) rather than an in-memory snapshot — so concurrent edits
+    /// to other fields (chart_bounds, etc.) that landed on disk between recompute and this
+    /// write are preserved. Returns `false` if the fund file doesn't exist yet (addFund /
+    /// recompute can race writeFund).
     @discardableResult
     func updateHistoryCache(fundId: String, cache: FundHistoryCache?) throws -> Bool {
         let configURL = fundsDirectory.appendingPathComponent("\(fundId).json")
