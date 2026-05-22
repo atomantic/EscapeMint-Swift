@@ -91,7 +91,7 @@ struct PlatformsView: View {
             Text(renameErrorMessage)
         }
         .sheet(isPresented: $showCreateFund) {
-            CreateFundView { Task { await store.reload() } }
+            CreateFundView {}
         }
     }
 

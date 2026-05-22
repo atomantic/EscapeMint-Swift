@@ -20,6 +20,7 @@ struct CreateFundView: View {
     @State private var marginEnabled = false
     @State private var cashBalance = ""
     @State private var selectedTab = 0
+    @State private var isSaving = false
 
     init(initialPlatform: String = "", onCreated: @escaping () -> Void) {
         self.onCreated = onCreated
@@ -187,7 +188,7 @@ struct CreateFundView: View {
                     .keyboardShortcut(.cancelAction)
                 Button("Create Fund") { save() }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(!canCreate)
+                    .disabled(!canCreate || isSaving)
                     .buttonStyle(.borderedProminent)
                     .tint(.mint)
             }
@@ -213,7 +214,7 @@ struct CreateFundView: View {
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Create") { save() }
-                    .disabled(!canCreate)
+                    .disabled(!canCreate || isSaving)
             }
         }
     }
@@ -235,6 +236,9 @@ struct CreateFundView: View {
     }
 
     private func save() {
+        guard !isSaving else { return }
+        isSaving = true
+
         var config = fundTypeDefaults[fundType] ?? FundConfig()
         config.fund_type = fundType
         config.status = .active
@@ -257,31 +261,30 @@ struct CreateFundView: View {
             entries: []
         )
 
-        Task {
-            await FundDataStore.shared.addFund(fund)
-
-            // Auto-create platform cash fund if needed
-            if needsPlatformCash && !platformCashExists {
-                let cashPlatform = fund.platform
-                var cashConfig = fundTypeDefaults[.cash] ?? FundConfig()
-                cashConfig.fund_type = .cash
-                cashConfig.status = .active
-                cashConfig.category = .liquidity
-                let balance = Double(cashBalance) ?? 0
-                var cashFund = FundData(
-                    platform: cashPlatform,
-                    ticker: "cash",
-                    config: cashConfig,
-                    entries: []
-                )
-                if balance > 0 {
-                    cashFund.entries = [FundEntry(date: todayString(), value: balance, cash: balance, action: .DEPOSIT, amount: balance, fund_size: balance)]
-                }
-                await FundDataStore.shared.addFund(cashFund)
+        var fundsToCreate = [fund]
+        if needsPlatformCash && !platformCashExists {
+            let cashPlatform = fund.platform
+            var cashConfig = fundTypeDefaults[.cash] ?? FundConfig()
+            cashConfig.fund_type = .cash
+            cashConfig.status = .active
+            cashConfig.category = .liquidity
+            let balance = Double(cashBalance) ?? 0
+            var cashFund = FundData(
+                platform: cashPlatform,
+                ticker: "cash",
+                config: cashConfig,
+                entries: []
+            )
+            if balance > 0 {
+                cashFund.entries = [FundEntry(date: todayString(), value: balance, cash: balance, action: .DEPOSIT, amount: balance, fund_size: balance)]
             }
+            fundsToCreate.append(cashFund)
+        }
 
+        dismiss()
+        Task {
+            await FundDataStore.shared.addFunds(fundsToCreate)
             onCreated()
-            dismiss()
         }
     }
 }

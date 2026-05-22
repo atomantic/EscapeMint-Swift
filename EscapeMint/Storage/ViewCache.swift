@@ -137,7 +137,11 @@ final class ViewCache {
         dashboardTask?.cancel()
         isComputingDashboard = true
         dashboardTask = Task {
-            let result = await Task.detached(priority: .userInitiated) {
+            // Coalesce rapid store revisions from entry edits/imports so chart
+            // rebuilding does not compete with button taps and text entry.
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            let result = await Task.detached(priority: .utility) {
                 computePortfolioTimeSeries(funds)
             }.value
             guard !Task.isCancelled else { return }
@@ -218,6 +222,8 @@ final class ViewCache {
     func precomputeFundCharts(_ funds: [FundData]) {
         precomputeTask?.cancel()
         precomputeTask = Task {
+            try? await Task.sleep(for: .milliseconds(750))
+            guard !Task.isCancelled else { return }
             for fund in funds {
                 guard !Task.isCancelled else { return }
                 let fid = fund.id
@@ -258,6 +264,7 @@ final class ViewCache {
                     guard !Task.isCancelled else { return }
                     cacheChartPoints(pts, type: ProfitPoint.self, fundId: fid, entryCount: ec)
                 }
+                await Task.yield()
             }
         }
     }

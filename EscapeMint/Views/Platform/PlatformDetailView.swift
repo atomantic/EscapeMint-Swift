@@ -43,7 +43,7 @@ struct PlatformDetailView: View {
         }
         #endif
         .sheet(isPresented: $showCreateFund) {
-            CreateFundView(initialPlatform: platform) { Task { await store.reload() } }
+            CreateFundView(initialPlatform: platform) {}
         }
     }
 

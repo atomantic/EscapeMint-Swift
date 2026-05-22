@@ -115,14 +115,10 @@ final class FundDataStore {
 
         // If iCloud wasn't available at init (e.g. after reboot), retry before loading
         if !isICloud {
-            #if os(macOS)
-            // macOS can sit behind this loading screen for a long time when iCloud
-            // is slow to hand back the ubiquity container. Do a short foreground
-            // retry, then keep trying after the UI is usable.
+            // Keep launch responsive when iCloud is slow to hand back the ubiquity
+            // container. Do a short foreground retry, then keep trying after the UI
+            // is usable via `scheduleDeferredICloudRecoveryIfNeeded()`.
             let recovered = await FundStore.shared.retryICloudIfNeeded(maxAttempts: 2, delay: .milliseconds(300))
-            #else
-            let recovered = await FundStore.shared.retryICloudIfNeeded()
-            #endif
             if recovered {
                 Self.logger.info("☁️ iCloud recovered after retry, loading from iCloud")
             }
@@ -251,19 +247,36 @@ final class FundDataStore {
     // MARK: - Mutations (memory first for instant UI, then persist to disk)
 
     func addFund(_ fund: FundData) async {
-        funds.append(fund)
+        await addFunds([fund])
+    }
+
+    /// Add multiple funds with one in-memory update and one recompute. Creating a
+    /// trading fund plus its platform cash fund used to run the full portfolio
+    /// recompute twice from one button tap.
+    func addFunds(_ newFunds: [FundData]) async {
+        guard !newFunds.isEmpty else { return }
+        funds.append(contentsOf: newFunds)
         loadedFundCount = funds.count
-        bumpFundVersion(fund.id)
+        for fund in newFunds {
+            bumpFundVersion(fund.id)
+        }
         await recompute()
-        do {
-            // Write the latest in-memory state, NOT the captured `fund` parameter — a
-            // concurrent updateConfig that landed during `await recompute()` would have
-            // mutated funds[idx], and writing the old captured snapshot would clobber it.
-            let toWrite = funds.first(where: { $0.id == fund.id }) ?? fund
-            try await FundStore.shared.writeFund(toWrite)
+
+        var didWrite = false
+        for fund in newFunds {
+            do {
+                // Write the latest in-memory state, NOT the captured `fund` parameter — a
+                // concurrent updateConfig that landed during `await recompute()` would have
+                // mutated funds[idx], and writing the old captured snapshot would clobber it.
+                let toWrite = funds.first(where: { $0.id == fund.id }) ?? fund
+                try await FundStore.shared.writeFund(toWrite)
+                didWrite = true
+            } catch {
+                recordDiskError("adding fund", error)
+            }
+        }
+        if didWrite {
             ICloudSyncMonitor.shared.markLocalWrite()
-        } catch {
-            recordDiskError("adding fund", error)
         }
     }
 
@@ -662,13 +675,17 @@ final class FundDataStore {
         actionableFunds = result.actionableFunds
         platforms = result.platforms
 
-        await persistHistoryCachesIfNeeded(from: result.summaries)
-
         // Invalidate lazy audit cache
         _auditEntries = nil
 
         revision += 1
         updateDockBadge(actionableFunds.count)
+
+        historyCacheTask?.cancel()
+        historyCacheTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.persistHistoryCachesIfNeeded(from: result.summaries)
+        }
 
         // Pre-compute chart data in background so fund detail pages load instantly
         ViewCache.shared.precomputeFundCharts(snapshot)
@@ -694,6 +711,7 @@ final class FundDataStore {
 
     private var sideEffectTask: Task<Void, Never>?
     private var deferredICloudRecoveryTask: Task<Void, Never>?
+    private var historyCacheTask: Task<Void, Never>?
 
     private func persistHistoryCachesIfNeeded(from summaries: [FundSummary]) async {
         var updates: [(id: String, cache: FundHistoryCache)] = []

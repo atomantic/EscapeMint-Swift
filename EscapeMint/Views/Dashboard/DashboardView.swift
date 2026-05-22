@@ -84,7 +84,7 @@ struct DashboardView: View {
                 }
             }
             .sheet(isPresented: $showCreateFund) {
-                CreateFundView { Task { await store.reload() } }
+                CreateFundView {}
             }
         #endif
         }
@@ -364,7 +364,7 @@ struct DashboardView: View {
             .buttonStyle(.borderedProminent)
             .tint(.mint)
             .sheet(isPresented: $showCreateFund) {
-                CreateFundView { Task { await store.reload() } }
+                CreateFundView {}
             }
         }
     }
