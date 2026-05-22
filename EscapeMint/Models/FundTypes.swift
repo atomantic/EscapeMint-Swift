@@ -316,9 +316,12 @@ struct FundSummary {
     /// MUST include every config field that those compute functions read — if you add a new
     /// metrics-affecting field to `FundConfig` (or change what the compute path reads), update
     /// this list or the cache will return stale results.
-    /// Optionals are encoded with explicit `S`/`N` tags so a real value (e.g. `amount == -1`)
-    /// can't collide with absence. Bytes are streamed into SHA256 incrementally to avoid
-    /// allocating a large intermediate payload string.
+    /// Per-entry optionals are encoded with explicit `S`/`N` tags so a real value (e.g.
+    /// `amount == -1`) can't collide with absence. The two config-level optionals (`status`,
+    /// `cash_apy`) are intentionally folded into their defaults instead: the compute path itself
+    /// treats `cash_apy ?? 0` and a `nil` status (filtered out upstream as non-closed) the same
+    /// way, so nil and the default value MUST produce identical fingerprints. Bytes are streamed
+    /// into SHA256 incrementally to avoid allocating a large intermediate payload string.
     static func historyFingerprint(for fund: FundData) -> String {
         var hasher = SHA256()
         func feed(_ s: String) { hasher.update(data: Data(s.utf8)) }

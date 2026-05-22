@@ -323,6 +323,27 @@ actor FundStore {
         return true
     }
 
+    /// Read-modify-write of just the `history_cache` slot on a fund's config JSON. Unlike
+    /// `updateConfig`, this never replaces the whole on-disk config — concurrent edits to
+    /// other fields (chart_bounds, etc) made between recompute and the write can't be
+    /// clobbered by a stale in-memory snapshot. Returns `false` if the fund file doesn't
+    /// exist yet (addFund/recompute can race writeFund).
+    @discardableResult
+    func updateHistoryCache(fundId: String, cache: FundHistoryCache?) throws -> Bool {
+        let configURL = fundsDirectory.appendingPathComponent("\(fundId).json")
+        guard fileManager.fileExists(atPath: configURL.path) else { return false }
+
+        let existing = try Data(contentsOf: configURL)
+        var existingConfig = try JSONDecoder().decode(FundConfig.self, from: existing)
+        existingConfig.history_cache = cache
+        let data = try JSONEncoder.pretty.encode(existingConfig)
+        try data.write(to: configURL, options: .atomic)
+        #if os(iOS)
+        try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: configURL.path)
+        #endif
+        return true
+    }
+
     func deleteFund(id: String) throws {
         try deleteFundFiles(id: id, in: fundsDirectory)
         if isICloud, let localFunds = localFundsDirectory(), localFunds != fundsDirectory {

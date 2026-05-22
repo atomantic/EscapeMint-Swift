@@ -686,34 +686,31 @@ final class FundDataStore {
     private var deferredICloudRecoveryTask: Task<Void, Never>?
 
     private func persistHistoryCachesIfNeeded(from summaries: [FundSummary]) async {
-        var updates: [(id: String, config: FundConfig)] = []
+        var updates: [(id: String, cache: FundHistoryCache)] = []
         for summary in summaries where summary.fund.config.status == .closed {
             // Reuse the fingerprint computed during FundSummary.buildClosedMetrics — recomputing
             // it here would double the O(n) hashing per recompute and partially offset the cache.
             guard let fingerprint = summary.closedHistoryFingerprint else { continue }
             let current = summary.fund.config.history_cache
             if current?.entryFingerprint == fingerprint, current?.closedMetrics != nil { continue }
-            var updatedConfig = summary.fund.config
-            updatedConfig.history_cache = FundHistoryCache(entryFingerprint: fingerprint, closedMetrics: summary.closedMetrics)
-            updates.append((summary.fund.id, updatedConfig))
+            updates.append((summary.fund.id, FundHistoryCache(entryFingerprint: fingerprint, closedMetrics: summary.closedMetrics)))
         }
         guard !updates.isEmpty else { return }
 
         var anyWritten = false
         for item in updates {
-            // Re-entrancy: this is @MainActor but each `await` is a suspension point. Another task
-            // may mutate `funds` (different fund, or different fields on this fund) while the write
-            // is in flight, so we must NOT pre-snapshot `funds` and reassign it at the end — that
-            // would clobber concurrent edits. Instead, after the write succeeds, look up the fund
-            // in the *live* `funds` array and patch only the `history_cache` slot in place.
-            // Also: only patch in-memory state when the write actually hit disk. `updateConfig`
-            // returns false (no throw) if the fund file doesn't exist yet — addFund/recompute
-            // can race ahead of the initial writeFund, and without this gate we'd silently mark
-            // the cache as persisted in memory while the disk file never received it.
+            // Re-entrancy: this is @MainActor but each `await` is a suspension point. Use
+            // `updateHistoryCache` which does a read-modify-write of just the `history_cache`
+            // slot on disk — that way a concurrent edit to *other* config fields (chart_bounds,
+            // dollar_decimals, etc.) made between recompute and this write isn't clobbered by
+            // a stale in-memory snapshot. Likewise we patch only `history_cache` on the live
+            // `funds` array. Only mutate in-memory state when the write actually hit disk —
+            // `updateHistoryCache` returns false (no throw) if the fund file doesn't exist yet
+            // (addFund/recompute can race ahead of the initial writeFund).
             do {
-                let wrote = try await FundStore.shared.updateConfig(fundId: item.id, config: item.config)
+                let wrote = try await FundStore.shared.updateHistoryCache(fundId: item.id, cache: item.cache)
                 if wrote, let idx = funds.firstIndex(where: { $0.id == item.id }) {
-                    funds[idx].config.history_cache = item.config.history_cache
+                    funds[idx].config.history_cache = item.cache
                     anyWritten = true
                 }
             } catch {
