@@ -196,6 +196,10 @@ struct FundSummary {
     let isCash: Bool
     let features: FundTypeFeatures
     let closedMetrics: ClosedFundMetrics?
+    /// Fingerprint computed during `buildClosedMetrics`. Cached on the summary so the
+    /// persistence path (`persistHistoryCachesIfNeeded`) can compare without re-hashing the
+    /// entry history a second time per recompute. `nil` for non-closed funds.
+    let closedHistoryFingerprint: String?
 
     // Effective values — prefer closedMetrics for closed funds, fall back to state/metrics
     var effectiveInvested: Double { closedMetrics?.totalInvestedUsd ?? state.startInputUsd }
@@ -243,7 +247,9 @@ struct FundSummary {
 
         self.state = state
         self.recommendation = Self.computeMarginAwareRecommendation(fund: fund, state: state)
-        self.closedMetrics = Self.buildClosedMetrics(fund: fund, asOfDate: today)
+        let closed = Self.buildClosedMetrics(fund: fund, asOfDate: today)
+        self.closedMetrics = closed.metrics
+        self.closedHistoryFingerprint = closed.fingerprint
         self.isDueForAction = Self.computeIsDueForAction(fund: fund, today: today)
     }
 
@@ -255,7 +261,9 @@ struct FundSummary {
         self.state = state
         self.recommendation = Self.computeMarginAwareRecommendation(fund: fund, state: state)
         let today = todayString()
-        self.closedMetrics = Self.buildClosedMetrics(fund: fund, asOfDate: today)
+        let closed = Self.buildClosedMetrics(fund: fund, asOfDate: today)
+        self.closedMetrics = closed.metrics
+        self.closedHistoryFingerprint = closed.fingerprint
         self.isDueForAction = Self.computeIsDueForAction(fund: fund, today: today)
     }
 
@@ -278,13 +286,16 @@ struct FundSummary {
         return daysBetween(lastEntry.date, today) >= intervalDays
     }
 
-    private static func buildClosedMetrics(fund: FundData, asOfDate: String) -> ClosedFundMetrics? {
-        guard fund.config.status == .closed else { return nil }
+    /// Returns the closed-fund metrics AND the fingerprint used to gate the cache, so callers
+    /// (the persistence path) can reuse the fingerprint without re-hashing the entry history.
+    /// Both are `nil` for non-closed funds.
+    private static func buildClosedMetrics(fund: FundData, asOfDate: String) -> (metrics: ClosedFundMetrics?, fingerprint: String?) {
+        guard fund.config.status == .closed else { return (nil, nil) }
         let fingerprint = historyFingerprint(for: fund)
         if let cache = fund.config.history_cache,
            cache.entryFingerprint == fingerprint,
            let cached = cache.closedMetrics {
-            return cached
+            return (cached, fingerprint)
         }
         let trades = entriesToTrades(fund.entries)
         let dividends = entriesToDividends(fund.entries)
@@ -295,7 +306,8 @@ struct FundSummary {
             : 0
         let startDate = getFundStartDate(fund.entries)
         let endDate = fund.entries.last?.date ?? asOfDate
-        return computeClosedFundMetrics(trades: trades, dividends: dividends, expenses: expenses, cashInterest: ci, startDate: startDate, endDate: endDate)
+        let metrics = computeClosedFundMetrics(trades: trades, dividends: dividends, expenses: expenses, cashInterest: ci, startDate: startDate, endDate: endDate)
+        return (metrics, fingerprint)
     }
 
     /// Deterministic fingerprint for the inputs to `computeClosedFundMetrics` / `computeCashInterest`.

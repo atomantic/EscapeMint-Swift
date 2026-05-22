@@ -493,8 +493,11 @@ final class FundDataStore {
             await recomputeWith(snapshot)
         }
         do {
-            try await FundStore.shared.updateConfig(fundId: fundId, config: config)
-            ICloudSyncMonitor.shared.markLocalWrite()
+            // updateConfig returns false when the fund file doesn't exist yet — only mark a
+            // local iCloud write when bytes actually hit disk, otherwise we'd suppress a
+            // legitimate iCloud-driven reload.
+            let wrote = try await FundStore.shared.updateConfig(fundId: fundId, config: config)
+            if wrote { ICloudSyncMonitor.shared.markLocalWrite() }
         } catch {
             recordDiskError("updating config", error)
         }
@@ -685,7 +688,9 @@ final class FundDataStore {
     private func persistHistoryCachesIfNeeded(from summaries: [FundSummary]) async {
         var updates: [(id: String, config: FundConfig)] = []
         for summary in summaries where summary.fund.config.status == .closed {
-            let fingerprint = FundSummary.historyFingerprint(for: summary.fund)
+            // Reuse the fingerprint computed during FundSummary.buildClosedMetrics — recomputing
+            // it here would double the O(n) hashing per recompute and partially offset the cache.
+            guard let fingerprint = summary.closedHistoryFingerprint else { continue }
             let current = summary.fund.config.history_cache
             if current?.entryFingerprint == fingerprint, current?.closedMetrics != nil { continue }
             var updatedConfig = summary.fund.config
