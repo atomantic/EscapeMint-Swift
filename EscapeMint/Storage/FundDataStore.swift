@@ -256,7 +256,11 @@ final class FundDataStore {
         bumpFundVersion(fund.id)
         await recompute()
         do {
-            try await FundStore.shared.writeFund(fund)
+            // Write the latest in-memory state, NOT the captured `fund` parameter — a
+            // concurrent updateConfig that landed during `await recompute()` would have
+            // mutated funds[idx], and writing the old captured snapshot would clobber it.
+            let toWrite = funds.first(where: { $0.id == fund.id }) ?? fund
+            try await FundStore.shared.writeFund(toWrite)
             ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
             recordDiskError("adding fund", error)
@@ -493,11 +497,17 @@ final class FundDataStore {
             await recomputeWith(snapshot)
         }
         do {
-            // updateConfig returns false when the fund file doesn't exist yet — only mark a
-            // local iCloud write when bytes actually hit disk, otherwise we'd suppress a
-            // legitimate iCloud-driven reload.
+            // updateConfig returns false when the fund file doesn't exist yet — this happens
+            // when an updateConfig races ahead of addFund's initial writeFund. Without a
+            // fallback the user's edit would be silently lost. Materialize the latest
+            // in-memory state directly via writeFund so the edit becomes durable.
             let wrote = try await FundStore.shared.updateConfig(fundId: fundId, config: config)
-            if wrote { ICloudSyncMonitor.shared.markLocalWrite() }
+            if wrote {
+                ICloudSyncMonitor.shared.markLocalWrite()
+            } else if let liveFund = funds.first(where: { $0.id == fundId }) {
+                try await FundStore.shared.writeFund(liveFund)
+                ICloudSyncMonitor.shared.markLocalWrite()
+            }
         } catch {
             recordDiskError("updating config", error)
         }
