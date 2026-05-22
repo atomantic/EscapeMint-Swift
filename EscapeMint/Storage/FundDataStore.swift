@@ -649,6 +649,8 @@ final class FundDataStore {
         actionableFunds = result.actionableFunds
         platforms = result.platforms
 
+        await persistHistoryCachesIfNeeded(from: result.summaries)
+
         // Invalidate lazy audit cache
         _auditEntries = nil
 
@@ -679,6 +681,32 @@ final class FundDataStore {
 
     private var sideEffectTask: Task<Void, Never>?
     private var deferredICloudRecoveryTask: Task<Void, Never>?
+
+    private func persistHistoryCachesIfNeeded(from summaries: [FundSummary]) async {
+        var updates: [(id: String, config: FundConfig)] = []
+        for summary in summaries where summary.fund.config.status == .closed {
+            let fingerprint = FundSummary.historyFingerprint(for: summary.fund)
+            let current = summary.fund.config.history_cache
+            if current?.entryFingerprint == fingerprint, current?.closedMetrics != nil { continue }
+            var updatedConfig = summary.fund.config
+            updatedConfig.history_cache = FundHistoryCache(entryFingerprint: fingerprint, closedMetrics: summary.closedMetrics)
+            updates.append((summary.fund.id, updatedConfig))
+        }
+        guard !updates.isEmpty else { return }
+
+        var updatedFunds = funds
+        for item in updates {
+            if let idx = updatedFunds.firstIndex(where: { $0.id == item.id }) {
+                updatedFunds[idx].config = item.config
+            }
+            do {
+                try await FundStore.shared.updateConfig(fundId: item.id, config: item.config)
+            } catch {
+                recordDiskError("persisting history cache", error)
+            }
+        }
+        funds = updatedFunds
+    }
 
     static func buildAuditEntries(from funds: [FundData]) -> [AuditEntry] {
         var entries: [AuditEntry] = []

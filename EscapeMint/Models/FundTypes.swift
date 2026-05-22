@@ -82,6 +82,8 @@ struct FundConfig: Codable {
 
     // Chart bounds (persisted per-fund)
     var chart_bounds: [String: ChartBounds]?
+    // Cached expensive history computations to avoid repeated redraw recalculation.
+    var history_cache: FundHistoryCache?
 
     enum CodingKeys: String, CodingKey {
         case fund_id = "__fund_id"
@@ -98,7 +100,13 @@ struct FundConfig: Codable {
         case dollar_decimals
         case equity_input
         case chart_bounds
+        case history_cache
     }
+}
+
+struct FundHistoryCache: Codable {
+    var entryFingerprint: String
+    var closedMetrics: ClosedFundMetrics?
 }
 
 extension FundConfig {
@@ -271,6 +279,12 @@ struct FundSummary {
 
     private static func buildClosedMetrics(fund: FundData, asOfDate: String) -> ClosedFundMetrics? {
         guard fund.config.status == .closed else { return nil }
+        let fingerprint = historyFingerprint(for: fund)
+        if let cache = fund.config.history_cache,
+           cache.entryFingerprint == fingerprint,
+           let cached = cache.closedMetrics {
+            return cached
+        }
         let trades = entriesToTrades(fund.entries)
         let dividends = entriesToDividends(fund.entries)
         let expenses = entriesToExpenses(fund.entries)
@@ -281,6 +295,25 @@ struct FundSummary {
         let startDate = getFundStartDate(fund.entries)
         let endDate = fund.entries.last?.date ?? asOfDate
         return computeClosedFundMetrics(trades: trades, dividends: dividends, expenses: expenses, cashInterest: ci, startDate: startDate, endDate: endDate)
+    }
+
+    static func historyFingerprint(for fund: FundData) -> String {
+        var hasher = Hasher()
+        hasher.combine(fund.config.status?.rawValue ?? "")
+        hasher.combine(fund.config.manage_cash ?? false)
+        for e in fund.entries {
+            hasher.combine(e.date)
+            hasher.combine(e.value)
+            hasher.combine(e.cash ?? -1)
+            hasher.combine(e.action?.rawValue ?? "")
+            hasher.combine(e.amount ?? -1)
+            hasher.combine(e.shares ?? -1)
+            hasher.combine(e.dividend ?? -1)
+            hasher.combine(e.expense ?? -1)
+            hasher.combine(e.cash_interest ?? -1)
+            hasher.combine(e.fund_size ?? -1)
+        }
+        return String(hasher.finalize())
     }
 }
 
@@ -377,7 +410,7 @@ struct FundMetrics {
 }
 
 // Historical performance metrics for closed funds
-struct ClosedFundMetrics {
+struct ClosedFundMetrics: Codable {
     let totalInvestedUsd: Double
     let totalReturnedUsd: Double
     let totalDividendsUsd: Double
