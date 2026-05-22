@@ -298,9 +298,14 @@ actor FundStore {
         #endif
     }
 
-    func updateConfig(fundId: String, config: FundConfig) throws {
+    /// Updates a fund's config JSON. Returns `false` (without throwing) when the fund's
+    /// file doesn't exist yet — addFund/recompute can race with writeFund, so callers
+    /// must NOT assume a successful return means bytes hit the disk. Use the return value
+    /// to gate any in-memory state that "shadows" the on-disk config.
+    @discardableResult
+    func updateConfig(fundId: String, config: FundConfig) throws -> Bool {
         let configURL = fundsDirectory.appendingPathComponent("\(fundId).json")
-        guard fileManager.fileExists(atPath: configURL.path) else { return }
+        guard fileManager.fileExists(atPath: configURL.path) else { return false }
 
         let existing = try Data(contentsOf: configURL)
         let existingConfig = try JSONDecoder().decode(FundConfig.self, from: existing)
@@ -315,6 +320,7 @@ actor FundStore {
         #if os(iOS)
         try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: configURL.path)
         #endif
+        return true
     }
 
     func deleteFund(id: String) throws {

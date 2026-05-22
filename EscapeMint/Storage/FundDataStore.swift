@@ -694,23 +694,29 @@ final class FundDataStore {
         }
         guard !updates.isEmpty else { return }
 
+        var anyWritten = false
         for item in updates {
             // Re-entrancy: this is @MainActor but each `await` is a suspension point. Another task
             // may mutate `funds` (different fund, or different fields on this fund) while the write
             // is in flight, so we must NOT pre-snapshot `funds` and reassign it at the end — that
             // would clobber concurrent edits. Instead, after the write succeeds, look up the fund
             // in the *live* `funds` array and patch only the `history_cache` slot in place.
-            // Also: mutate only after the write succeeds so a failed disk write leaves the in-memory
-            // cache un-updated and the next recompute retries.
+            // Also: only patch in-memory state when the write actually hit disk. `updateConfig`
+            // returns false (no throw) if the fund file doesn't exist yet — addFund/recompute
+            // can race ahead of the initial writeFund, and without this gate we'd silently mark
+            // the cache as persisted in memory while the disk file never received it.
             do {
-                try await FundStore.shared.updateConfig(fundId: item.id, config: item.config)
-                if let idx = funds.firstIndex(where: { $0.id == item.id }) {
+                let wrote = try await FundStore.shared.updateConfig(fundId: item.id, config: item.config)
+                if wrote, let idx = funds.firstIndex(where: { $0.id == item.id }) {
                     funds[idx].config.history_cache = item.config.history_cache
+                    anyWritten = true
                 }
             } catch {
                 recordDiskError("persisting history cache", error)
             }
         }
+        // Suppress the iCloud reload-loop our own writes would otherwise trigger.
+        if anyWritten { ICloudSyncMonitor.shared.markLocalWrite() }
     }
 
     static func buildAuditEntries(from funds: [FundData]) -> [AuditEntry] {
