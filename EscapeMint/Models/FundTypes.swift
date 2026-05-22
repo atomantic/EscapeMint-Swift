@@ -373,17 +373,20 @@ struct FundSummary {
         feed("manage_cash:\(manageCash)\n")
         feed("cash_apy:"); feedDouble(effectiveCashApy); feed("\n")
         feed("count:\(sortedEntries.count)\n")
+        // Only the entry fields that flow into entriesToTrades / entriesToDividends /
+        // entriesToExpenses / entriesToCashFlows (and from there into computeClosedFundMetrics
+        // / computeCashInterest). Display-only fields like `cash`, `cash_interest`, and
+        // `fund_size` aren't consumed by the closed-metrics path, so feeding them here would
+        // only thrash the cache when a user edits them. If you change a converter to read a
+        // new entry field, ADD it here AND bump `historyCacheVersion`.
         for e in sortedEntries {
             feed(e.date); feed("|")
             feedDouble(e.value); feed("|")
-            feedOptDouble(e.cash); feed("|")
             feedOptStr(e.action?.rawValue); feed("|")
             feedOptDouble(e.amount); feed("|")
             feedOptDouble(e.shares); feed("|")
             feedOptDouble(e.dividend); feed("|")
-            feedOptDouble(e.expense); feed("|")
-            feedOptDouble(e.cash_interest); feed("|")
-            feedOptDouble(e.fund_size); feed("\n")
+            feedOptDouble(e.expense); feed("\n")
         }
         let digest = hasher.finalize()
         return digest.map { String(format: "%02x", $0) }.joined()
