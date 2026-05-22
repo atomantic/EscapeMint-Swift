@@ -639,6 +639,14 @@ final class StorageTests: XCTestCase {
         let fund = FundData(platform: uniqueId, ticker: "test", config: config, entries: [])
 
         try await store.writeFund(fund)
+        // Register cleanup IMMEDIATELY after the fund lands on disk so the on-disk JSON gets
+        // removed even if a later XCTAssert fails or throws. A trailing deleteFund call at the
+        // end of the test would leak the file on assertion failure and could make a subsequent
+        // run see stale state.
+        let fundId = fund.id
+        addTeardownBlock {
+            try? await store.deleteFund(id: fundId)
+        }
 
         let metrics = ClosedFundMetrics(
             totalInvestedUsd: 1000, totalReturnedUsd: 1200,
@@ -662,8 +670,6 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(reloaded.config.cash_apy, 0.05)
         XCTAssertEqual(reloaded.config.manage_cash, true)
         XCTAssertEqual(reloaded.config.status, .closed)
-
-        try await store.deleteFund(id: fund.id)
     }
 
     func testUpdateHistoryCacheReturnsFalseWhenFundMissing() async throws {

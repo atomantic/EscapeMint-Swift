@@ -315,33 +315,59 @@ struct FundSummary {
         return (metrics, fingerprint)
     }
 
+    /// Bump this string whenever the closed-metrics algorithm changes (anything that would
+    /// make the same inputs produce different outputs). All persisted history caches whose
+    /// fingerprint embedded the old version will then miss and re-compute under the new logic.
+    private static let historyCacheVersion = "v1"
+
     /// Deterministic fingerprint for the inputs to `computeClosedFundMetrics` / `computeCashInterest`.
     /// MUST be stable across process restarts (Swift's `Hasher` is not — it's seeded per-process,
     /// which would invalidate every persisted cache on next launch).
     /// MUST include every config field that those compute functions read — if you add a new
     /// metrics-affecting field to `FundConfig` (or change what the compute path reads), update
     /// this list or the cache will return stale results.
+    /// Doubles are hashed via `bitPattern` (8 bytes, big-endian) so the encoding doesn't depend
+    /// on Swift's stdlib `String(Double)` formatting, which is allowed to change across runtime
+    /// versions and would otherwise silently invalidate persisted caches after an app update.
     /// Per-entry optionals are encoded with explicit `S`/`N` tags so a real value (e.g.
-    /// `amount == -1`) can't collide with absence. Config fields are encoded directly without
-    /// tags: `status` is only ever `.closed` here (the only caller — `buildClosedMetrics` —
-    /// filters non-closed funds first), and `cash_apy ?? 0` matches the compute path's own
-    /// default so `nil` and `0.0` deliberately produce the same fingerprint (identical metrics).
+    /// `amount == -1`) can't collide with absence. The two config-level optionals are encoded
+    /// without S/N tags: `status` is only ever `.closed` here (the only caller —
+    /// `buildClosedMetrics` — filters non-closed funds first), and `cash_apy ?? 0` matches the
+    /// compute path's own default so `nil` and `0.0` deliberately produce the same fingerprint.
     /// Bytes are streamed into SHA256 incrementally to avoid allocating a large intermediate
     /// payload string.
     static func historyFingerprint(for fund: FundData) -> String {
         var hasher = SHA256()
         func feed(_ s: String) { hasher.update(data: Data(s.utf8)) }
-        func optD(_ d: Double?) -> String { d.map { "S\($0)" } ?? "N" }
-        func optS(_ s: String?) -> String { s.map { "S\($0)" } ?? "N" }
+        func feedDouble(_ d: Double) {
+            var bits = d.bitPattern.bigEndian
+            withUnsafeBytes(of: &bits) { hasher.update(data: Data($0)) }
+        }
+        func feedOptDouble(_ d: Double?) {
+            if let v = d { feed("S"); feedDouble(v) } else { feed("N") }
+        }
+        func feedOptStr(_ s: String?) {
+            if let v = s { feed("S"); feed(v) } else { feed("N") }
+        }
+        feed("cache_version:\(historyCacheVersion)\n")
         feed("status:\(fund.config.status?.rawValue ?? "")\n")
         feed("manage_cash:\(fund.config.manage_cash == true)\n")
-        feed("cash_apy:\(fund.config.cash_apy ?? 0)\n")
+        feed("cash_apy:"); feedDouble(fund.config.cash_apy ?? 0); feed("\n")
         feed("dividend_reinvest:\(fund.config.dividend_reinvest == true)\n")
         feed("interest_reinvest:\(fund.config.interest_reinvest == true)\n")
         feed("expense_from_fund:\(fund.config.expense_from_fund == true)\n")
         feed("count:\(fund.entries.count)\n")
         for e in fund.entries {
-            feed("\(e.date)|\(e.value)|\(optD(e.cash))|\(optS(e.action?.rawValue))|\(optD(e.amount))|\(optD(e.shares))|\(optD(e.dividend))|\(optD(e.expense))|\(optD(e.cash_interest))|\(optD(e.fund_size))\n")
+            feed(e.date); feed("|")
+            feedDouble(e.value); feed("|")
+            feedOptDouble(e.cash); feed("|")
+            feedOptStr(e.action?.rawValue); feed("|")
+            feedOptDouble(e.amount); feed("|")
+            feedOptDouble(e.shares); feed("|")
+            feedOptDouble(e.dividend); feed("|")
+            feedOptDouble(e.expense); feed("|")
+            feedOptDouble(e.cash_interest); feed("|")
+            feedOptDouble(e.fund_size); feed("\n")
         }
         let digest = hasher.finalize()
         return digest.map { String(format: "%02x", $0) }.joined()
