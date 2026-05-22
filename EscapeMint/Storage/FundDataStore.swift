@@ -709,9 +709,15 @@ final class FundDataStore {
             // (addFund/recompute can race ahead of the initial writeFund).
             do {
                 let wrote = try await FundStore.shared.updateHistoryCache(fundId: item.id, cache: item.cache)
-                if wrote, let idx = funds.firstIndex(where: { $0.id == item.id }) {
-                    funds[idx].config.history_cache = item.cache
+                if wrote {
+                    // Track disk writes independently of the in-memory patch: if the fund was
+                    // concurrently removed/renamed between awaits, the bytes still hit disk and
+                    // we must call markLocalWrite() so iCloud doesn't bounce our own write back
+                    // as a reload.
                     anyWritten = true
+                    if let idx = funds.firstIndex(where: { $0.id == item.id }) {
+                        funds[idx].config.history_cache = item.cache
+                    }
                 }
             } catch {
                 recordDiskError("persisting history cache", error)

@@ -311,8 +311,12 @@ actor FundStore {
         let existingConfig = try JSONDecoder().decode(FundConfig.self, from: existing)
 
         var updated = config
+        // Preserve identity fields from disk. The caller-provided config might be missing or
+        // stale on these (e.g. a settings-view edit that only updates DCA params), and a
+        // mismatched fund_id would break FundData.id and every downstream lookup.
         updated.platform = existingConfig.platform
         updated.ticker = existingConfig.ticker
+        updated.fund_id = existingConfig.fund_id
         let data = try JSONEncoder.pretty.encode(updated)
         try data.write(to: configURL, options: .atomic)
         // Re-apply file protection after atomic write — non-atomic in-place overwrites
