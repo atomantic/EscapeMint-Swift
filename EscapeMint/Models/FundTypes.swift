@@ -288,21 +288,23 @@ struct FundSummary {
 
     /// Returns the closed-fund metrics AND the fingerprint used to gate the cache, so callers
     /// (the persistence path) can reuse the fingerprint without re-hashing the entry history.
-    /// Both are `nil` for non-closed funds.
+    /// `(nil, nil)` for non-closed funds. For an empty-history closed fund the fingerprint
+    /// is `nil` so the persistence path skips it — `startDate`/`endDate`/`durationDays`
+    /// derive from `asOfDate`/today in that case and we'd otherwise cache stale dates.
     private static func buildClosedMetrics(fund: FundData, asOfDate: String) -> (metrics: ClosedFundMetrics?, fingerprint: String?) {
         guard fund.config.status == .closed else { return (nil, nil) }
-        let fingerprint = historyFingerprint(for: fund)
-        if let cache = fund.config.history_cache,
-           cache.entryFingerprint == fingerprint,
-           let cached = cache.closedMetrics {
-            return (cached, fingerprint)
-        }
-        // Sort entries by date so endDate uses the chronological max, not whichever entry
-        // happened to be appended last. The codebase generally appends in date order, but a
-        // user editing a historical entry can violate that and the cache key MUST reflect
-        // chronological reality so cached metrics match what computeClosedFundMetrics would
-        // produce on a fresh recompute.
+        // Sort once and reuse for both the fingerprint and the metrics derivation. The cache
+        // miss path used to sort twice (here and inside historyFingerprint) — wasted O(n log n).
         let sortedEntries = fund.entries.sorted { $0.date < $1.date }
+        let fingerprint: String? = sortedEntries.isEmpty
+            ? nil
+            : historyFingerprint(config: fund.config, sortedEntries: sortedEntries)
+        if let fp = fingerprint,
+           let cache = fund.config.history_cache,
+           cache.entryFingerprint == fp,
+           let cached = cache.closedMetrics {
+            return (cached, fp)
+        }
         let trades = entriesToTrades(sortedEntries)
         let dividends = entriesToDividends(sortedEntries)
         let expenses = entriesToExpenses(sortedEntries)
@@ -329,25 +331,26 @@ struct FundSummary {
     /// Deterministic fingerprint for the inputs to `computeClosedFundMetrics` / `computeCashInterest`.
     /// MUST be stable across process restarts (Swift's `Hasher` is not — it's seeded per-process,
     /// which would invalidate every persisted cache on next launch).
-    /// MUST include every config field that those compute functions read — if you add a new
-    /// metrics-affecting field to `FundConfig` (or change what the compute path reads), update
-    /// this list or the cache will return stale results.
+    /// Includes only the config fields the compute path actually reads — adding fields the
+    /// path doesn't read just lowers the cache hit rate (changing a flag that has no effect on
+    /// output would still invalidate the cache). Today that's `status`, `manage_cash`, and
+    /// (when `manage_cash` is on) `cash_apy`. If you change `computeClosedFundMetrics` or
+    /// `computeCashInterest` to read additional config, ADD those fields here AND bump
+    /// `historyCacheVersion`.
     /// Doubles are hashed via `bitPattern` (8 bytes, big-endian) so the encoding doesn't depend
     /// on Swift's stdlib `String(Double)` formatting, which is allowed to change across runtime
     /// versions and would otherwise silently invalidate persisted caches after an app update.
     /// Per-entry optionals are encoded with explicit `S`/`N` tags so a real value (e.g.
-    /// `amount == -1`) can't collide with absence. The two config-level optionals are encoded
-    /// without S/N tags: `status` is only ever `.closed` here (the only caller —
-    /// `buildClosedMetrics` — filters non-closed funds first), and `cash_apy ?? 0` matches the
-    /// compute path's own default so `nil` and `0.0` deliberately produce the same fingerprint.
-    /// Entries are hashed in date-sorted order so the fingerprint reflects content, not
-    /// incidental storage order — a user editing a historical entry could otherwise change
-    /// the storage order without changing the actual data, and we'd invalidate the cache
-    /// (or worse, return cached metrics that disagree with a fresh recompute on the same
-    /// sorted entries).
+    /// `amount == -1`) can't collide with absence.
     /// Bytes are streamed into SHA256 incrementally to avoid allocating a large intermediate
     /// payload string.
     static func historyFingerprint(for fund: FundData) -> String {
+        // Public convenience for tests / external callers: sort + delegate.
+        let sortedEntries = fund.entries.sorted { $0.date < $1.date }
+        return historyFingerprint(config: fund.config, sortedEntries: sortedEntries)
+    }
+
+    private static func historyFingerprint(config: FundConfig, sortedEntries: [FundEntry]) -> String {
         var hasher = SHA256()
         func feed(_ s: String) { hasher.update(data: Data(s.utf8)) }
         func feedDouble(_ d: Double) {
@@ -360,14 +363,15 @@ struct FundSummary {
         func feedOptStr(_ s: String?) {
             if let v = s { feed("S"); feed(v) } else { feed("N") }
         }
+        let manageCash = config.manage_cash == true
+        // Effective cash APY: 0 when manage_cash is off, since cash_apy can't affect output in
+        // that case (computeCashInterest is short-circuited). This makes flipping cash_apy on a
+        // non-cash-managed fund a cache hit instead of a needless invalidation + disk write.
+        let effectiveCashApy = manageCash ? (config.cash_apy ?? 0) : 0
         feed("cache_version:\(historyCacheVersion)\n")
-        feed("status:\(fund.config.status?.rawValue ?? "")\n")
-        feed("manage_cash:\(fund.config.manage_cash == true)\n")
-        feed("cash_apy:"); feedDouble(fund.config.cash_apy ?? 0); feed("\n")
-        feed("dividend_reinvest:\(fund.config.dividend_reinvest == true)\n")
-        feed("interest_reinvest:\(fund.config.interest_reinvest == true)\n")
-        feed("expense_from_fund:\(fund.config.expense_from_fund == true)\n")
-        let sortedEntries = fund.entries.sorted { $0.date < $1.date }
+        feed("status:\(config.status?.rawValue ?? "")\n")
+        feed("manage_cash:\(manageCash)\n")
+        feed("cash_apy:"); feedDouble(effectiveCashApy); feed("\n")
         feed("count:\(sortedEntries.count)\n")
         for e in sortedEntries {
             feed(e.date); feed("|")
