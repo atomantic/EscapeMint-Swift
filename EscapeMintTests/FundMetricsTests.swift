@@ -805,16 +805,17 @@ final class FundMetricsTests: XCTestCase {
         XCTAssertNotEqual(FundSummary.historyFingerprint(for: fundA), FundSummary.historyFingerprint(for: fundB))
     }
 
-    func testEmptyHistoryClosedFundIsNotCached() {
-        // Empty entries → startDate/endDate fall back to asOfDate/today, which the fingerprint
-        // can't capture. The persistence path uses summary.closedHistoryFingerprint to gate
-        // writes, so we need it nil for the empty case to avoid caching dates that will be
-        // stale tomorrow.
+    func testEmptyHistoryClosedFundProducesNoMetricsOrFingerprint() {
+        // Empty entries → no real data to compute metrics from; getFundStartDate([]) returns
+        // today and endDate would fall back to asOfDate, producing a negative durationDays
+        // when asOfDate < today (backtest / historical view). Skip caching AND skip emitting
+        // metrics so the UI's closedMetrics-nil branch shows nothing instead of garbage.
         var config = makeConfig(status: .closed)
         config.fund_type = .stock
         let fund = FundData(platform: "test", ticker: "EMPTY", config: config, entries: [])
         let summary = FundSummary(fund, asOfDate: "2025-01-01")
         XCTAssertNil(summary.closedHistoryFingerprint)
+        XCTAssertNil(summary.closedMetrics)
     }
 
     func testClosedMetricsCacheHitReturnsStoredValue() {

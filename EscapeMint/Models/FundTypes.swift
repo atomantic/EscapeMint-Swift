@@ -288,29 +288,31 @@ struct FundSummary {
 
     /// Returns the closed-fund metrics AND the fingerprint used to gate the cache, so callers
     /// (the persistence path) can reuse the fingerprint without re-hashing the entry history.
-    /// `(nil, nil)` for non-closed funds. For an empty-history closed fund the fingerprint
-    /// is `nil` so the persistence path skips it — `startDate`/`endDate`/`durationDays`
-    /// derive from `asOfDate`/today in that case and we'd otherwise cache stale dates.
+    /// `(nil, nil)` for non-closed funds AND for empty-history closed funds. The empty case
+    /// previously produced metrics with `startDate = today` (from `getFundStartDate([])`)
+    /// and `endDate = asOfDate`; when asOfDate < today (backtest, historical view) that
+    /// yielded a negative `durationDays` and misleading APY. Views already gate the
+    /// closed-state card on `closedMetrics != nil` (FundDetailView), so returning nil
+    /// here simply hides the no-data card.
     private static func buildClosedMetrics(fund: FundData, asOfDate: String) -> (metrics: ClosedFundMetrics?, fingerprint: String?) {
         guard fund.config.status == .closed else { return (nil, nil) }
         // Sort once and reuse for both the fingerprint and the metrics derivation. The cache
         // miss path used to sort twice (here and inside historyFingerprint) — wasted O(n log n).
         let sortedEntries = fund.entries.sorted { $0.date < $1.date }
-        let fingerprint: String? = sortedEntries.isEmpty
-            ? nil
-            : historyFingerprint(config: fund.config, sortedEntries: sortedEntries)
-        if let fp = fingerprint,
-           let cache = fund.config.history_cache,
-           cache.entryFingerprint == fp,
+        guard !sortedEntries.isEmpty else { return (nil, nil) }
+        let fingerprint = historyFingerprint(config: fund.config, sortedEntries: sortedEntries)
+        if let cache = fund.config.history_cache,
+           cache.entryFingerprint == fingerprint,
            let cached = cache.closedMetrics {
-            return (cached, fp)
+            return (cached, fingerprint)
         }
         let trades = entriesToTrades(sortedEntries)
         let dividends = entriesToDividends(sortedEntries)
         let expenses = entriesToExpenses(sortedEntries)
         let cashflows = entriesToCashFlows(sortedEntries)
         let startDate = getFundStartDate(sortedEntries)
-        let endDate = sortedEntries.last?.date ?? asOfDate
+        // Safe to force-unwrap — we guarded on sortedEntries.isEmpty above.
+        let endDate = sortedEntries.last!.date
         // Accrue cash interest only up to endDate (last entry), not asOfDate. The cache key
         // does NOT include asOfDate, so feeding asOfDate here would let cache hits return stale
         // totalCashInterestUsd as time advances. Closed funds don't accrue further after their
