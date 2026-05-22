@@ -618,6 +618,72 @@ final class StorageTests: XCTestCase {
         XCTAssertFalse(result.contains { $0.platform == "robinhood" })
     }
 
+    // MARK: - updateHistoryCache
+
+    func testUpdateHistoryCachePreservesUnrelatedConfigFields() async throws {
+        // Verifies the read-modify-write merge: a fund written with chart_bounds,
+        // dollar_decimals, and a populated DCA/cash config must retain all of those after
+        // updateHistoryCache patches only the history_cache slot.
+        let store = FundStore.shared
+        let uniqueId = "storage-test-update-history-cache-\(UUID().uuidString.prefix(8).lowercased())"
+        var config = FundConfig(
+            fund_type: .stock, status: .closed,
+            target_apy: 0.12, interval_days: 7,
+            input_min_usd: 100, input_mid_usd: 150, input_max_usd: 200,
+            max_at_pct: -0.25, min_profit_usd: 50,
+            cash_apy: 0.05, manage_cash: true,
+            accumulate: true, dividend_reinvest: true
+        )
+        config.dollar_decimals = 4
+        config.chart_bounds = ["value": ChartBounds(yMin: 0, yMax: 1000)]
+        let fund = FundData(platform: uniqueId, ticker: "test", config: config, entries: [])
+
+        try await store.writeFund(fund)
+        // Register cleanup IMMEDIATELY after the fund lands on disk so the on-disk JSON gets
+        // removed even if a later XCTAssert fails or throws. A trailing deleteFund call at the
+        // end of the test would leak the file on assertion failure and could make a subsequent
+        // run see stale state.
+        let fundId = fund.id
+        addTeardownBlock {
+            try? await store.deleteFund(id: fundId)
+        }
+
+        let metrics = ClosedFundMetrics(
+            totalInvestedUsd: 1000, totalReturnedUsd: 1200,
+            totalDividendsUsd: 0, totalCashInterestUsd: 0, totalExpensesUsd: 0,
+            netGainUsd: 200, returnPct: 0.2, apy: 0.4,
+            startDate: "2024-01-01", endDate: "2024-06-01", durationDays: 152
+        )
+        let cache = FundHistoryCache(entryFingerprint: "test-fingerprint", closedMetrics: metrics)
+        let wrote = try await store.updateHistoryCache(fundId: fund.id, cache: cache)
+        XCTAssertTrue(wrote)
+
+        let maybeReloaded = await store.readFundById(fund.id)
+        let reloaded = try XCTUnwrap(maybeReloaded)
+        XCTAssertEqual(reloaded.config.history_cache?.entryFingerprint, "test-fingerprint")
+        let cachedMetrics = try XCTUnwrap(reloaded.config.history_cache?.closedMetrics)
+        XCTAssertEqual(cachedMetrics.netGainUsd, 200, accuracy: 0.01)
+        // Critically: unrelated fields must survive the merge.
+        XCTAssertEqual(reloaded.config.dollar_decimals, 4)
+        XCTAssertEqual(reloaded.config.chart_bounds?["value"], ChartBounds(yMin: 0, yMax: 1000))
+        XCTAssertEqual(reloaded.config.target_apy, 0.12)
+        XCTAssertEqual(reloaded.config.cash_apy, 0.05)
+        XCTAssertEqual(reloaded.config.manage_cash, true)
+        XCTAssertEqual(reloaded.config.status, .closed)
+    }
+
+    func testUpdateHistoryCacheReturnsFalseWhenFundMissing() async throws {
+        // addFund/recompute can race ahead of writeFund; updateHistoryCache must report
+        // "no-op" rather than throw so the caller can skip the in-memory cache patch and
+        // avoid suppressing iCloud reloads on a no-op write.
+        let store = FundStore.shared
+        let wrote = try await store.updateHistoryCache(
+            fundId: "storage-test-missing-fund-\(UUID().uuidString)",
+            cache: FundHistoryCache(entryFingerprint: "x", closedMetrics: nil)
+        )
+        XCTAssertFalse(wrote)
+    }
+
     // MARK: - DataStats
 
     func testDataStatsFormattedSize() {

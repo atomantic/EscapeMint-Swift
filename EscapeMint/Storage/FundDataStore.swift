@@ -256,7 +256,11 @@ final class FundDataStore {
         bumpFundVersion(fund.id)
         await recompute()
         do {
-            try await FundStore.shared.writeFund(fund)
+            // Write the latest in-memory state, NOT the captured `fund` parameter — a
+            // concurrent updateConfig that landed during `await recompute()` would have
+            // mutated funds[idx], and writing the old captured snapshot would clobber it.
+            let toWrite = funds.first(where: { $0.id == fund.id }) ?? fund
+            try await FundStore.shared.writeFund(toWrite)
             ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
             recordDiskError("adding fund", error)
@@ -493,8 +497,17 @@ final class FundDataStore {
             await recomputeWith(snapshot)
         }
         do {
-            try await FundStore.shared.updateConfig(fundId: fundId, config: config)
-            ICloudSyncMonitor.shared.markLocalWrite()
+            // updateConfig returns false when the fund file doesn't exist yet — this happens
+            // when an updateConfig races ahead of addFund's initial writeFund. Without a
+            // fallback the user's edit would be silently lost. Materialize the latest
+            // in-memory state directly via writeFund so the edit becomes durable.
+            let wrote = try await FundStore.shared.updateConfig(fundId: fundId, config: config)
+            if wrote {
+                ICloudSyncMonitor.shared.markLocalWrite()
+            } else if let liveFund = funds.first(where: { $0.id == fundId }) {
+                try await FundStore.shared.writeFund(liveFund)
+                ICloudSyncMonitor.shared.markLocalWrite()
+            }
         } catch {
             recordDiskError("updating config", error)
         }
@@ -649,6 +662,8 @@ final class FundDataStore {
         actionableFunds = result.actionableFunds
         platforms = result.platforms
 
+        await persistHistoryCachesIfNeeded(from: result.summaries)
+
         // Invalidate lazy audit cache
         _auditEntries = nil
 
@@ -679,6 +694,48 @@ final class FundDataStore {
 
     private var sideEffectTask: Task<Void, Never>?
     private var deferredICloudRecoveryTask: Task<Void, Never>?
+
+    private func persistHistoryCachesIfNeeded(from summaries: [FundSummary]) async {
+        var updates: [(id: String, cache: FundHistoryCache)] = []
+        for summary in summaries where summary.fund.config.status == .closed {
+            // Reuse the fingerprint computed during FundSummary.buildClosedMetrics — recomputing
+            // it here would double the O(n) hashing per recompute and partially offset the cache.
+            guard let fingerprint = summary.closedHistoryFingerprint else { continue }
+            let current = summary.fund.config.history_cache
+            if current?.entryFingerprint == fingerprint, current?.closedMetrics != nil { continue }
+            updates.append((summary.fund.id, FundHistoryCache(entryFingerprint: fingerprint, closedMetrics: summary.closedMetrics)))
+        }
+        guard !updates.isEmpty else { return }
+
+        var anyWritten = false
+        for item in updates {
+            // Re-entrancy: this is @MainActor but each `await` is a suspension point. Use
+            // `updateHistoryCache` which does a read-modify-write of just the `history_cache`
+            // slot on disk — that way a concurrent edit to *other* config fields (chart_bounds,
+            // dollar_decimals, etc.) made between recompute and this write isn't clobbered by
+            // a stale in-memory snapshot. Likewise we patch only `history_cache` on the live
+            // `funds` array. Only mutate in-memory state when the write actually hit disk —
+            // `updateHistoryCache` returns false (no throw) if the fund file doesn't exist yet
+            // (addFund/recompute can race ahead of the initial writeFund).
+            do {
+                let wrote = try await FundStore.shared.updateHistoryCache(fundId: item.id, cache: item.cache)
+                if wrote {
+                    // Track disk writes independently of the in-memory patch: if the fund was
+                    // concurrently removed/renamed between awaits, the bytes still hit disk and
+                    // we must call markLocalWrite() so iCloud doesn't bounce our own write back
+                    // as a reload.
+                    anyWritten = true
+                    if let idx = funds.firstIndex(where: { $0.id == item.id }) {
+                        funds[idx].config.history_cache = item.cache
+                    }
+                }
+            } catch {
+                recordDiskError("persisting history cache", error)
+            }
+        }
+        // Suppress the iCloud reload-loop our own writes would otherwise trigger.
+        if anyWritten { ICloudSyncMonitor.shared.markLocalWrite() }
+    }
 
     static func buildAuditEntries(from funds: [FundData]) -> [AuditEntry] {
         var entries: [AuditEntry] = []

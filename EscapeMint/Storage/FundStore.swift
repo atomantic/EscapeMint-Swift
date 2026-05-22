@@ -298,16 +298,25 @@ actor FundStore {
         #endif
     }
 
-    func updateConfig(fundId: String, config: FundConfig) throws {
+    /// Updates a fund's config JSON. Returns `false` (without throwing) when the fund's
+    /// file doesn't exist yet — addFund/recompute can race with writeFund, so callers
+    /// must NOT assume a successful return means bytes hit the disk. Use the return value
+    /// to gate any in-memory state that "shadows" the on-disk config.
+    @discardableResult
+    func updateConfig(fundId: String, config: FundConfig) throws -> Bool {
         let configURL = fundsDirectory.appendingPathComponent("\(fundId).json")
-        guard fileManager.fileExists(atPath: configURL.path) else { return }
+        guard fileManager.fileExists(atPath: configURL.path) else { return false }
 
         let existing = try Data(contentsOf: configURL)
         let existingConfig = try JSONDecoder().decode(FundConfig.self, from: existing)
 
         var updated = config
+        // Preserve identity fields from disk. The caller-provided config might be missing or
+        // stale on these (e.g. a settings-view edit that only updates DCA params), and a
+        // mismatched fund_id would break FundData.id and every downstream lookup.
         updated.platform = existingConfig.platform
         updated.ticker = existingConfig.ticker
+        updated.fund_id = existingConfig.fund_id
         let data = try JSONEncoder.pretty.encode(updated)
         try data.write(to: configURL, options: .atomic)
         // Re-apply file protection after atomic write — non-atomic in-place overwrites
@@ -315,6 +324,29 @@ actor FundStore {
         #if os(iOS)
         try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: configURL.path)
         #endif
+        return true
+    }
+
+    /// Read-modify-write of the `history_cache` slot on a fund's config JSON. The write is
+    /// still a full atomic rewrite of the file, but the encoded bytes are based on the latest
+    /// *on-disk* config (re-read here) rather than an in-memory snapshot — so concurrent edits
+    /// to other fields (chart_bounds, etc.) that landed on disk between recompute and this
+    /// write are preserved. Returns `false` if the fund file doesn't exist yet (addFund /
+    /// recompute can race writeFund).
+    @discardableResult
+    func updateHistoryCache(fundId: String, cache: FundHistoryCache?) throws -> Bool {
+        let configURL = fundsDirectory.appendingPathComponent("\(fundId).json")
+        guard fileManager.fileExists(atPath: configURL.path) else { return false }
+
+        let existing = try Data(contentsOf: configURL)
+        var existingConfig = try JSONDecoder().decode(FundConfig.self, from: existing)
+        existingConfig.history_cache = cache
+        let data = try JSONEncoder.pretty.encode(existingConfig)
+        try data.write(to: configURL, options: .atomic)
+        #if os(iOS)
+        try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: configURL.path)
+        #endif
+        return true
     }
 
     func deleteFund(id: String) throws {
