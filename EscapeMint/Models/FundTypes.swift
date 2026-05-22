@@ -304,23 +304,25 @@ struct FundSummary {
     /// MUST include every config field that those compute functions read — if you add a new
     /// metrics-affecting field to `FundConfig` (or change what the compute path reads), update
     /// this list or the cache will return stale results.
-    /// O(n) over entries: still much cheaper than the multi-pass closed-metrics computation it gates,
-    /// but if entry counts grow large, consider storing a rolling fingerprint on `FundData` at
-    /// load/mutation time instead of recomputing here.
+    /// Optionals are encoded with explicit `S`/`N` tags so a real value (e.g. `amount == -1`)
+    /// can't collide with absence. Bytes are streamed into SHA256 incrementally to avoid
+    /// allocating a large intermediate payload string.
     static func historyFingerprint(for fund: FundData) -> String {
-        var components: [String] = []
-        components.append("status:\(fund.config.status?.rawValue ?? "")")
-        components.append("manage_cash:\(fund.config.manage_cash == true)")
-        components.append("cash_apy:\(fund.config.cash_apy ?? 0)")
-        components.append("dividend_reinvest:\(fund.config.dividend_reinvest == true)")
-        components.append("interest_reinvest:\(fund.config.interest_reinvest == true)")
-        components.append("expense_from_fund:\(fund.config.expense_from_fund == true)")
-        components.append("count:\(fund.entries.count)")
+        var hasher = SHA256()
+        func feed(_ s: String) { hasher.update(data: Data(s.utf8)) }
+        func optD(_ d: Double?) -> String { d.map { "S\($0)" } ?? "N" }
+        func optS(_ s: String?) -> String { s.map { "S\($0)" } ?? "N" }
+        feed("status:\(fund.config.status?.rawValue ?? "")\n")
+        feed("manage_cash:\(fund.config.manage_cash == true)\n")
+        feed("cash_apy:\(fund.config.cash_apy ?? 0)\n")
+        feed("dividend_reinvest:\(fund.config.dividend_reinvest == true)\n")
+        feed("interest_reinvest:\(fund.config.interest_reinvest == true)\n")
+        feed("expense_from_fund:\(fund.config.expense_from_fund == true)\n")
+        feed("count:\(fund.entries.count)\n")
         for e in fund.entries {
-            components.append("\(e.date)|\(e.value)|\(e.cash ?? -1)|\(e.action?.rawValue ?? "")|\(e.amount ?? -1)|\(e.shares ?? -1)|\(e.dividend ?? -1)|\(e.expense ?? -1)|\(e.cash_interest ?? -1)|\(e.fund_size ?? -1)")
+            feed("\(e.date)|\(e.value)|\(optD(e.cash))|\(optS(e.action?.rawValue))|\(optD(e.amount))|\(optD(e.shares))|\(optD(e.dividend))|\(optD(e.expense))|\(optD(e.cash_interest))|\(optD(e.fund_size))\n")
         }
-        let payload = components.joined(separator: "\n")
-        let digest = SHA256.hash(data: Data(payload.utf8))
+        let digest = hasher.finalize()
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 }

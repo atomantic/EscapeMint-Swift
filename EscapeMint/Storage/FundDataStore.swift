@@ -694,21 +694,23 @@ final class FundDataStore {
         }
         guard !updates.isEmpty else { return }
 
-        var updatedFunds = funds
         for item in updates {
-            // Only mutate in-memory state after the disk write succeeds — otherwise the cached
-            // fingerprint sticks around in `funds` and the next recompute treats persistence as
-            // complete, so the failed write never gets retried.
+            // Re-entrancy: this is @MainActor but each `await` is a suspension point. Another task
+            // may mutate `funds` (different fund, or different fields on this fund) while the write
+            // is in flight, so we must NOT pre-snapshot `funds` and reassign it at the end — that
+            // would clobber concurrent edits. Instead, after the write succeeds, look up the fund
+            // in the *live* `funds` array and patch only the `history_cache` slot in place.
+            // Also: mutate only after the write succeeds so a failed disk write leaves the in-memory
+            // cache un-updated and the next recompute retries.
             do {
                 try await FundStore.shared.updateConfig(fundId: item.id, config: item.config)
-                if let idx = updatedFunds.firstIndex(where: { $0.id == item.id }) {
-                    updatedFunds[idx].config = item.config
+                if let idx = funds.firstIndex(where: { $0.id == item.id }) {
+                    funds[idx].config.history_cache = item.config.history_cache
                 }
             } catch {
                 recordDiskError("persisting history cache", error)
             }
         }
-        funds = updatedFunds
     }
 
     static func buildAuditEntries(from funds: [FundData]) -> [AuditEntry] {
