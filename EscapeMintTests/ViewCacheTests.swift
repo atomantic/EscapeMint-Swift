@@ -3,34 +3,39 @@ import XCTest
 
 /// Tests for ViewCache — verifies cache key stability, type-safe chart caching,
 /// per-fund invalidation, and memory-pressure clearing. ViewCache is a
-/// `@MainActor` singleton, so all tests run on the main actor.
-@MainActor
+/// `@MainActor` singleton, so each cache-touching test is isolated individually.
 final class ViewCacheTests: XCTestCase {
-
-    private var cache: ViewCache { ViewCache.shared }
 
     override func setUp() async throws {
         try await super.setUp()
         // ViewCache is a singleton — clear non-essential caches between tests so prior
         // runs don't leak state. The historical-data cache is intentionally preserved
         // because reloading the JSON bundle on every test would be wasteful.
-        cache.clearNonEssentialCaches()
+        await MainActor.run {
+            ViewCache.shared.clearNonEssentialCaches()
+        }
     }
 
     override func tearDown() async throws {
-        cache.clearNonEssentialCaches()
+        await MainActor.run {
+            ViewCache.shared.clearNonEssentialCaches()
+        }
         try await super.tearDown()
     }
 
     // MARK: - Cache Keys
 
+    @MainActor
     func testFundCacheKeyIncorporatesEntryCount() {
+        let cache = ViewCache.shared
         let k1 = cache.fundCacheKey("coinbase-btc", entryCount: 10)
         let k2 = cache.fundCacheKey("coinbase-btc", entryCount: 11)
         XCTAssertNotEqual(k1, k2, "Different entry counts must produce different keys")
     }
 
+    @MainActor
     func testFundCacheKeyIsStable() {
+        let cache = ViewCache.shared
         let k1 = cache.fundCacheKey("coinbase-btc", entryCount: 10)
         let k2 = cache.fundCacheKey("coinbase-btc", entryCount: 10)
         XCTAssertEqual(k1, k2)
@@ -38,7 +43,9 @@ final class ViewCacheTests: XCTestCase {
 
     // MARK: - Row Cache
 
+    @MainActor
     func testCachedRowsRoundTrip() {
+        let cache = ViewCache.shared
         let rows = [makeRow()]
         cache.cacheRows(rows, fundId: "coinbase-btc", entryCount: 5)
         let fetched = cache.cachedRows(fundId: "coinbase-btc", entryCount: 5)
@@ -47,11 +54,14 @@ final class ViewCacheTests: XCTestCase {
         XCTAssertEqual(fetched?[0].extracted, 0)
     }
 
+    @MainActor
     func testCachedRowsReturnsNilForUnseenKey() {
-        XCTAssertNil(cache.cachedRows(fundId: "never-stored", entryCount: 0))
+        XCTAssertNil(ViewCache.shared.cachedRows(fundId: "never-stored", entryCount: 0))
     }
 
+    @MainActor
     func testCachedRowsKeyedByEntryCount() {
+        let cache = ViewCache.shared
         // Storing rows under count=5 must not be readable under count=6 — that's how
         // the caller invalidates after appending an entry.
         cache.cacheRows([makeRow()], fundId: "coinbase-btc", entryCount: 5)
@@ -61,7 +71,9 @@ final class ViewCacheTests: XCTestCase {
 
     // MARK: - Chart Points Cache (type-safe)
 
+    @MainActor
     func testChartPointsRoundTripPerType() {
+        let cache = ViewCache.shared
         let valuePoints = [makeValuePoint(date: "2025-01-01", value: 1000)]
         let plPoints = [makePLPoint(date: "2025-01-01", liquid: 100)]
 
@@ -83,7 +95,9 @@ final class ViewCacheTests: XCTestCase {
 
     /// Different chart types under the same fund/entryCount must NOT collide.
     /// Without this guarantee the type-erased Any storage would be a footgun.
+    @MainActor
     func testChartPointsTypeNamespaceIsolation() {
+        let cache = ViewCache.shared
         let value = [makeValuePoint(date: "2025-01-01", value: 1)]
         cache.cacheChartPoints(value, type: ValuePoint.self,
                                fundId: "coinbase-btc", entryCount: 7)
@@ -95,7 +109,9 @@ final class ViewCacheTests: XCTestCase {
 
     // MARK: - Per-Fund Invalidation
 
+    @MainActor
     func testInvalidateFundCacheClearsAllArtifactsForFund() {
+        let cache = ViewCache.shared
         // Prime three caches for fund A
         cache.cacheRows([makeRow()], fundId: "fund-a", entryCount: 3)
         cache.cacheChartPoints([makeValuePoint(date: "2025-01-01", value: 100)],
@@ -120,7 +136,9 @@ final class ViewCacheTests: XCTestCase {
 
     // MARK: - Memory Pressure Clearing
 
+    @MainActor
     func testClearNonEssentialCachesEmptiesEverything() {
+        let cache = ViewCache.shared
         cache.cacheRows([makeRow()], fundId: "fund-a", entryCount: 3)
         cache.cacheChartPoints([makeValuePoint(date: "2025-01-01", value: 100)],
                                type: ValuePoint.self, fundId: "fund-a", entryCount: 3)
@@ -136,7 +154,9 @@ final class ViewCacheTests: XCTestCase {
 
     // MARK: - Derivatives Points Cache
 
+    @MainActor
     func testDerivPointsNilStorageRemovesEntry() {
+        let cache = ViewCache.shared
         // Caching `nil` should evict any existing entry — the production code uses
         // this to clear stale derivatives points when a fund is reclassified.
         cache.cacheDerivPoints([makeDerivPoint()], fundId: "fund-a", entryCount: 2)
@@ -148,7 +168,9 @@ final class ViewCacheTests: XCTestCase {
 
     // MARK: - Backtest State
 
+    @MainActor
     func testUpdateBacktestPresetUpdatesObservableState() {
+        let cache = ViewCache.shared
         cache.updateBacktestPreset(.tqqq)
         XCTAssertEqual(cache.backtestPreset, .tqqq)
 
@@ -156,7 +178,9 @@ final class ViewCacheTests: XCTestCase {
         XCTAssertEqual(cache.backtestPreset, .btc)
     }
 
+    @MainActor
     func testUpdateBacktestSortOrderUpdatesObservableState() {
+        let cache = ViewCache.shared
         cache.updateBacktestSortOrder(.asc)
         XCTAssertEqual(cache.backtestSortOrder, .asc)
 
@@ -164,7 +188,9 @@ final class ViewCacheTests: XCTestCase {
         XCTAssertEqual(cache.backtestSortOrder, .desc)
     }
 
+    @MainActor
     func testUpdateBacktestConfigPersists() {
+        let cache = ViewCache.shared
         var config = BacktestConfig()
         config.btcPct = 1.0
         config.initialCash = 12345
@@ -173,7 +199,9 @@ final class ViewCacheTests: XCTestCase {
         XCTAssertEqual(cache.backtestConfig.initialCash, 12345)
     }
 
+    @MainActor
     func testUpdateBacktestDateRangeNilable() {
+        let cache = ViewCache.shared
         let r = BacktestDateRange(start: "2024-01-01", end: "2024-12-31")
         cache.updateBacktestDateRange(r)
         XCTAssertEqual(cache.backtestDateRange?.start, "2024-01-01")
