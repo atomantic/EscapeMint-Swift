@@ -274,4 +274,84 @@ final class ServicesTests: XCTestCase {
         XCTAssertNil(decoded.recommendedAmount)
         XCTAssertFalse(decoded.isDueForAction)
     }
+
+    // MARK: - WidgetDataProvider.readSnapshot
+
+    /// `readSnapshot()` must NEVER crash — the widget extension calls this on every
+    /// timeline refresh. It can legitimately return nil (no App Group, missing file,
+    /// or undecodable contents) OR a fully-populated snapshot, and both must be safe.
+    /// We can't assert the result here because the test host's App Group container
+    /// state isn't sandboxed (a developer's machine may have a real snapshot from
+    /// running the app). The win is verifying the call path doesn't trap.
+    @MainActor
+    func testReadSnapshotDoesNotCrash() {
+        _ = WidgetDataProvider.readSnapshot()
+    }
+
+    /// If `readSnapshot()` returns a value, it must be a self-consistent WidgetSnapshot
+    /// (bounded `topFunds.count`, finite numeric fields). This guards the widget's
+    /// rendering invariants regardless of which app-side write last produced the file.
+    @MainActor
+    func testReadSnapshotConsistencyWhenPresent() {
+        guard let snap = WidgetDataProvider.readSnapshot() else {
+            return  // No App Group data on this run — see testReadSnapshotDoesNotCrash
+        }
+        XCTAssertTrue(snap.totalValue.isFinite)
+        XCTAssertTrue(snap.totalGainUsd.isFinite)
+        XCTAssertTrue(snap.totalGainPct.isFinite)
+        XCTAssertGreaterThanOrEqual(snap.activeFunds, 0)
+        XCTAssertGreaterThanOrEqual(snap.actionableCount, 0)
+        // topFunds may be empty, but is bounded at 7 by `prefix(7)` in updateSnapshot.
+        XCTAssertLessThanOrEqual(snap.topFunds.count, 7)
+        for fund in snap.topFunds {
+            XCTAssertFalse(fund.ticker.isEmpty)
+            XCTAssertTrue(fund.value.isFinite)
+            XCTAssertTrue(fund.gainPct.isFinite)
+        }
+    }
+
+    /// Decoding must reject malformed snapshot data without crashing — the actual
+    /// `try?` in the production code makes this a tolerance test for any future
+    /// schema/format drift.
+    func testWidgetSnapshotDecodingRejectsGarbage() throws {
+        let garbage = Data("{\"not\": \"a snapshot\"}".utf8)
+        XCTAssertThrowsError(try JSONDecoder().decode(WidgetSnapshot.self, from: garbage))
+    }
+
+    func testWidgetSnapshotDecodingRejectsEmptyData() {
+        let empty = Data()
+        XCTAssertThrowsError(try JSONDecoder().decode(WidgetSnapshot.self, from: empty))
+    }
+
+    /// Verify the JSON contract used by the widget — a successful round-trip
+    /// covering all fields (positive control for `readSnapshot` — if the
+    /// decoder fails on this, the widget would always show a stale state).
+    func testWidgetSnapshotDecoderContract() throws {
+        let json = """
+        {
+          "totalValue": 1000.5,
+          "totalGainUsd": 100.25,
+          "totalGainPct": 11.0,
+          "activeFunds": 3,
+          "actionableCount": 1,
+          "topFunds": [
+            {
+              "ticker": "BTC", "platform": "Coinbase",
+              "value": 500, "gainPct": 12.5,
+              "isDueForAction": true,
+              "recommendedAction": "BUY",
+              "recommendedAmount": 100
+            }
+          ],
+          "updatedAt": 762048000
+        }
+        """
+        let data = Data(json.utf8)
+        let decoded = try JSONDecoder().decode(WidgetSnapshot.self, from: data)
+        XCTAssertEqual(decoded.totalValue, 1000.5, accuracy: 0.001)
+        XCTAssertEqual(decoded.activeFunds, 3)
+        XCTAssertEqual(decoded.topFunds.count, 1)
+        XCTAssertEqual(decoded.topFunds[0].ticker, "BTC")
+        XCTAssertEqual(decoded.topFunds[0].recommendedAction, "BUY")
+    }
 }

@@ -5,7 +5,7 @@ For completed work see [DONE.md](DONE.md).
 
 ## Next Up
 
-1. **Deepen service tests** — `AuthManager` has 4 happy-path tests but no lock-state-machine / keychain / biometric-flow coverage; `SpotlightIndexer` has crash-only smoke tests (no indexing assertions); `WidgetDataProvider.readSnapshot` has zero tests
+1. **Deepen service tests** — `AuthManager` has 4 happy-path tests but no lock-state-machine / keychain / biometric-flow coverage; `SpotlightIndexer` has crash-only smoke tests (no indexing assertions)
 2. **GuidedAddEntryView wizard tests** — added 2026-04-21 with zero coverage; extract step-transition + recommendation-recompute helpers; cover direct-equity / shares-price / exit-toggle branches
 3. **AuthManager biometric pref → Keychain** — currently in `UserDefaults`, bypassable on jailbreak (use `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`)
 4. **Split `FundEngine.swift`** — 1371-line god file → TradeEngine / RecommendationEngine / PortfolioEngine
@@ -17,11 +17,12 @@ For completed work see [DONE.md](DONE.md).
 - [ ] `FundStore` concurrent-actor-access stress (StorageTests covers methods individually; no overlap-write tests)
 - [ ] `FundDataStore` stateful coverage beyond `buildAuditEntries` / `applyRenames` (mutation paths, summary recompute, error toasts)
 - [ ] `DCANotificationManager` — schedule/reschedule correctness, permission denial path (only `cancelAll` idempotency tested)
-- [ ] `ViewCache` cache lifecycle tests
-- [ ] `BacktestEngine` edge cases — negative prices, zero dividends, volatile series exercising sells
-- [ ] `AdvancedTools.recalculateEntryPrices` price computation + zero-shares guard
+- [x] `ViewCache` cache lifecycle tests — covered by `ViewCacheTests.swift`
+- [ ] `BacktestEngine` edge cases — negative prices, zero dividends
+- [x] `BacktestEngine` volatile series exercising sells — covered by `testRunBacktestVolatileMarketTriggersSells`
+- [x] `AdvancedTools.recalculateEntryPrices` price computation + zero-shares guard — covered by `AdvancedToolsTests`
 - [ ] EngineTests weak assertions — nil recommendation non-default state, cash interest accuracy 5.0 → 0.10
-- [ ] `WidgetDataProvider.readSnapshot` nil-path test
+- [x] `WidgetDataProvider.readSnapshot` nil-path / no-crash coverage — covered by `ServicesTests`
 - [ ] Converters concurrent holiday-cache stress test (validates `OSAllocatedUnfairLock` under load)
 - [ ] TSV malformed-input edge cases (extra tabs, missing columns)
 

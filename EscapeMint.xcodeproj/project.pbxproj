@@ -76,6 +76,7 @@
 		65B3EC108FE713A5B400FA5D /* robinhoodtest-cash.tsv in Resources */ = {isa = PBXBuildFile; fileRef = BDEC5159BE61B7F6E86705E7 /* robinhoodtest-cash.tsv */; };
 		6699AD40036B9A80E20F5A66 /* EngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DEB29D5F7AD42857B739CEE /* EngineTests.swift */; };
 		66BD159218FE4D82FE08B1A9 /* coinbasetest-cash.json in Resources */ = {isa = PBXBuildFile; fileRef = 28D10063CEA04E34B422E48A /* coinbasetest-cash.json */; };
+		6B5163B1B7931DE792CF031A /* ViewCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B9C24F786271E3E8E8B7A1D /* ViewCacheTests.swift */; };
 		6C75E91B0F6FECF184432C98 /* StatBox.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D6554AB71D71AEFD5CB7BA /* StatBox.swift */; };
 		7064B056C01915EFDB93C772 /* NotificationNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DDEBB26B5A4523E7DF3AB87 /* NotificationNames.swift */; };
 		7202A09CF06020B67B8D4E86 /* EscapeMintLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 015479839B54BBA737A6903D /* EscapeMintLoadingView.swift */; };
@@ -119,6 +120,7 @@
 		AD96A443A9DB27699AAC7BDD /* gld-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 2FA36F78945896AA5A44225F /* gld-weekly.json */; };
 		AFCEA5A89DF3CF5CE0EB08D2 /* WidgetDataProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F26600F8259B5BEBBFB1C99 /* WidgetDataProvider.swift */; };
 		B2458A2217463775A1EE26B3 /* EditEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB98C8C76DB995DB12DB51C /* EditEntryView.swift */; };
+		B4DED41DA7C4419B1D0B5BDF /* ViewCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B9C24F786271E3E8E8B7A1D /* ViewCacheTests.swift */; };
 		B69B8BE99B11E76130C914D5 /* AdvancedToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43EA0A1D7008E27E20D07B13 /* AdvancedToolsTests.swift */; };
 		B78CF5602C037D36B8704885 /* EngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DEB29D5F7AD42857B739CEE /* EngineTests.swift */; };
 		B8047AE46A726EDA9BADE48D /* robinhoodtest-spxl.json in Resources */ = {isa = PBXBuildFile; fileRef = 2324DA91E49C3F0CD95CE1DE /* robinhoodtest-spxl.json */; };
@@ -240,6 +242,7 @@
 		5DC2A3A2E56F3738F4A5F705 /* ICloudSyncMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICloudSyncMonitor.swift; sourceTree = "<group>"; };
 		5E6AFD1F57B408213E9E0D3B /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		62673091D474C5E9C408B22C /* btc-weekly.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "btc-weekly.json"; sourceTree = "<group>"; };
+		6B9C24F786271E3E8E8B7A1D /* ViewCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewCacheTests.swift; sourceTree = "<group>"; };
 		6DDEBB26B5A4523E7DF3AB87 /* NotificationNames.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationNames.swift; sourceTree = "<group>"; };
 		716845DB9D559691A02AEFAE /* CreateFundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateFundView.swift; sourceTree = "<group>"; };
 		72B24FDF289E498E5460BB1F /* vti-weekly.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "vti-weekly.json"; sourceTree = "<group>"; };
@@ -482,6 +485,7 @@
 				CD7045F4A08A28EE158CB394 /* FundMetricsTests.swift */,
 				FA953739D75435BB66AB189B /* ServicesTests.swift */,
 				9463BF27DD8F902F60445782 /* StorageTests.swift */,
+				6B9C24F786271E3E8E8B7A1D /* ViewCacheTests.swift */,
 			);
 			path = EscapeMintTests;
 			sourceTree = "<group>";
@@ -897,6 +901,7 @@
 				00C69901BFC3ED1EB67B856D /* FundMetricsTests.swift in Sources */,
 				4F3E76F1EFDF20CB4EB1C904 /* ServicesTests.swift in Sources */,
 				7E832BFA791B32229E68C2AC /* StorageTests.swift in Sources */,
+				B4DED41DA7C4419B1D0B5BDF /* ViewCacheTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -910,6 +915,7 @@
 				1C31C8C48EEF4758BEED3877 /* FundMetricsTests.swift in Sources */,
 				028FBE500288EC70FBD20E9A /* ServicesTests.swift in Sources */,
 				32C56FBC2CDBC51A4D6E4378 /* StorageTests.swift in Sources */,
+				6B5163B1B7931DE792CF031A /* ViewCacheTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
