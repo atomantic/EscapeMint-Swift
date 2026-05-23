@@ -148,6 +148,23 @@ final class FundMetricsTests: XCTestCase {
         XCTAssertEqual(Set(points.map(\.id)).count, points.count)
     }
 
+    func testStockPLChartUsesSinglePassEntryRows() {
+        let config = makeConfig(accumulate: true)
+        let entries = [
+            FundEntry(date: "2026-01-01", value: 0, action: .BUY, amount: 1000, shares: 10),
+            FundEntry(date: "2026-02-01", value: 1200, action: .HOLD, dividend: 25),
+            FundEntry(date: "2026-03-01", value: 1200, action: .SELL, amount: 1200, shares: 10),
+        ]
+
+        let points = computePLPoints(entries: entries, config: config)
+
+        XCTAssertEqual(points.count, 3)
+        XCTAssertEqual(points[1].realized, 25, accuracy: 0.01)
+        XCTAssertEqual(points[1].liquid, 225, accuracy: 0.01)
+        XCTAssertEqual(points[2].realized, 225, accuracy: 0.01)
+        XCTAssertEqual(points[2].liquid, 225, accuracy: 0.01)
+    }
+
     func testCashFundFallbackToFundSize() {
         // When cash field is nil, engine should fall back to fund_size then value
         let config = makeConfig(fundType: .cash, cashApy: 0.04, manageCash: true, accumulate: true)

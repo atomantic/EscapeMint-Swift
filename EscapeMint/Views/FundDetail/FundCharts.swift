@@ -187,8 +187,6 @@ private func chartConfig(_ config: FundConfig) -> FundConfig {
 }
 
 func computePLPoints(entries: [FundEntry], config: FundConfig) -> [PLPoint] {
-    // Use active status for chart computation — closed funds return zeros from computeFundState
-    let cc = chartConfig(config)
     let isCash = isCashFund(config.fund_type)
 
     let ordered = sortedByDateStable(entries)
@@ -202,15 +200,9 @@ func computePLPoints(entries: [FundEntry], config: FundConfig) -> [PLPoint] {
             return PLPoint(id: entry.date, date: entry.date, realized: realized, liquid: realized)
         }
     } else {
-        // Convert once; engine filters internally by asOfDate. Avoids O(N²) per-entry reconversion.
-        let trades = entriesToTrades(ordered)
-        let cashflows = entriesToCashFlows(ordered)
-        let dividends = entriesToDividends(ordered)
-        let expenses = entriesToExpenses(ordered)
-        allPoints = ordered.map { entry in
-            let state = computeFundState(config: cc, trades: trades, cashflows: cashflows, dividends: dividends, expenses: expenses, actualValue: entry.value, asOfDate: entry.date)
-            let liquid = state.gainUsd + state.realizedGainsUsd
-            return PLPoint(id: entry.date, date: entry.date, realized: state.realizedGainsUsd, liquid: liquid)
+        let rows = computeEntryRows(entries: ordered, config: chartConfig(config))
+        allPoints = zip(ordered, rows).map { entry, row in
+            PLPoint(id: entry.date, date: entry.date, realized: row.realized, liquid: row.liquidPnl)
         }
     }
 
@@ -515,7 +507,7 @@ struct PLChartView: View {
                 points = cached
             } else {
                 let e = entries, c = config
-                let computed = await Task.detached(priority: .utility) {
+                let computed = await Task.detached(priority: .userInitiated) {
                     computePLPoints(entries: e, config: c)
                 }.value
                 guard !Task.isCancelled else { return }

@@ -217,8 +217,10 @@ final class ViewCache {
 
     private var precomputeTask: Task<Void, Never>?
 
-    /// Pre-compute chart data and entry rows for all funds in the background.
-    /// Call after funds are loaded so data is ready when user navigates to fund detail.
+    /// Pre-compute only the shared row/derivatives data in the background.
+    /// Eagerly building every chart for every fund makes visible chart tasks
+    /// compete with off-screen work, which can leave fund detail charts sitting
+    /// on their loading placeholders for large portfolios.
     func precomputeFundCharts(_ funds: [FundData]) {
         precomputeTask?.cancel()
         precomputeTask = Task {
@@ -242,27 +244,6 @@ final class ViewCache {
                     let pts = await bgCompute { computeDerivativesChartData(entries: entries, config: config) }
                     guard !Task.isCancelled else { return }
                     cacheDerivPoints(pts, fundId: fid, entryCount: ec)
-                }
-
-                if cachedChartPoints(type: ValuePoint.self, fundId: fid, entryCount: ec) == nil {
-                    let pts = await bgCompute { computeValuePoints(entries: entries, config: config) }
-                    guard !Task.isCancelled else { return }
-                    cacheChartPoints(pts, type: ValuePoint.self, fundId: fid, entryCount: ec)
-                }
-                if cachedChartPoints(type: PLPoint.self, fundId: fid, entryCount: ec) == nil {
-                    let pts = await bgCompute { computePLPoints(entries: entries, config: config) }
-                    guard !Task.isCancelled else { return }
-                    cacheChartPoints(pts, type: PLPoint.self, fundId: fid, entryCount: ec)
-                }
-                if cachedChartPoints(type: APYPoint.self, fundId: fid, entryCount: ec) == nil {
-                    let pts = await bgCompute { computeAPYPoints(entries: entries, config: config) }
-                    guard !Task.isCancelled else { return }
-                    cacheChartPoints(pts, type: APYPoint.self, fundId: fid, entryCount: ec)
-                }
-                if cachedChartPoints(type: ProfitPoint.self, fundId: fid, entryCount: ec) == nil {
-                    let pts = await bgCompute { computeProfitPoints(entries: entries, config: config) }
-                    guard !Task.isCancelled else { return }
-                    cacheChartPoints(pts, type: ProfitPoint.self, fundId: fid, entryCount: ec)
                 }
                 await Task.yield()
             }
