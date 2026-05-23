@@ -258,23 +258,21 @@ func computePortfolioTimeSeries(_ funds: [FundData]) -> [PortfolioTimeSeriesPoin
 
     // Initialize cursors — entries are sorted once per fund (not per date)
     var cursors = funds.map { FundMetricsCursor(fund: $0) }
-    let activeFundIndices = Set(funds.indices.filter { funds[$0].config.status != .closed })
 
     return sampled.map { date in
         // Advance all cursors — each entry is visited at most once across all dates
         for i in cursors.indices { cursors[i].advance(to: date) }
 
-        // Compute per-fund snapshots (O(1) per fund, not O(entries))
-        let snapshots = cursors.map { $0.snapshot(asOfDate: date) }
-
-        // Aggregate portfolio metrics
+        // Aggregate per-fund snapshots directly. Avoiding a separate snapshot
+        // array keeps the chart rebuild path allocation-light on every sampled date.
         var totalFundSize = 0.0, totalValue = 0.0, totalStartInput = 0.0
         var totalRealizedGains = 0.0, totalUnrealizedGains = 0.0
         var cashBalance = 0.0
         var totalDollarDays = 0.0
         var maxDaysActive = 0
 
-        for snap in snapshots {
+        for cursor in cursors {
+            let snap = cursor.snapshot(asOfDate: date)
             totalFundSize += snap.fundSize
             totalValue += snap.currentValue
             totalStartInput += snap.startInput
@@ -321,8 +319,7 @@ func computePortfolioTimeSeries(_ funds: [FundData]) -> [PortfolioTimeSeriesPoin
         var perFund: [String: Double] = [:]
         var marginAccess = 0.0
         var marginBorrowed = 0.0
-        for i in cursors.indices where activeFundIndices.contains(i) {
-            let c = cursors[i]
+        for c in cursors where c.fund.config.status != .closed {
             guard c.index > 0 else { continue }
             let lastEntry = c.sortedEntries[c.index - 1]
             perFund[c.fund.ticker.uppercased()] = lastEntry.value
