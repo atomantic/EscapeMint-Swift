@@ -474,7 +474,7 @@ struct FundDetailView: View {
         ("invested", "Invested", true, [.cash, .derivatives]),
         ("dividend", "Dividend", true, [.cash, .crypto, .derivatives]),
         ("expense", "Expense", false, [.derivatives]),
-        ("fund_size", "Fund Size", true, [.derivatives]),
+        ("fund_size", "Fund Size", false, [.derivatives]),
         ("extracted", "Extracted", true, [.cash, .derivatives]),
         ("cash_interest", "Cash Int", false, [.derivatives]),
         ("unrealized", "Unrealized", true, [.cash]),
@@ -483,8 +483,8 @@ struct FundDetailView: View {
         ("realized_apy", "Realized APY", true, []),
         ("liquid_apy", "Liq APY", true, [.cash]),
         ("sum_expense", "\u{03A3} Exp", false, [.derivatives]),
-        ("sum_dividends", "\u{03A3} Div", true, [.cash, .crypto, .derivatives]),
-        ("sum_extracted", "\u{03A3} Extracted", true, [.cash, .derivatives]),
+        ("sum_dividends", "\u{03A3} Div", false, [.cash, .crypto, .derivatives]),
+        ("sum_extracted", "\u{03A3} Extracted", false, [.cash, .derivatives]),
         ("sum_cash_int", "\u{03A3} Int", false, [.derivatives]),
         ("margin_available", "Margin Avail", false, []),
         ("margin_borrowed", "Margin Borrowed", false, []),
@@ -927,4 +927,3 @@ struct FundDetailView: View {
     }
 
 }
-

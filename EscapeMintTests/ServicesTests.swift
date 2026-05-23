@@ -289,7 +289,7 @@ final class ServicesTests: XCTestCase {
     }
 
     /// If `readSnapshot()` returns a value, it must be a self-consistent WidgetSnapshot
-    /// (positive `topFunds.count`, finite numeric fields). This guards the widget's
+    /// (bounded `topFunds.count`, finite numeric fields). This guards the widget's
     /// rendering invariants regardless of which app-side write last produced the file.
     @MainActor
     func testReadSnapshotConsistencyWhenPresent() {
@@ -301,7 +301,7 @@ final class ServicesTests: XCTestCase {
         XCTAssertTrue(snap.totalGainPct.isFinite)
         XCTAssertGreaterThanOrEqual(snap.activeFunds, 0)
         XCTAssertGreaterThanOrEqual(snap.actionableCount, 0)
-        // topFunds is bounded at 7 by `prefix(7)` in updateSnapshot
+        // topFunds may be empty, but is bounded at 7 by `prefix(7)` in updateSnapshot.
         XCTAssertLessThanOrEqual(snap.topFunds.count, 7)
         for fund in snap.topFunds {
             XCTAssertFalse(fund.ticker.isEmpty)

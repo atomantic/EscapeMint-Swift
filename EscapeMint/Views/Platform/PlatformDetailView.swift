@@ -4,6 +4,7 @@ import Charts
 struct PlatformDetailView: View {
     let platform: String
     private var store: FundDataStore { .shared }
+    @State private var showCreateFund = false
 
     var platformSummaries: [FundSummary] {
         store.summaries.filter { $0.fund.platform == platform }
@@ -34,7 +35,16 @@ struct PlatformDetailView: View {
         .navigationTitle(platform.capitalized)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            Button { showCreateFund = true } label: {
+                Image(systemName: "plus.circle.fill")
+                    .foregroundColor(.mint)
+            }
+        }
         #endif
+        .sheet(isPresented: $showCreateFund) {
+            CreateFundView(initialPlatform: platform) {}
+        }
     }
 
     // MARK: - Header (macOS)
@@ -54,6 +64,12 @@ struct PlatformDetailView: View {
                     .font(.subheadline).foregroundColor(.textSecondary)
             }
             Spacer()
+            Button { showCreateFund = true } label: {
+                Label("Add Fund", systemImage: "plus.circle.fill")
+                    .font(.callout).fontWeight(.medium)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.mint)
         }
     }
 

@@ -44,36 +44,24 @@ struct FundCardView: View {
             }
 
             HStack(spacing: 12) {
-                if summary.isCash {
-                    VStack(alignment: .leading) {
-                        Text("Balance").font(.caption2).foregroundColor(.textMuted)
-                        Text(formatCurrency(value)).font(.caption).foregroundColor(.textPrimary)
-                    }
-                    VStack(alignment: .leading) {
-                        Text("Interest").font(.caption2).foregroundColor(.textMuted)
-                        Text("+\(formatCurrency(state.cashInterestUsd))").font(.caption).foregroundColor(.mint)
-                    }
-                    VStack(alignment: .leading) {
-                        Text("APY").font(.caption2).foregroundColor(.textMuted)
-                        Text(formatPercent(realizedAPY)).font(.caption).foregroundColor(realizedAPY > 0 ? .mint : .textMuted)
-                    }
+                if fund.config.status == .closed {
+                    metricColumn("Size", formatCurrency(summary.metrics.fundSize))
+                    metricColumn("Realized $", formatCurrency(summary.effectiveRealized),
+                                 color: summary.effectiveRealized >= 0 ? .mint : .red)
+                    metricColumn("Realized %", formatPercent(summary.effectiveRealizedAPY),
+                                 color: summary.effectiveRealizedAPY >= 0 ? .mint : .red)
+                } else if summary.isCash {
+                    metricColumn("Balance", formatCurrency(value))
+                    metricColumn("Interest", "+\(formatCurrency(state.cashInterestUsd))", color: .mint)
+                    metricColumn("APY", formatPercent(realizedAPY),
+                                 color: realizedAPY > 0 ? .mint : .textMuted)
                 } else {
-                    VStack(alignment: .leading) {
-                        Text("Size").font(.caption2).foregroundColor(.textMuted)
-                        Text(formatCurrency(summary.metrics.fundSize)).font(.caption).foregroundColor(.textPrimary)
-                    }
-                    VStack(alignment: .leading) {
-                        Text("Value").font(.caption2).foregroundColor(.textMuted)
-                        Text(formatCurrency(value)).font(.caption).foregroundColor(.textPrimary)
-                    }
-                    VStack(alignment: .leading) {
-                        Text("Realized").font(.caption2).foregroundColor(.textMuted)
-                        Text(formatPercent(realizedAPY)).font(.caption).foregroundColor(realizedAPY > 0 ? .mint : .red)
-                    }
-                    VStack(alignment: .leading) {
-                        Text("Liquid").font(.caption2).foregroundColor(.textMuted)
-                        Text(formatPercent(liquidAPY)).font(.caption).foregroundColor(liquidAPY > 0 ? .mint : .red)
-                    }
+                    metricColumn("Size", formatCurrency(summary.metrics.fundSize))
+                    metricColumn("Value", formatCurrency(value))
+                    metricColumn("Realized", formatPercent(realizedAPY),
+                                 color: realizedAPY > 0 ? .mint : .red)
+                    metricColumn("Liquid", formatPercent(liquidAPY),
+                                 color: liquidAPY > 0 ? .mint : .red)
                 }
             }
 
@@ -90,5 +78,12 @@ struct FundCardView: View {
         #if os(iOS)
         .padding(.horizontal)
         #endif
+    }
+
+    private func metricColumn(_ label: String, _ value: String, color: Color = .textPrimary) -> some View {
+        VStack(alignment: .leading) {
+            Text(label).font(.caption2).foregroundColor(.textMuted)
+            Text(value).font(.caption).foregroundColor(color)
+        }
     }
 }

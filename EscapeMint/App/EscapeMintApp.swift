@@ -174,6 +174,9 @@ struct ContentView: View {
             }
             await store.loadIfNeeded()
             ICloudSyncMonitor.shared.startMonitoring()
+            #if os(iOS)
+            applyLaunchNavigationArguments()
+            #endif
             // -selectFund <id>: auto-navigate to fund detail after load
             if let idx = CommandLine.arguments.firstIndex(of: "-selectFund"),
                idx + 1 < CommandLine.arguments.count {
@@ -195,20 +198,37 @@ struct ContentView: View {
 
     @ViewBuilder
     private var loadingView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "leaf.fill")
-                .font(.system(size: 48))
-                .foregroundColor(.mint)
-                .accessibilityHidden(true)
-            ProgressView()
-                .controlSize(.large)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.bg.ignoresSafeArea())
+        EscapeMintLoadingView(
+            message: store.loadingPhase.message,
+            progress: nil,
+            loadedCount: store.loadedFundCount,
+            totalCount: store.funds.count
+        )
     }
 
     #if os(iOS)
     @State private var dashboardPath = NavigationPath()
+
+    private func launchValue(after flag: String, environmentKey: String) -> String? {
+        if let idx = CommandLine.arguments.firstIndex(of: flag),
+           idx + 1 < CommandLine.arguments.count {
+            return CommandLine.arguments[idx + 1]
+        }
+        return ProcessInfo.processInfo.environment[environmentKey]
+    }
+
+    private func applyLaunchNavigationArguments() {
+        if let tabValue = launchValue(after: "-startTab", environmentKey: "ESCAPEMINT_START_TAB"),
+           let tab = Int(tabValue) {
+            selectedTab = tab
+        }
+
+        if let fundId = launchValue(after: "-selectFund", environmentKey: "ESCAPEMINT_SELECT_FUND") {
+            selectedTab = 0
+            dashboardPath = NavigationPath()
+            dashboardPath.append(fundId)
+        }
+    }
 
     @ViewBuilder
     private var tabContent: some View {

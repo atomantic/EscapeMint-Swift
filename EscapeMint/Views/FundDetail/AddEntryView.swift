@@ -100,6 +100,69 @@ func computeFundSizeForEntry(_ newEntry: FundEntry, existingEntries: [FundEntry]
 
     // Build the full entry list including the new one, sorted by date
     let allEntries = (existingEntries + [newEntry]).sorted { $0.date < $1.date }
+    let priorEntries = existingEntries
+        .filter { $0.date <= newEntry.date }
+        .sorted { $0.date < $1.date }
+
+    if let previousFundSize = priorEntries.last?.fund_size {
+        var fundSize = previousFundSize
+        let amount = newEntry.amount ?? 0
+
+        var depositAmount = 0.0
+        var withdrawalAmount = 0.0
+        if let notes = newEntry.notes {
+            if let match = notes.range(of: #"Deposit:\s*\$?([\d.]+)"#, options: .regularExpression) {
+                let numStr = notes[match].replacingOccurrences(of: "Deposit:", with: "")
+                    .trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "$", with: "")
+                depositAmount = Double(numStr) ?? 0
+            }
+            if let match = notes.range(of: #"Withdrawal:\s*\$?([\d.]+)"#, options: .regularExpression) {
+                let numStr = notes[match].replacingOccurrences(of: "Withdrawal:", with: "")
+                    .trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "$", with: "")
+                withdrawalAmount = Double(numStr) ?? 0
+            }
+        }
+
+        if newEntry.action == .BUY {
+            fundSize += amount
+        } else if newEntry.action == .SELL {
+            var sharesAfter = 0.0
+            for entry in priorEntries {
+                if let shares = entry.shares {
+                    sharesAfter += entry.action == .SELL ? -abs(shares) : abs(shares)
+                }
+            }
+            if let shares = newEntry.shares {
+                sharesAfter -= abs(shares)
+            }
+
+            let hasShareTracking = newEntry.shares != nil && (newEntry.shares ?? 0) != 0
+            let sharesLiquidated = hasShareTracking && abs(sharesAfter) < 0.0001
+            let valueLiquidated = newEntry.value > 0 && newEntry.value <= amount + 0.01
+            if sharesLiquidated || valueLiquidated {
+                fundSize = 0
+            } else if !isAccumulate {
+                fundSize -= amount
+            }
+        } else if newEntry.action == .DEPOSIT {
+            depositAmount = amount
+        } else if newEntry.action == .WITHDRAW {
+            withdrawalAmount = amount
+        }
+
+        if let div = newEntry.dividend, config.dividend_reinvest != false {
+            fundSize += abs(div)
+        }
+        if let ci = newEntry.cash_interest, config.interest_reinvest != false {
+            fundSize += abs(ci)
+        }
+        if let exp = newEntry.expense, config.expense_from_fund != false {
+            fundSize -= abs(exp)
+        }
+
+        fundSize += depositAmount - withdrawalAmount
+        return max(0, (fundSize * 100).rounded() / 100)
+    }
 
     if !manageCash {
         // Non-cash managing: fund_size = cumulative BUYs - SELLs

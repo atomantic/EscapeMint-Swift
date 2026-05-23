@@ -2,13 +2,13 @@ import SwiftUI
 
 struct PlatformsView: View {
     private var store: FundDataStore { .shared }
-    @State private var showDeleteAlert = false
-    @State private var platformToDelete: String? = nil
+    @State private var platformToDelete: PlatformInfo? = nil
     @State private var showCreateFund = false
     @State private var editingPlatform: String? = nil
     @State private var editName: String = ""
     @State private var showRenameError = false
     @State private var renameErrorMessage = ""
+    @State private var isDeletingPlatform = false
 
     struct PlatformInfo: Identifiable {
         var id: String { name }
@@ -17,6 +17,9 @@ struct PlatformsView: View {
         let activeFundCount: Int
         let totalValue: Double
         let totalFundSize: Double
+        let totalRealized: Double
+        let totalUnrealized: Double
+        let cashBalance: Double
     }
 
     var platformInfos: [PlatformInfo] {
@@ -28,21 +31,25 @@ struct PlatformsView: View {
                 fundCount: summaries.count,
                 activeFundCount: active.count,
                 totalValue: active.reduce(0) { $0 + $1.currentValue },
-                totalFundSize: active.reduce(0) { $0 + $1.metrics.fundSize }
+                totalFundSize: active.reduce(0) { $0 + $1.metrics.fundSize },
+                totalRealized: summaries.reduce(0) { $0 + $1.effectiveRealized },
+                totalUnrealized: summaries.reduce(0) { $0 + $1.unrealizedGains },
+                cashBalance: active.reduce(0) { $0 + $1.state.cashAvailableUsd }
             )
         }.sorted { $0.totalValue > $1.totalValue }
     }
 
     var body: some View {
-        ScrollView {
+        let infos = platformInfos
+        return ScrollView {
             VStack(spacing: 16) {
                 #if os(macOS)
-                header
+                header(count: infos.count)
                 #endif
-                if platformInfos.isEmpty {
+                if infos.isEmpty {
                     emptyState
                 } else {
-                    platformList
+                    platformList(infos)
                 }
             }
             .padding()
@@ -58,11 +65,24 @@ struct PlatformsView: View {
             }
         }
         #endif
-        .alert("Cannot Delete Platform", isPresented: $showDeleteAlert) {
-            Button("OK", role: .cancel) {}
+        .alert(
+            "Delete Platform?",
+            isPresented: Binding(
+                get: { platformToDelete != nil },
+                set: { if !$0 { platformToDelete = nil } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) {
+                platformToDelete = nil
+            }
+            if let info = platformToDelete {
+                Button("Delete \(info.fundCount) Fund\(info.fundCount == 1 ? "" : "s")", role: .destructive) {
+                    deletePlatform(info)
+                }
+            }
         } message: {
-            if let name = platformToDelete {
-                Text("\(name.capitalized) still has funds. Remove all funds from this platform before deleting it.")
+            if let info = platformToDelete {
+                Text("This permanently deletes every fund and entry on \(info.name.capitalized), including old synced files that can reappear from iCloud.")
             }
         }
         .alert("Rename Failed", isPresented: $showRenameError) {
@@ -71,20 +91,20 @@ struct PlatformsView: View {
             Text(renameErrorMessage)
         }
         .sheet(isPresented: $showCreateFund) {
-            CreateFundView { Task { await store.reload() } }
+            CreateFundView {}
         }
     }
 
     // MARK: - Header (macOS only)
 
     @ViewBuilder
-    private var header: some View {
+    private func header(count: Int) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Platforms")
                     .font(.largeTitle).fontWeight(.bold)
                     .foregroundColor(.textPrimary)
-                Text("\(platformInfos.count) platform\(platformInfos.count == 1 ? "" : "s")")
+                Text("\(count) platform\(count == 1 ? "" : "s")")
                     .font(.subheadline).foregroundColor(.textSecondary)
             }
             Spacer()
@@ -99,8 +119,8 @@ struct PlatformsView: View {
     // MARK: - Platform List
 
     @ViewBuilder
-    private var platformList: some View {
-        ForEach(platformInfos) { info in
+    private func platformList(_ infos: [PlatformInfo]) -> some View {
+        ForEach(infos) { info in
             platformCard(info)
         }
     }
@@ -170,18 +190,17 @@ struct PlatformsView: View {
                 .padding(.vertical, 10)
 
             #if os(macOS)
-            HStack(spacing: 0) {
-                StatBox(label: "Fund Size", value: formatCurrency(info.totalFundSize), showCard: false)
-                StatBox(label: "Current Value", value: formatCurrency(info.totalValue), color: .mint, showCard: false)
-                StatBox(label: "Funds", value: "\(info.fundCount)", showCard: false)
-                StatBox(label: "Active", value: "\(info.activeFundCount)", showCard: false)
+            LazyVGrid(columns: platformCardMetricColumns, alignment: .leading, spacing: 14) {
+                platformMetric("Fund Size", formatCurrency(info.totalFundSize))
+                platformMetric("Current Value", formatCurrency(info.totalValue), color: .mint)
+                platformMetric("Realized Gain", formatCurrency(info.totalRealized), color: info.totalRealized >= 0 ? .mint : .red)
+                platformMetric("Unrealized Gain", formatCurrency(info.totalUnrealized), color: info.totalUnrealized >= 0 ? .mint : .red)
+                platformMetric("Cash", formatCurrency(info.cashBalance))
             }
             #else
             LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 8) {
                 StatBox(label: "Fund Size", value: formatCurrency(info.totalFundSize), showCard: false)
                 StatBox(label: "Value", value: formatCurrency(info.totalValue), color: .mint, showCard: false)
-                StatBox(label: "Funds", value: "\(info.fundCount)", showCard: false)
-                StatBox(label: "Active", value: "\(info.activeFundCount)", showCard: false)
             }
             #endif
         }
@@ -189,6 +208,17 @@ struct PlatformsView: View {
         .background(Color.bgCard)
         .cornerRadius(12)
     }
+
+    #if os(macOS)
+    private var platformCardMetricColumns: [GridItem] {
+        [GridItem(.adaptive(minimum: 150), spacing: 18, alignment: .leading)]
+    }
+
+    private func platformMetric(_ label: String, _ value: String, color: Color = .textPrimary) -> some View {
+        StatBox(label: label, value: value, color: color, showCard: false)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    #endif
 
     @ViewBuilder
     private func platformContextMenu(_ info: PlatformInfo) -> some View {
@@ -203,6 +233,7 @@ struct PlatformsView: View {
         } label: {
             Label("Delete Platform", systemImage: "trash")
         }
+        .disabled(isDeletingPlatform)
     }
 
     // MARK: - Empty State
@@ -229,9 +260,16 @@ struct PlatformsView: View {
 
 
     private func attemptDelete(_ info: PlatformInfo) {
-        if info.fundCount > 0 {
-            platformToDelete = info.name
-            showDeleteAlert = true
+        platformToDelete = info
+    }
+
+    private func deletePlatform(_ info: PlatformInfo) {
+        platformToDelete = nil
+        isDeletingPlatform = true
+        Task {
+            await store.deletePlatform(named: info.name)
+            editingPlatform = nil
+            isDeletingPlatform = false
         }
     }
 

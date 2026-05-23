@@ -191,6 +191,27 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(rec!.amount, 700, accuracy: 0.01)
     }
 
+    func testComputeRecommendationDoesNotSellUnrealizedLossEvenAboveTarget() {
+        let config = makeStockConfig(minProfit: 100, accumulate: false)
+        let state = FundState(
+            cashAvailableUsd: 4000,
+            expectedTargetUsd: 800,
+            actualValueUsd: 1000,
+            startInputUsd: 1200,
+            gainUsd: -200,
+            gainPct: -1.0 / 6.0,
+            targetDiffUsd: 200,
+            cashInterestUsd: 0,
+            realizedGainsUsd: 300
+        )
+
+        let rec = computeRecommendation(config: config, state: state)
+        XCTAssertNotNil(rec)
+        XCTAssertNotEqual(rec?.action, .SELL)
+        XCTAssertEqual(rec?.action, .BUY)
+        XCTAssertEqual(rec!.amount, 150, accuracy: 0.01)
+    }
+
     // MARK: - computeRecommendation: HOLD
 
     func testComputeRecommendationHold() {
@@ -1082,6 +1103,26 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(result.state.gainPct, 0.20, accuracy: 0.01)
     }
 
+    func testComputeFundMetricsStateUsesOpenCostBasisAfterHarvest() {
+        let config = makeStockConfig(targetApy: 0.20, accumulate: false)
+        let entries = [
+            FundEntry(date: "2024-01-01", value: 0, action: .BUY, amount: 1000, shares: 10),
+            FundEntry(date: "2024-06-01", value: 1400, action: .SELL, amount: 600, shares: 3),
+            FundEntry(date: "2024-07-01", value: 700, action: .BUY, amount: 500, shares: 5),
+            FundEntry(date: "2025-01-01", value: 1000, action: .HOLD),
+        ]
+
+        let fund = FundData(platform: "test", ticker: "AAPL", config: config, entries: entries)
+        let result = computeFundMetricsForFund(fund, asOfDate: "2025-01-01")
+
+        XCTAssertEqual(result.metrics.realizedGains, 300, accuracy: 0.01)
+        XCTAssertEqual(result.metrics.unrealizedGains, -200, accuracy: 0.01)
+        XCTAssertEqual(result.metrics.startInput, 1200, accuracy: 0.01)
+        XCTAssertEqual(result.state.startInputUsd, 1200, accuracy: 0.01)
+        XCTAssertEqual(result.state.gainUsd, -200, accuracy: 0.01)
+        XCTAssertEqual(result.state.gainPct, -1.0 / 6.0, accuracy: 0.001)
+    }
+
     // MARK: - Actionable Funds
 
     func testComputeActionableFunds() {
@@ -1419,8 +1460,8 @@ final class EngineTests: XCTestCase {
         // This test covers the missing branch: a strong rally followed by a pullback,
         // with a *low* targetAPY so equity quickly exceeds the expected target by
         // more than min_profit_usd (the SELL trigger in computeRecommendation).
-        // Without this, sell-side accounting (totalExtracted, costBasis reduction in
-        // harvest mode, equivShares scaling, full-liquidation reset) was untested.
+        // Without this, sell-side accounting (totalExtracted, harvest-mode cost-basis
+        // reset, equivShares scaling, full-liquidation reset) was untested.
         var prices: [HistoricalData.PricePoint] = []
         for i in 0..<26 {
             // Steep ramp up: 100 → 350 over 26 weeks
@@ -1449,7 +1490,7 @@ final class EngineTests: XCTestCase {
         config.initialCash = 5000
         config.weeklyDCA = 100
         config.targetAPY = 0.05  // Low target — actual gains exceed it quickly
-        config.accumulate = true
+        config.accumulate = false
 
         let result = runBacktest(config: config, historicalData: ["BTC": hist])
         XCTAssertNotNil(result)

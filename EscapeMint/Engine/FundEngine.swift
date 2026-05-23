@@ -817,8 +817,11 @@ func computeFundMetricsForFund(_ fund: FundData, asOfDate: String) -> (metrics: 
     let projectedAnnualReturn = computeProjectedAnnualReturn(currentValue, realizedAPY)
     let twfs = daysActive > 0 ? (isCash ? twabNumerator : twapNumerator) / Double(daysActive) : 0
 
-    // Build FundState directly from single-pass data (avoids redundant entry walks)
-    let startInput = isCash ? cash : netInvested
+    // Build FundState directly from single-pass data (avoids redundant entry walks).
+    // Recommendation decisions must use the open position's cost basis, not net
+    // invested after prior harvests. Otherwise realized profit can mask a current
+    // unrealized loss and incorrectly permit a SELL recommendation.
+    let startInput = isCash ? cash : costBasis
     let gainUsdState = startInput > 0 ? currentValue - startInput : 0.0
     let rawGainPct = startInput > 0 ? (currentValue / startInput) - 1.0 : 0.0
     let gainPctState = rawGainPct.isFinite ? rawGainPct : 0.0
@@ -976,10 +979,18 @@ func computePortfolioAggregate(
         fundsWithShares[i].fundSharesPct = totalFundShares > 0 ? fundsWithShares[i].fundShares / totalFundShares : 0
     }
 
-    // Compute portfolioDays: calendar span from earliest first entry to latest last entry
-    // across ALL funds — matches web app aggregate route
-    let allDates = funds.flatMap { $0.entries.map(\.date) }
-    let portfolioDays: Int? = if let earliest = allDates.min(), let latest = allDates.max() {
+    // Compute portfolioDays without flattening every entry date into a temporary
+    // array. This runs on each recompute, so keeping it as a streaming scan avoids
+    // allocation churn for large histories.
+    var earliestDate: String?
+    var latestDate: String?
+    for fund in funds {
+        for entry in fund.entries {
+            if earliestDate == nil || entry.date < earliestDate! { earliestDate = entry.date }
+            if latestDate == nil || entry.date > latestDate! { latestDate = entry.date }
+        }
+    }
+    let portfolioDays: Int? = if let earliest = earliestDate, let latest = latestDate {
         max(1, daysBetween(earliest, latest))
     } else {
         nil
@@ -1070,6 +1081,13 @@ struct ActionableFund: Identifiable {
 func computeActionableFunds(_ funds: [FundData], asOfDate: String? = nil) -> [ActionableFund] {
     let today = asOfDate ?? todayString()
     let fundById = Dictionary(uniqueKeysWithValues: funds.map { ($0.id, $0) })
+    var latestEntryByFundId: [String: FundEntry] = [:]
+    latestEntryByFundId.reserveCapacity(funds.count)
+    for fund in funds {
+        if let latest = fund.entries.max(by: { $0.date < $1.date }) {
+            latestEntryByFundId[fund.id] = latest
+        }
+    }
 
     var results: [ActionableFund] = []
     var cashFundsNeeded: Set<String> = [] // platform cash fund IDs that need deposits
@@ -1108,16 +1126,15 @@ func computeActionableFunds(_ funds: [FundData], asOfDate: String? = nil) -> [Ac
         if config.manage_cash == false {
             let cashFundId = resolveCashFundId(config: config, platform: fund.platform)
             let cashBalance: Double
-            if let cashFund = fundById[cashFundId] {
-                cashBalance = cashFund.entries.max(by: { $0.date < $1.date })?.cash
-                    ?? cashFund.entries.max(by: { $0.date < $1.date })?.value ?? 0
+            if let latestCash = latestEntryByFundId[cashFundId] {
+                cashBalance = latestCash.cash ?? latestCash.value
             } else {
                 cashBalance = 0
             }
 
             var effectiveAvailable = cashBalance
             if config.margin_enabled == true,
-               let latestEntry = fund.entries.last,
+               let latestEntry = latestEntryByFundId[fund.id],
                let marginAvail = latestEntry.margin_available, marginAvail > 0 {
                 effectiveAvailable += marginAvail
             }
@@ -1368,4 +1385,3 @@ func computeEntryRows(entries: [FundEntry], config: FundConfig) -> [ComputedEntr
         )
     }
 }
-

@@ -56,7 +56,7 @@ BUILD_DIR="$SCRIPT_DIR/build"
 SCHEME_IOS="EscapeMint_iOS"
 SCHEME_MACOS="EscapeMint_macOS"
 SCHEME_WATCH="EscapeMint_watchOS"        # does not exist yet — --watch will error if missing
-SCHEME_TEST="EscapeMintTests_iOS"
+SCHEME_TEST="$SCHEME_IOS"
 APP_NAME="EscapeMint"                     # IPA / binary name
 
 # Detect which schemes actually exist in the project. This lets us:

@@ -31,6 +31,17 @@ actor FundStore {
     nonisolated var isICloud: Bool {
         Self.stateLock.withLock { $0! }.isICloud
     }
+    nonisolated static var shouldUseLocalStorageOnly: Bool {
+        let args = CommandLine.arguments
+        if args.contains("-loadTestData") || args.contains("-skipICloud") {
+            return true
+        }
+        #if targetEnvironment(simulator)
+        return !args.contains("-useICloudInSimulator")
+        #else
+        return false
+        #endif
+    }
     fileprivate static var currentFundsDirectory: URL {
         stateLock.withLock { $0! }.fundsDirectory
     }
@@ -42,8 +53,10 @@ actor FundStore {
         let resolvedDir: URL
         let resolvedICloud: Bool
 
-        // When loading test data (screenshots), skip iCloud to avoid sync race conditions
-        let skipICloud = CommandLine.arguments.contains("-loadTestData")
+        // Simulator iCloud container directory creation can hang indefinitely.
+        // Use local storage for normal simulator runs; pass -useICloudInSimulator
+        // when intentionally testing iCloud behavior.
+        let skipICloud = Self.shouldUseLocalStorageOnly
 
         if !skipICloud,
            let iCloudURL = fm.url(forUbiquityContainerIdentifier: Self.iCloudContainerId) {
@@ -108,8 +121,17 @@ actor FundStore {
     /// Retry iCloud resolution if it wasn't available at init (e.g. after system reboot).
     /// Called during the loading screen before any funds are read.
     /// Returns true if iCloud became available and the funds directory was switched.
-    func retryICloudIfNeeded() async -> Bool {
+    func hasICloudAccount() -> Bool {
+        guard !Self.shouldUseLocalStorageOnly else { return false }
+        return fileManager.ubiquityIdentityToken != nil
+    }
+
+    func retryICloudIfNeeded(maxAttempts: Int = 5, delay: Duration = .seconds(1)) async -> Bool {
         guard !isICloud else { return false }
+        guard !Self.shouldUseLocalStorageOnly else {
+            Self.logger.info("☁️ iCloud disabled for this launch, using local storage")
+            return false
+        }
 
         let fm = FileManager.default
 
@@ -119,9 +141,10 @@ actor FundStore {
             return false
         }
 
-        for attempt in 1...5 {
-            Self.logger.info("☁️ iCloud retry \(attempt)/5")
-            try? await Task.sleep(for: .seconds(1))
+        let attemptLimit = max(1, maxAttempts)
+        for attempt in 1...attemptLimit {
+            Self.logger.info("☁️ iCloud retry \(attempt)/\(attemptLimit)")
+            try? await Task.sleep(for: delay)
 
             guard let iCloudURL = fm.url(forUbiquityContainerIdentifier: Self.iCloudContainerId) else {
                 continue
@@ -139,7 +162,7 @@ actor FundStore {
                 continue
             }
         }
-        Self.logger.warning("☁️ iCloud unavailable after 5 retries, using local storage")
+        Self.logger.warning("☁️ iCloud unavailable after \(attemptLimit) retries, using local storage")
         return false
     }
 
@@ -204,6 +227,9 @@ actor FundStore {
         guard let configData = try? Data(contentsOf: jsonURL),
               var config = try? JSONDecoder().decode(FundConfig.self, from: configData),
               let platform = config.platform, let ticker = config.ticker else { return nil }
+        if config.fund_id?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
+            config.fund_id = jsonURL.deletingPathExtension().lastPathComponent
+        }
         config.platform = nil
         config.ticker = nil
         return FundData(platform: platform, ticker: ticker, config: config, entries: [])
@@ -232,6 +258,7 @@ actor FundStore {
 
         // Write config with metadata
         var configWithMeta = fund.config
+        configWithMeta.fund_id = fund.id
         configWithMeta.platform = fund.platform
         configWithMeta.ticker = fund.ticker
         let configData = try JSONEncoder.pretty.encode(configWithMeta)
@@ -271,16 +298,25 @@ actor FundStore {
         #endif
     }
 
-    func updateConfig(fundId: String, config: FundConfig) throws {
+    /// Updates a fund's config JSON. Returns `false` (without throwing) when the fund's
+    /// file doesn't exist yet — addFund/recompute can race with writeFund, so callers
+    /// must NOT assume a successful return means bytes hit the disk. Use the return value
+    /// to gate any in-memory state that "shadows" the on-disk config.
+    @discardableResult
+    func updateConfig(fundId: String, config: FundConfig) throws -> Bool {
         let configURL = fundsDirectory.appendingPathComponent("\(fundId).json")
-        guard fileManager.fileExists(atPath: configURL.path) else { return }
+        guard fileManager.fileExists(atPath: configURL.path) else { return false }
 
         let existing = try Data(contentsOf: configURL)
         let existingConfig = try JSONDecoder().decode(FundConfig.self, from: existing)
 
         var updated = config
+        // Preserve identity fields from disk. The caller-provided config might be missing or
+        // stale on these (e.g. a settings-view edit that only updates DCA params), and a
+        // mismatched fund_id would break FundData.id and every downstream lookup.
         updated.platform = existingConfig.platform
         updated.ticker = existingConfig.ticker
+        updated.fund_id = existingConfig.fund_id
         let data = try JSONEncoder.pretty.encode(updated)
         try data.write(to: configURL, options: .atomic)
         // Re-apply file protection after atomic write — non-atomic in-place overwrites
@@ -288,11 +324,67 @@ actor FundStore {
         #if os(iOS)
         try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: configURL.path)
         #endif
+        return true
+    }
+
+    /// Read-modify-write of the `history_cache` slot on a fund's config JSON. The write is
+    /// still a full atomic rewrite of the file, but the encoded bytes are based on the latest
+    /// *on-disk* config (re-read here) rather than an in-memory snapshot — so concurrent edits
+    /// to other fields (chart_bounds, etc.) that landed on disk between recompute and this
+    /// write are preserved. Returns `false` if the fund file doesn't exist yet (addFund /
+    /// recompute can race writeFund).
+    @discardableResult
+    func updateHistoryCache(fundId: String, cache: FundHistoryCache?) throws -> Bool {
+        let configURL = fundsDirectory.appendingPathComponent("\(fundId).json")
+        guard fileManager.fileExists(atPath: configURL.path) else { return false }
+
+        let existing = try Data(contentsOf: configURL)
+        var existingConfig = try JSONDecoder().decode(FundConfig.self, from: existing)
+        existingConfig.history_cache = cache
+        let data = try JSONEncoder.pretty.encode(existingConfig)
+        try data.write(to: configURL, options: .atomic)
+        #if os(iOS)
+        try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: configURL.path)
+        #endif
+        return true
     }
 
     func deleteFund(id: String) throws {
-        let tsvURL = fundsDirectory.appendingPathComponent("\(id).tsv")
-        let configURL = fundsDirectory.appendingPathComponent("\(id).json")
+        try deleteFundFiles(id: id, in: fundsDirectory)
+        if isICloud, let localFunds = localFundsDirectory(), localFunds != fundsDirectory {
+            try deleteFundFiles(id: id, in: localFunds)
+        }
+    }
+
+    func deletePlatform(named platform: String) throws -> Int {
+        let cleanPlatform = platform.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !cleanPlatform.isEmpty else { return 0 }
+
+        var deletedIds = Set<String>()
+        let dirs = deletionDirectories()
+        for dir in dirs {
+            let ids = fundIds(onPlatform: cleanPlatform, in: dir)
+            for id in ids {
+                try deleteFundFiles(id: id, in: dir)
+                deletedIds.insert(id)
+            }
+        }
+        return deletedIds.count
+    }
+
+    func deleteAllFunds() throws {
+        try deleteAllFundFiles(in: fundsDirectory)
+
+        // When using iCloud, also clear the local Documents/funds/ directory
+        // to prevent migrateToICloudIfNeeded() from restoring deleted data on next launch
+        if isICloud, let localFunds = localFundsDirectory(), localFunds != fundsDirectory {
+            try deleteAllFundFiles(in: localFunds)
+        }
+    }
+
+    private func deleteFundFiles(id: String, in directory: URL) throws {
+        let tsvURL = directory.appendingPathComponent("\(id).tsv")
+        let configURL = directory.appendingPathComponent("\(id).json")
         if fileManager.fileExists(atPath: tsvURL.path) {
             try fileManager.removeItem(at: tsvURL)
         }
@@ -301,23 +393,40 @@ actor FundStore {
         }
     }
 
-    func deleteAllFunds() throws {
-        let dir = fundsDirectory
-        let files = try fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
+    private func deleteAllFundFiles(in directory: URL) throws {
+        guard fileManager.fileExists(atPath: directory.path) else { return }
+        let files = try fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
         for file in files {
             try fileManager.removeItem(at: file)
         }
+    }
 
-        // When using iCloud, also clear the local Documents/funds/ directory
-        // to prevent migrateToICloudIfNeeded() from restoring deleted data on next launch
-        if isICloud, let localDocs = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
-            let localFunds = localDocs.appendingPathComponent("funds")
-            if let localFiles = try? fileManager.contentsOfDirectory(at: localFunds, includingPropertiesForKeys: nil) {
-                for file in localFiles {
-                    try fileManager.removeItem(at: file)
-                }
-            }
+    private func deletionDirectories() -> [URL] {
+        var dirs = [fundsDirectory]
+        if isICloud, let localFunds = localFundsDirectory(), localFunds != fundsDirectory {
+            dirs.append(localFunds)
         }
+        return dirs
+    }
+
+    private func localFundsDirectory() -> URL? {
+        fileManager.urls(for: .documentDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("funds")
+    }
+
+    private func fundIds(onPlatform platform: String, in directory: URL) -> Set<String> {
+        guard let files = try? fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else {
+            return []
+        }
+        return Set(files.compactMap { file in
+            guard file.pathExtension == "json",
+                  let data = try? Data(contentsOf: file),
+                  let config = try? JSONDecoder().decode(FundConfig.self, from: data),
+                  config.platform?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == platform else {
+                return nil
+            }
+            return file.deletingPathExtension().lastPathComponent
+        })
     }
 
     /// Delete all funds belonging to test platforms (coinbasetest, robinhoodtest, demo, etc.)
@@ -402,6 +511,15 @@ actor FundStore {
 
     // MARK: - Backup JSON Import
 
+    func backupJSONFundCount(_ jsonURL: URL) throws -> Int {
+        let data = try Data(contentsOf: jsonURL)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let fundsArray = json["funds"] as? [[String: Any]] else {
+            throw NSError(domain: "FundStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid backup format: missing 'funds' array"])
+        }
+        return fundsArray.count
+    }
+
     func importFromBackupJSON(_ jsonURL: URL) throws -> Int {
         // Ensure funds directory exists
         try? fileManager.createDirectory(at: fundsDirectory, withIntermediateDirectories: true)
@@ -439,6 +557,7 @@ actor FundStore {
 
             do {
                 var configWithMeta = configDict
+                configWithMeta["__fund_id"] = id
                 configWithMeta["__platform"] = platform
                 configWithMeta["__ticker"] = ticker
 

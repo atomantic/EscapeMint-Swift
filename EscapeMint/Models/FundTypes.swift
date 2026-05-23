@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 enum FundType: String, Codable, CaseIterable {
     case cash
@@ -37,6 +38,7 @@ enum EquityInputMethod: String, Codable, CaseIterable {
 
 struct FundConfig: Codable {
     // Metadata (prefixed with __ in JSON)
+    var fund_id: String?
     var platform: String?
     var ticker: String?
 
@@ -81,8 +83,11 @@ struct FundConfig: Codable {
 
     // Chart bounds (persisted per-fund)
     var chart_bounds: [String: ChartBounds]?
+    // Cached expensive history computations to avoid repeated redraw recalculation.
+    var history_cache: FundHistoryCache?
 
     enum CodingKeys: String, CodingKey {
+        case fund_id = "__fund_id"
         case platform = "__platform"
         case ticker = "__ticker"
         case fund_type, status, category
@@ -96,7 +101,13 @@ struct FundConfig: Codable {
         case dollar_decimals
         case equity_input
         case chart_bounds
+        case history_cache
     }
+}
+
+struct FundHistoryCache: Codable {
+    var entryFingerprint: String
+    var closedMetrics: ClosedFundMetrics?
 }
 
 extension FundConfig {
@@ -185,6 +196,10 @@ struct FundSummary {
     let isCash: Bool
     let features: FundTypeFeatures
     let closedMetrics: ClosedFundMetrics?
+    /// Fingerprint computed during `buildClosedMetrics`. Cached on the summary so the
+    /// persistence path (`persistHistoryCachesIfNeeded`) can compare without re-hashing the
+    /// entry history a second time per recompute. `nil` for non-closed funds.
+    let closedHistoryFingerprint: String?
 
     // Effective values — prefer closedMetrics for closed funds, fall back to state/metrics
     var effectiveInvested: Double { closedMetrics?.totalInvestedUsd ?? state.startInputUsd }
@@ -232,7 +247,9 @@ struct FundSummary {
 
         self.state = state
         self.recommendation = Self.computeMarginAwareRecommendation(fund: fund, state: state)
-        self.closedMetrics = Self.buildClosedMetrics(fund: fund, asOfDate: today)
+        let closed = Self.buildClosedMetrics(fund: fund, asOfDate: today)
+        self.closedMetrics = closed.metrics
+        self.closedHistoryFingerprint = closed.fingerprint
         self.isDueForAction = Self.computeIsDueForAction(fund: fund, today: today)
     }
 
@@ -244,7 +261,9 @@ struct FundSummary {
         self.state = state
         self.recommendation = Self.computeMarginAwareRecommendation(fund: fund, state: state)
         let today = todayString()
-        self.closedMetrics = Self.buildClosedMetrics(fund: fund, asOfDate: today)
+        let closed = Self.buildClosedMetrics(fund: fund, asOfDate: today)
+        self.closedMetrics = closed.metrics
+        self.closedHistoryFingerprint = closed.fingerprint
         self.isDueForAction = Self.computeIsDueForAction(fund: fund, today: today)
     }
 
@@ -267,23 +286,123 @@ struct FundSummary {
         return daysBetween(lastEntry.date, today) >= intervalDays
     }
 
-    private static func buildClosedMetrics(fund: FundData, asOfDate: String) -> ClosedFundMetrics? {
-        guard fund.config.status == .closed else { return nil }
-        let trades = entriesToTrades(fund.entries)
-        let dividends = entriesToDividends(fund.entries)
-        let expenses = entriesToExpenses(fund.entries)
-        let cashflows = entriesToCashFlows(fund.entries)
+    /// Returns the closed-fund metrics AND the fingerprint used to gate the cache, so callers
+    /// (the persistence path) can reuse the fingerprint without re-hashing the entry history.
+    /// `(nil, nil)` for non-closed funds AND for empty-history closed funds. The empty case
+    /// previously produced metrics with `startDate = today` (from `getFundStartDate([])`)
+    /// and `endDate = asOfDate`; when asOfDate < today (backtest, historical view) that
+    /// yielded a negative `durationDays` and misleading APY. Views already gate the
+    /// closed-state card on `closedMetrics != nil` (FundDetailView), so returning nil
+    /// here simply hides the no-data card.
+    private static func buildClosedMetrics(fund: FundData, asOfDate: String) -> (metrics: ClosedFundMetrics?, fingerprint: String?) {
+        guard fund.config.status == .closed else { return (nil, nil) }
+        // Sort once and reuse for both the fingerprint and the metrics derivation. The cache
+        // miss path used to sort twice (here and inside historyFingerprint) — wasted O(n log n).
+        let sortedEntries = fund.entries.sorted { $0.date < $1.date }
+        guard !sortedEntries.isEmpty else { return (nil, nil) }
+        let fingerprint = historyFingerprint(config: fund.config, sortedEntries: sortedEntries)
+        if let cache = fund.config.history_cache,
+           cache.entryFingerprint == fingerprint,
+           let cached = cache.closedMetrics {
+            return (cached, fingerprint)
+        }
+        let trades = entriesToTrades(sortedEntries)
+        let dividends = entriesToDividends(sortedEntries)
+        let expenses = entriesToExpenses(sortedEntries)
+        let cashflows = entriesToCashFlows(sortedEntries)
+        let startDate = getFundStartDate(sortedEntries)
+        // Safe to force-unwrap — we guarded on sortedEntries.isEmpty above.
+        let endDate = sortedEntries.last!.date
+        // Accrue cash interest only up to endDate (last entry), not asOfDate. The cache key
+        // does NOT include asOfDate, so feeding asOfDate here would let cache hits return stale
+        // totalCashInterestUsd as time advances. Closed funds don't accrue further after their
+        // last entry by convention, so endDate is the correct cutoff and the result is now
+        // immutable for a given (entries, config) — exactly what the fingerprint cache assumes.
         let ci = fund.config.manage_cash == true
-            ? computeCashInterest(config: fund.config, trades: trades, cashflows: cashflows, asOfDate: asOfDate)
+            ? computeCashInterest(config: fund.config, trades: trades, cashflows: cashflows, asOfDate: endDate)
             : 0
-        let startDate = getFundStartDate(fund.entries)
-        let endDate = fund.entries.last?.date ?? asOfDate
-        return computeClosedFundMetrics(trades: trades, dividends: dividends, expenses: expenses, cashInterest: ci, startDate: startDate, endDate: endDate)
+        let metrics = computeClosedFundMetrics(trades: trades, dividends: dividends, expenses: expenses, cashInterest: ci, startDate: startDate, endDate: endDate)
+        return (metrics, fingerprint)
+    }
+
+    /// Bump this string whenever the closed-metrics algorithm changes (anything that would
+    /// make the same inputs produce different outputs). All persisted history caches whose
+    /// fingerprint embedded the old version will then miss and re-compute under the new logic.
+    private static let historyCacheVersion = "v1"
+
+    /// Deterministic fingerprint for the inputs to `computeClosedFundMetrics` / `computeCashInterest`.
+    /// MUST be stable across process restarts (Swift's `Hasher` is not — it's seeded per-process,
+    /// which would invalidate every persisted cache on next launch).
+    /// Includes only the config fields the compute path actually reads — adding fields the
+    /// path doesn't read just lowers the cache hit rate (changing a flag that has no effect on
+    /// output would still invalidate the cache). Today that's `status`, `manage_cash`, and
+    /// (when `manage_cash` is on) `cash_apy`. If you change `computeClosedFundMetrics` or
+    /// `computeCashInterest` to read additional config, ADD those fields here AND bump
+    /// `historyCacheVersion`.
+    /// Doubles are hashed via `bitPattern` (8 bytes, big-endian) so the encoding doesn't depend
+    /// on Swift's stdlib `String(Double)` formatting, which is allowed to change across runtime
+    /// versions and would otherwise silently invalidate persisted caches after an app update.
+    /// Per-entry optionals are encoded with explicit `S`/`N` tags so a real value (e.g.
+    /// `amount == -1`) can't collide with absence.
+    /// Bytes are streamed into SHA256 incrementally to avoid allocating a large intermediate
+    /// payload string.
+    static func historyFingerprint(for fund: FundData) -> String {
+        // Public convenience for tests / external callers: sort + delegate.
+        let sortedEntries = fund.entries.sorted { $0.date < $1.date }
+        return historyFingerprint(config: fund.config, sortedEntries: sortedEntries)
+    }
+
+    private static func historyFingerprint(config: FundConfig, sortedEntries: [FundEntry]) -> String {
+        var hasher = SHA256()
+        func feed(_ s: String) { hasher.update(data: Data(s.utf8)) }
+        func feedDouble(_ d: Double) {
+            var bits = d.bitPattern.bigEndian
+            withUnsafeBytes(of: &bits) { hasher.update(data: Data($0)) }
+        }
+        func feedOptDouble(_ d: Double?) {
+            if let v = d { feed("S"); feedDouble(v) } else { feed("N") }
+        }
+        func feedOptStr(_ s: String?) {
+            if let v = s { feed("S"); feed(v) } else { feed("N") }
+        }
+        let manageCash = config.manage_cash == true
+        // Effective cash APY: 0 when manage_cash is off, since cash_apy can't affect output in
+        // that case (computeCashInterest is short-circuited). This makes flipping cash_apy on a
+        // non-cash-managed fund a cache hit instead of a needless invalidation + disk write.
+        let effectiveCashApy = manageCash ? (config.cash_apy ?? 0) : 0
+        feed("cache_version:\(historyCacheVersion)\n")
+        feed("status:\(config.status?.rawValue ?? "")\n")
+        feed("manage_cash:\(manageCash)\n")
+        feed("cash_apy:"); feedDouble(effectiveCashApy); feed("\n")
+        feed("count:\(sortedEntries.count)\n")
+        // Only the entry fields that flow into entriesToTrades / entriesToDividends /
+        // entriesToExpenses / entriesToCashFlows (and from there into computeClosedFundMetrics
+        // / computeCashInterest). Display-only fields like `cash`, `cash_interest`, and
+        // `fund_size` aren't consumed by the closed-metrics path, so feeding them here would
+        // only thrash the cache when a user edits them. If you change a converter to read a
+        // new entry field, ADD it here AND bump `historyCacheVersion`.
+        for e in sortedEntries {
+            feed(e.date); feed("|")
+            feedDouble(e.value); feed("|")
+            feedOptStr(e.action?.rawValue); feed("|")
+            feedOptDouble(e.amount); feed("|")
+            feedOptDouble(e.shares); feed("|")
+            feedOptDouble(e.dividend); feed("|")
+            feedOptDouble(e.expense); feed("\n")
+        }
+        let digest = hasher.finalize()
+        return digest.map { String(format: "%02x", $0) }.joined()
     }
 }
 
 struct FundData: Identifiable {
-    var id: String { "\(platform)-\(ticker)" }
+    var id: String {
+        if let persistedId = config.fund_id?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !persistedId.isEmpty {
+            return persistedId
+        }
+        return "\(platform)-\(ticker)"
+    }
     var platform: String
     var ticker: String
     var config: FundConfig
@@ -369,7 +488,7 @@ struct FundMetrics {
 }
 
 // Historical performance metrics for closed funds
-struct ClosedFundMetrics {
+struct ClosedFundMetrics: Codable {
     let totalInvestedUsd: Double
     let totalReturnedUsd: Double
     let totalDividendsUsd: Double

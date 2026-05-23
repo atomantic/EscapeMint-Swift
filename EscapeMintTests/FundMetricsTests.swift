@@ -118,6 +118,53 @@ final class FundMetricsTests: XCTestCase {
         XCTAssertEqual(result.metrics.totalCashInterest, 200, accuracy: 0.01)
     }
 
+    func testCashPLChartUsesRecordedInterestNotProjectedAPY() {
+        let config = makeConfig(fundType: .cash, cashApy: 0.50, manageCash: true)
+        let entries = [
+            FundEntry(date: "2026-01-01", value: 1000, cash: 1000, action: .DEPOSIT, amount: 1000),
+            FundEntry(date: "2026-02-01", value: 1005, cash: 1005, action: .HOLD),
+            FundEntry(date: "2026-03-01", value: 1012, cash: 1012, action: .HOLD, cash_interest: 7),
+            FundEntry(date: "2026-04-01", value: 1010, cash: 1010, action: .HOLD, expense: 2),
+        ]
+
+        let points = computePLPoints(entries: entries, config: config)
+
+        XCTAssertEqual(points.map(\.realized), [0, 0, 7, 5])
+        XCTAssertEqual(points.map(\.liquid), [0, 0, 7, 5])
+    }
+
+    func testCashPLChartCoalescesSameDayEntriesToFinalDailyPoint() {
+        let config = makeConfig(fundType: .cash, manageCash: true)
+        let entries = [
+            FundEntry(date: "2026-01-01", value: 1000, cash: 1000, action: .DEPOSIT, amount: 1000),
+            FundEntry(date: "2026-01-01", value: 1004, cash: 1004, action: .HOLD, cash_interest: 4),
+            FundEntry(date: "2026-02-01", value: 1006, cash: 1006, action: .HOLD, cash_interest: 2),
+        ]
+
+        let points = computePLPoints(entries: entries, config: config)
+
+        XCTAssertEqual(points.map(\.date), ["2026-01-01", "2026-02-01"])
+        XCTAssertEqual(points.map(\.realized), [4, 6])
+        XCTAssertEqual(Set(points.map(\.id)).count, points.count)
+    }
+
+    func testStockPLChartUsesSinglePassEntryRows() {
+        let config = makeConfig(accumulate: true)
+        let entries = [
+            FundEntry(date: "2026-01-01", value: 0, action: .BUY, amount: 1000, shares: 10),
+            FundEntry(date: "2026-02-01", value: 1200, action: .HOLD, dividend: 25),
+            FundEntry(date: "2026-03-01", value: 1200, action: .SELL, amount: 1200, shares: 10),
+        ]
+
+        let points = computePLPoints(entries: entries, config: config)
+
+        XCTAssertEqual(points.count, 3)
+        XCTAssertEqual(points[1].realized, 25, accuracy: 0.01)
+        XCTAssertEqual(points[1].liquid, 225, accuracy: 0.01)
+        XCTAssertEqual(points[2].realized, 225, accuracy: 0.01)
+        XCTAssertEqual(points[2].liquid, 225, accuracy: 0.01)
+    }
+
     func testCashFundFallbackToFundSize() {
         // When cash field is nil, engine should fall back to fund_size then value
         let config = makeConfig(fundType: .cash, cashApy: 0.04, manageCash: true, accumulate: true)
@@ -704,6 +751,123 @@ final class FundMetricsTests: XCTestCase {
         XCTAssertEqual(metrics.netGainUsd, -200, accuracy: 0.01)
         XCTAssertEqual(metrics.returnPct, -0.20, accuracy: 0.001)
         XCTAssertLessThan(metrics.apy, 0)
+    }
+
+    // MARK: - Closed Fund History Cache
+
+    /// Produces a closed-fund FundData with a small known history.
+    private func makeClosedFund(cashApy: Double = 0.044) -> FundData {
+        var config = makeConfig(status: .closed, cashApy: cashApy)
+        config.fund_type = .stock
+        let entries = [
+            FundEntry(date: "2024-01-01", value: 1000, action: .BUY, amount: 1000, shares: 10),
+            FundEntry(date: "2024-06-01", value: 1200, action: .SELL, amount: 1200, shares: 10),
+        ]
+        return FundData(platform: "test", ticker: "AAPL", config: config, entries: entries)
+    }
+
+    func testHistoryFingerprintIsDeterministic() {
+        // Same fund instantiated twice must produce the same fingerprint — Swift's per-process-seeded
+        // `Hasher` was the original bug; this guards against regressing to it.
+        let a = makeClosedFund()
+        let b = makeClosedFund()
+        XCTAssertEqual(FundSummary.historyFingerprint(for: a), FundSummary.historyFingerprint(for: b))
+        // SHA-256 hex string.
+        XCTAssertEqual(FundSummary.historyFingerprint(for: a).count, 64)
+    }
+
+    func testHistoryFingerprintIsInvariantToEntryStorageOrder() {
+        // Same entries in different storage order MUST produce the same fingerprint —
+        // otherwise an out-of-order edit (or a TSV that wasn't appended chronologically)
+        // would invalidate the cache despite identical metrics.
+        var configA = makeConfig(status: .closed)
+        configA.fund_type = .stock
+        let entries = [
+            FundEntry(date: "2024-01-01", value: 1000, action: .BUY, amount: 1000, shares: 10),
+            FundEntry(date: "2024-03-15", value: 1100, action: .HOLD),
+            FundEntry(date: "2024-06-01", value: 1200, action: .SELL, amount: 1200, shares: 10),
+        ]
+        let fundA = FundData(platform: "test", ticker: "AAPL", config: configA, entries: entries)
+        let fundB = FundData(platform: "test", ticker: "AAPL", config: configA, entries: entries.reversed())
+        XCTAssertEqual(FundSummary.historyFingerprint(for: fundA), FundSummary.historyFingerprint(for: fundB))
+    }
+
+    func testHistoryFingerprintChangesWhenEntriesChange() {
+        var fund = makeClosedFund()
+        let before = FundSummary.historyFingerprint(for: fund)
+        fund.entries.append(FundEntry(date: "2024-07-01", value: 0, action: .WITHDRAW, amount: 1200))
+        XCTAssertNotEqual(before, FundSummary.historyFingerprint(for: fund))
+    }
+
+    func testHistoryFingerprintChangesWhenCashAPYChanges() {
+        // cash_apy feeds computeCashInterest → closed metrics. Fingerprint MUST react to it.
+        let a = makeClosedFund(cashApy: 0.04)
+        let b = makeClosedFund(cashApy: 0.05)
+        XCTAssertNotEqual(FundSummary.historyFingerprint(for: a), FundSummary.historyFingerprint(for: b))
+    }
+
+    func testHistoryFingerprintDistinguishesNilFromSentinelValue() {
+        // Regression: previous encoding used `?? -1` as a nil sentinel, so an entry with
+        // `amount == -1` collided with `amount == nil`. New encoding uses explicit S/N tags.
+        var configA = makeConfig(status: .closed)
+        configA.fund_type = .stock
+        let fundA = FundData(
+            platform: "test", ticker: "AAPL", config: configA,
+            entries: [FundEntry(date: "2024-01-01", value: 100, action: .BUY, amount: -1)]
+        )
+        let fundB = FundData(
+            platform: "test", ticker: "AAPL", config: configA,
+            entries: [FundEntry(date: "2024-01-01", value: 100, action: .BUY, amount: nil)]
+        )
+        XCTAssertNotEqual(FundSummary.historyFingerprint(for: fundA), FundSummary.historyFingerprint(for: fundB))
+    }
+
+    func testEmptyHistoryClosedFundProducesNoMetricsOrFingerprint() {
+        // Empty entries → no real data to compute metrics from; getFundStartDate([]) returns
+        // today and endDate would fall back to asOfDate, producing a negative durationDays
+        // when asOfDate < today (backtest / historical view). Skip caching AND skip emitting
+        // metrics so the UI's closedMetrics-nil branch shows nothing instead of garbage.
+        var config = makeConfig(status: .closed)
+        config.fund_type = .stock
+        let fund = FundData(platform: "test", ticker: "EMPTY", config: config, entries: [])
+        let summary = FundSummary(fund, asOfDate: "2025-01-01")
+        XCTAssertNil(summary.closedHistoryFingerprint)
+        XCTAssertNil(summary.closedMetrics)
+    }
+
+    func testClosedMetricsCacheHitReturnsStoredValue() {
+        // Stash an obviously-wrong cached value under the *correct* fingerprint — if buildClosedMetrics
+        // hits the cache, we get the wrong value back, proving the cache path is taken.
+        var fund = makeClosedFund()
+        let fingerprint = FundSummary.historyFingerprint(for: fund)
+        let sentinel = ClosedFundMetrics(
+            totalInvestedUsd: 99999, totalReturnedUsd: 88888,
+            totalDividendsUsd: 0, totalCashInterestUsd: 0, totalExpensesUsd: 0,
+            netGainUsd: 77777, returnPct: 0.5, apy: 1.5,
+            startDate: "2024-01-01", endDate: "2024-06-01", durationDays: 365
+        )
+        fund.config.history_cache = FundHistoryCache(entryFingerprint: fingerprint, closedMetrics: sentinel)
+
+        let summary = FundSummary(fund, asOfDate: "2025-01-01")
+        XCTAssertEqual(summary.closedMetrics?.totalInvestedUsd, 99999)
+        XCTAssertEqual(summary.closedMetrics?.netGainUsd, 77777)
+    }
+
+    func testClosedMetricsCacheMissOnFingerprintMismatch() throws {
+        // Stale cache with a fingerprint that no longer matches — must be ignored and recomputed.
+        var fund = makeClosedFund()
+        let stale = ClosedFundMetrics(
+            totalInvestedUsd: 99999, totalReturnedUsd: 88888,
+            totalDividendsUsd: 0, totalCashInterestUsd: 0, totalExpensesUsd: 0,
+            netGainUsd: 77777, returnPct: 0.5, apy: 1.5,
+            startDate: "2024-01-01", endDate: "2024-06-01", durationDays: 365
+        )
+        fund.config.history_cache = FundHistoryCache(entryFingerprint: "stale-hash", closedMetrics: stale)
+
+        let summary = FundSummary(fund, asOfDate: "2025-01-01")
+        let metrics = try XCTUnwrap(summary.closedMetrics)
+        XCTAssertEqual(metrics.totalInvestedUsd, 1000, accuracy: 0.01)
+        XCTAssertEqual(metrics.totalReturnedUsd, 1200, accuracy: 0.01)
     }
 
     // MARK: - Audit Entries
