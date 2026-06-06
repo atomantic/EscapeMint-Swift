@@ -1,5 +1,20 @@
 import Foundation
 
+// MARK: - Financial Constants
+
+/// Shared thresholds and conversion factors used across fund computations.
+/// Named here so the same tolerance/period is applied consistently everywhere.
+enum FundMath {
+    /// Days per year used for all APY annualization.
+    static let daysPerYear = 365.0
+    /// Share/contract balance below this magnitude is treated as a fully-closed position.
+    static let shareDustThreshold = 0.0001
+    /// Currency tolerance (1 cent) for value-based liquidation and cash-availability checks.
+    static let currencyTolerance = 0.01
+    /// Floor for a return rate before annualizing — caps a total loss at -99% so `pow` stays finite.
+    static let minReturnRate = -0.99
+}
+
 // MARK: - Share Tracking & Liquidation Detection
 
 func trackShares(trade: Trade, currentShares: Double) -> Double {
@@ -10,8 +25,8 @@ func trackShares(trade: Trade, currentShares: Double) -> Double {
 
 func isFullLiquidation(shares: Double?, value: Double, amount: Double, sumShares: Double, totalBuys: Double, totalSells: Double) -> Bool {
     let hasShareTracking = shares != nil && (shares ?? 0) != 0
-    let shareBasedLiq = hasShareTracking && abs(sumShares) < 0.0001
-    let valueBasedLiq = value > 0 && value <= amount + 0.01
+    let shareBasedLiq = hasShareTracking && abs(sumShares) < FundMath.shareDustThreshold
+    let valueBasedLiq = value > 0 && value <= amount + FundMath.currencyTolerance
     let dollarBasedLiq = totalSells >= totalBuys
     return shareBasedLiq || valueBasedLiq || dollarBasedLiq
 }
@@ -78,7 +93,7 @@ func computeExpectedTarget(config: FundConfig, trades: [Trade], asOfDate: String
         if trade.type == .buy {
             totalBuys += trade.amountUsd
             startInput += trade.amountUsd
-            let gain = trade.amountUsd * (pow(1.0 + targetApy, Double(tradeDays) / 365.0) - 1.0)
+            let gain = trade.amountUsd * (pow(1.0 + targetApy, Double(tradeDays) / FundMath.daysPerYear) - 1.0)
             expectedGain += gain
         } else {
             totalSells += trade.amountUsd
@@ -173,7 +188,7 @@ func computeCashInterest(config: FundConfig, trades: [Trade], cashflows: [CashFl
 
         let periodDays = daysBetween(lastDate, event.date)
         if periodDays > 0 && currentCash > 0 {
-            totalInterest += currentCash * (pow(1.0 + cashApy, Double(periodDays) / 365.0) - 1.0)
+            totalInterest += currentCash * (pow(1.0 + cashApy, Double(periodDays) / FundMath.daysPerYear) - 1.0)
         }
 
         currentCash += event.sign * event.amount
@@ -183,7 +198,7 @@ func computeCashInterest(config: FundConfig, trades: [Trade], cashflows: [CashFl
 
     let finalDays = daysBetween(lastDate, asOfDate)
     if finalDays > 0 && currentCash > 0 {
-        totalInterest += currentCash * (pow(1.0 + cashApy, Double(finalDays) / 365.0) - 1.0)
+        totalInterest += currentCash * (pow(1.0 + cashApy, Double(finalDays) / FundMath.daysPerYear) - 1.0)
     }
 
     return totalInterest
@@ -305,8 +320,8 @@ func computeClosedFundMetrics(trades: [Trade], dividends: [Dividend], expenses: 
     let netGain = totalReturned + totalDividends + cashInterest - totalExpenses - totalInvested
     let returnPct = totalInvested > 0 ? netGain / totalInvested : 0
     let durationDays = daysBetween(startDate, endDate)
-    let clampedReturn = max(-0.99, returnPct)
-    let apy = durationDays > 3 ? pow(1.0 + clampedReturn, 365.0 / Double(durationDays)) - 1.0 : clampedReturn
+    let clampedReturn = max(FundMath.minReturnRate, returnPct)
+    let apy = durationDays > 3 ? pow(1.0 + clampedReturn, FundMath.daysPerYear / Double(durationDays)) - 1.0 : clampedReturn
 
     return ClosedFundMetrics(
         totalInvestedUsd: totalInvested,
@@ -352,7 +367,7 @@ func computeRecommendation(config: FundConfig, state: FundState) -> Recommendati
     // Special case: no investment yet, recommend initial BUY
     if state.startInputUsd == 0 && state.actualValueUsd == 0 {
         // Check if cash is available (either in-fund or platform-level)
-        if state.cashAvailableUsd < 0.01 {
+        if state.cashAvailableUsd < FundMath.currencyTolerance {
             return Recommendation(action: .HOLD, amount: 0,
                                   reasoning: "No cash available. Deposit funds to your platform cash account before your first DCA purchase.")
         }
@@ -377,7 +392,7 @@ func computeRecommendation(config: FundConfig, state: FundState) -> Recommendati
     let buyAmount = min(limit, state.cashAvailableUsd)
 
     // No cash available — HOLD
-    if buyAmount < 0.01 {
+    if buyAmount < FundMath.currencyTolerance {
         return Recommendation(action: .HOLD, amount: 0, reasoning: "No cash available for DCA. Deposit funds to your platform cash account.")
     }
 
@@ -459,12 +474,12 @@ func computeCashFundTimeWeightedSize(cashFlows: [CashFlow], startDate: String, a
 
 func computeLinearAPY(_ gain: Double, _ basis: Double, _ days: Int) -> Double {
     if basis <= 0 || days <= 0 { return 0 }
-    return (gain / basis) * (365.0 / Double(days))
+    return (gain / basis) * (FundMath.daysPerYear / Double(days))
 }
 
 func computeCompoundAPY(_ returnPct: Double, _ days: Int) -> Double {
     guard days > 0 else { return 0 }
-    return pow(1.0 + max(-0.99, returnPct), 365.0 / Double(days)) - 1.0
+    return pow(1.0 + max(FundMath.minReturnRate, returnPct), FundMath.daysPerYear / Double(days)) - 1.0
 }
 
 func computeProjectedAnnualReturn(_ currentValue: Double, _ realizedAPY: Double) -> Double {
@@ -686,8 +701,8 @@ func computeFundMetricsForFund(_ fund: FundData, asOfDate: String) -> (metrics: 
             }
         } else if entry.action == .SELL, let amt = entry.amount {
             let hasShareTracking = entry.shares != nil && (entry.shares ?? 0) != 0
-            let sharesLiquidated = hasShareTracking && abs(sumShares) < 0.0001
-            let valueLiquidated = entry.value > 0 && entry.value <= amt + 0.01
+            let sharesLiquidated = hasShareTracking && abs(sumShares) < FundMath.shareDustThreshold
+            let valueLiquidated = entry.value > 0 && entry.value <= amt + FundMath.currencyTolerance
             let isFullLiq = sharesLiquidated || valueLiquidated
 
             var extracted = 0.0
@@ -800,7 +815,7 @@ func computeFundMetricsForFund(_ fund: FundData, asOfDate: String) -> (metrics: 
     if isCash {
         let twab = Double(daysActive) > 0 ? twabNumerator / Double(daysActive) : 0
         let denominator = twab > 0 ? twab : (computedFundSize > 0 ? computedFundSize : 1)
-        if abs(realized) >= 0.01 {
+        if abs(realized) >= FundMath.currencyTolerance {
             realizedAPY = computeCompoundAPY(realized / denominator, daysActive)
             liquidAPY = realizedAPY
         }
@@ -1008,15 +1023,15 @@ func computePortfolioAggregate(
 
     var weightedRealizedAPY = 0.0
     if avgCapital > 0 && effectivePortfolioDays > 0 {
-        let totalReturn = max(-0.99, totalRealizedGains / avgCapital)
-        weightedRealizedAPY = pow(1.0 + totalReturn, 365.0 / Double(effectivePortfolioDays)) - 1.0
+        let totalReturn = max(FundMath.minReturnRate, totalRealizedGains / avgCapital)
+        weightedRealizedAPY = pow(1.0 + totalReturn, FundMath.daysPerYear / Double(effectivePortfolioDays)) - 1.0
     }
 
     let totalGainUsd = totalRealizedGains + totalUnrealizedGains
     var aggregateLiquidAPY = 0.0
     if avgCapital > 0 && effectivePortfolioDays > 0 {
-        let liquidReturn = max(-0.99, totalGainUsd / avgCapital)
-        aggregateLiquidAPY = pow(1.0 + liquidReturn, 365.0 / Double(effectivePortfolioDays)) - 1.0
+        let liquidReturn = max(FundMath.minReturnRate, totalGainUsd / avgCapital)
+        aggregateLiquidAPY = pow(1.0 + liquidReturn, FundMath.daysPerYear / Double(effectivePortfolioDays)) - 1.0
     }
 
     let totalActiveValue = fundsWithShares
@@ -1139,7 +1154,7 @@ func computeActionableFunds(_ funds: [FundData], asOfDate: String? = nil) -> [Ac
                 effectiveAvailable += marginAvail
             }
 
-            if effectiveAvailable < 0.01 {
+            if effectiveAvailable < FundMath.currencyTolerance {
                 cashFundsNeeded.insert(cashFundId)
             }
         }

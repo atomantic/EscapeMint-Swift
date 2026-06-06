@@ -787,13 +787,18 @@ func parseTSV(_ content: String) -> [FundEntry] {
     }
 }
 
-/// Round a currency value to 2 decimal places to avoid IEEE 754 artifacts (e.g. 45.55000000000001)
-private func roundCurrency(_ val: Double) -> Double { (val * 100).rounded() / 100 }
+/// Rounds to `decimals` places to avoid IEEE 754 artifacts (e.g. 45.55000000000001).
+private func roundTo(_ val: Double, decimals: Int) -> Double {
+    let factor = pow(10.0, Double(decimals))
+    return (val * factor).rounded() / factor
+}
+
+/// Round a currency value to 2 decimal places.
+private func roundCurrency(_ val: Double) -> Double { roundTo(val, decimals: 2) }
 private func roundCurrency(_ val: Double?) -> Double? { val.map { roundCurrency($0) } }
-/// Shares/contracts can be fractional (crypto) — round to 8 decimals
-private func roundQuantity(_ val: Double?) -> Double? { val.map { ($0 * 1e8).rounded() / 1e8 } }
-/// Prices can have up to 8 decimals for low-price crypto (e.g. DOGE $0.09424)
-private func roundPrice(_ val: Double?) -> Double? { val.map { ($0 * 1e8).rounded() / 1e8 } }
+/// Shares/contracts and prices keep up to 8 decimals for fractional/low-price crypto (e.g. DOGE $0.09424).
+private func roundQuantity(_ val: Double?) -> Double? { val.map { roundTo($0, decimals: 8) } }
+private func roundPrice(_ val: Double?) -> Double? { roundQuantity(val) }
 
 func parseEntry(_ line: String, headers: [String]) -> FundEntry {
     let values = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
@@ -842,7 +847,7 @@ private func fmtCurrency(_ val: Double?) -> String { val.map { fmtCurrency($0) }
 private func fmtPrice(_ val: Double?) -> String { fmtQuantity(val) }
 private func fmtQuantity(_ val: Double?) -> String {
     guard let v = val else { return "" }
-    let rounded = (v * 1e8).rounded() / 1e8
+    let rounded = roundTo(v, decimals: 8)
     // Strip trailing zeros: use %g-style but cap at 8 decimals
     if rounded == rounded.rounded(.down) { return String(format: "%.0f", rounded) }
     let s = String(format: "%.8f", rounded)
