@@ -23,6 +23,7 @@ targets:
     platform: [iOS, macOS]
     sources:
       - EscapeMint
+      - Shared
     resources:
       - path: EscapeMint/Resources
         buildPhase: resources
@@ -71,6 +72,7 @@ targets:
     platform: [iOS]
     sources:
       - EscapeMintWidget
+      - Shared
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: net.shadowpuppet.EscapeMint.widget
