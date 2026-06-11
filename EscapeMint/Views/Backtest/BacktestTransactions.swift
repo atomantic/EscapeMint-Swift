@@ -52,16 +52,20 @@ struct BacktestTransactions: View {
                                     HStack(spacing: 2) {
                                         Text(col.title)
                                         Text(sortOrder == .asc ? "\u{25B2}" : "\u{25BC}")
-                                            .font(.system(size: 7))
+                                            .font(.caption2)
                                     }
                                 }
                                 .buttonStyle(.plain)
-                                .font(.system(size: 9, weight: .semibold))
+                                .font(.caption2.weight(.semibold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
                                 .foregroundColor(.textMuted)
                                 .frame(width: col.width, alignment: .leading)
                             } else {
                                 Text(col.title)
-                                    .font(.system(size: 9, weight: .semibold))
+                                    .font(.caption2.weight(.semibold))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
                                     .foregroundColor(.textMuted)
                                     .frame(width: col.width, alignment: .trailing)
                             }
@@ -134,7 +138,7 @@ struct BacktestTransactions: View {
             cell(formatCurrency(entry.liquidPnL), width: columns[13].width, color: entry.liquidPnL >= 0 ? .green : .red)
             cell(formatCurrency(entry.expectedTarget), width: columns[14].width, color: .cyan)
         }
-        .font(.system(size: 9, design: .monospaced))
+        .font(.caption2.monospaced())
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
         .background(bgColor)
@@ -142,6 +146,8 @@ struct BacktestTransactions: View {
 
     private func cell(_ text: String, width: CGFloat, alignment: Alignment = .trailing, color: Color) -> some View {
         Text(text)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
             .frame(width: width, alignment: alignment)
             .foregroundColor(color)
     }
@@ -163,7 +169,9 @@ struct BacktestTablePlaceholder: View {
             HStack(spacing: 0) {
                 ForEach(Array(columns.prefix(9).enumerated()), id: \.offset) { _, col in
                     Text(col.title)
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                         .foregroundColor(.textMuted)
                         .frame(width: col.width, alignment: col.leading ? .leading : .trailing)
                 }
