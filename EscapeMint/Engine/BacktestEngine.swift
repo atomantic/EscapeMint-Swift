@@ -205,21 +205,9 @@ struct BacktestDateRange: Equatable {
     }
 }
 
-// MARK: - Historical Data Loading
-
-func loadHistoricalData() -> [String: HistoricalData] {
-    let tickers = ["btc", "tqqq", "spxl", "vti", "brgnx", "gld", "slv"]
-    var result: [String: HistoricalData] = [:]
-    for ticker in tickers {
-        guard let url = Bundle.main.url(forResource: "\(ticker)-weekly", withExtension: "json"),
-              let data = try? Data(contentsOf: url),
-              let hist = try? JSONDecoder().decode(HistoricalData.self, from: data) else {
-            continue
-        }
-        result[ticker.uppercased()] = hist
-    }
-    return result
-}
+// Historical data loading (bundle I/O) lives in Services/HistoricalDataLoader.swift
+// so the Engine layer stays pure. runBacktest / computeAvailableDateRange take the
+// loaded data as a parameter.
 
 func computeAvailableDateRange(historicalData: [String: HistoricalData], allocations: [(ticker: String, pct: Double)]) -> BacktestDateRange? {
     var latestStart: String?
