@@ -17,10 +17,12 @@
 		0B7D62B3B1AC28C01294E542 /* NotificationNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DDEBB26B5A4523E7DF3AB87 /* NotificationNames.swift */; };
 		0C2B4BA0E0583D0D81935D4F /* IntroGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5439E3A322BB84FE60191A58 /* IntroGuideView.swift */; };
 		0CA6CF646D2EF74DD5AC7700 /* FundEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADF82E9F62C6337CA018D70F /* FundEngine.swift */; };
+		0CC472E5AE4322A4F6CBD7BD /* WidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0F3FAE053123425C3E2E1D /* WidgetSnapshotModels.swift */; };
 		0FC73A03BA9BAE5BA0A47AE8 /* BacktestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A9C1C2AB4CC69B168913475 /* BacktestView.swift */; };
 		11C864866C071577BE475340 /* PlatformModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E936380A18BD7F2191F202E /* PlatformModifiers.swift */; };
 		13736010A21E9F8458364233 /* robinhoodtest-tqqq.tsv in Resources */ = {isa = PBXBuildFile; fileRef = 2259AF8CF6454043EE230821 /* robinhoodtest-tqqq.tsv */; };
 		14BD6E470FBB3F05EE989E37 /* BacktestConfigPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3668C8C07BAA5888046A22B /* BacktestConfigPanel.swift */; };
+		14DFBBA3032AB6B69AF2C13C /* WidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0F3FAE053123425C3E2E1D /* WidgetSnapshotModels.swift */; };
 		16EA12C051E1C27B3CEF8647 /* EntryFormHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78146FC52E9061B1A1504136 /* EntryFormHelpers.swift */; };
 		17FB2541C0CEEC28CD1ABA20 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CF81295D6C93A9C4D22D1CC /* Formatters.swift */; };
 		192442462A6FE331F8E495C3 /* FundCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F80087125ABA29D4B680493 /* FundCardView.swift */; };
@@ -76,6 +78,7 @@
 		65B3EC108FE713A5B400FA5D /* robinhoodtest-cash.tsv in Resources */ = {isa = PBXBuildFile; fileRef = BDEC5159BE61B7F6E86705E7 /* robinhoodtest-cash.tsv */; };
 		6699AD40036B9A80E20F5A66 /* EngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DEB29D5F7AD42857B739CEE /* EngineTests.swift */; };
 		66BD159218FE4D82FE08B1A9 /* coinbasetest-cash.json in Resources */ = {isa = PBXBuildFile; fileRef = 28D10063CEA04E34B422E48A /* coinbasetest-cash.json */; };
+		66CA6FA6BD33907928831035 /* WidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0F3FAE053123425C3E2E1D /* WidgetSnapshotModels.swift */; };
 		6B5163B1B7931DE792CF031A /* ViewCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B9C24F786271E3E8E8B7A1D /* ViewCacheTests.swift */; };
 		6C75E91B0F6FECF184432C98 /* StatBox.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D6554AB71D71AEFD5CB7BA /* StatBox.swift */; };
 		7064B056C01915EFDB93C772 /* NotificationNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DDEBB26B5A4523E7DF3AB87 /* NotificationNames.swift */; };
@@ -269,6 +272,7 @@
 		A93B5F48285731CDBAB58F06 /* FilePickerHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePickerHelper.swift; sourceTree = "<group>"; };
 		AA7B587266915BE35EF3BDDF /* tqqq-weekly.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "tqqq-weekly.json"; sourceTree = "<group>"; };
 		ADF82E9F62C6337CA018D70F /* FundEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundEngine.swift; sourceTree = "<group>"; };
+		AE0F3FAE053123425C3E2E1D /* WidgetSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotModels.swift; sourceTree = "<group>"; };
 		B4BBCB99D2DC606FB7140405 /* SpotlightIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightIndexer.swift; sourceTree = "<group>"; };
 		BBCB0FDCE94E2404ABEFEA3C /* FormulaParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormulaParserTests.swift; sourceTree = "<group>"; };
 		BC7805190DCC3C9CC32685C4 /* PlatformsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformsView.swift; sourceTree = "<group>"; };
@@ -313,6 +317,14 @@
 				0A954F45F93354E3501A9A7E /* Info.plist */,
 			);
 			path = EscapeMintWidget;
+			sourceTree = "<group>";
+		};
+		1BBFEB1AE452A2A51EEB0759 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				AE0F3FAE053123425C3E2E1D /* WidgetSnapshotModels.swift */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 		24914B010A4C57D01A710CF3 /* EscapeMint */ = {
@@ -537,6 +549,7 @@
 				24914B010A4C57D01A710CF3 /* EscapeMint */,
 				CD7B787A97EDE3519CB9E3B3 /* EscapeMintTests */,
 				17D9E83481D5A7226E9A862D /* EscapeMintWidget */,
+				1BBFEB1AE452A2A51EEB0759 /* Shared */,
 				D598F1BC45992489C9DDAAD3 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -821,6 +834,7 @@
 				237C11327A55B367CD5EC233 /* Theme.swift in Sources */,
 				1C1460916E8155A40E33142E /* ViewCache.swift in Sources */,
 				60729F93D47A7C7F4B7F06B8 /* WidgetDataProvider.swift in Sources */,
+				66CA6FA6BD33907928831035 /* WidgetSnapshotModels.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -829,6 +843,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CAB653772F235CDAA552A708 /* EscapeMintWidget.swift in Sources */,
+				14DFBBA3032AB6B69AF2C13C /* WidgetSnapshotModels.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -888,6 +903,7 @@
 				800271A5BCD7F0CD15434FED /* Theme.swift in Sources */,
 				09D7080C269F01DE77D73ADE /* ViewCache.swift in Sources */,
 				AFCEA5A89DF3CF5CE0EB08D2 /* WidgetDataProvider.swift in Sources */,
+				0CC472E5AE4322A4F6CBD7BD /* WidgetSnapshotModels.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
