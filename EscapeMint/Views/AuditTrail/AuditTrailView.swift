@@ -99,11 +99,15 @@ struct AuditTrailView: View {
 
                 // Entries
                 if filteredEntries.isEmpty {
-                    VStack(spacing: 8) {
+                    VStack(spacing: 12) {
+                        Image(systemName: "list.clipboard")
+                            .font(.largeTitle).foregroundColor(.mint)
+                            .accessibilityHidden(true)
                         Text("No entries found")
-                            .font(.headline).foregroundColor(.textSecondary)
+                            .font(.title2).fontWeight(.semibold).foregroundColor(.textPrimary)
                         Text("Adjust your filters or add entries to your funds.")
-                            .font(.subheadline).foregroundColor(.textMuted)
+                            .font(.subheadline).foregroundColor(.textSecondary)
+                            .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity, minHeight: 200)
                     .background(Color.bgCard)
