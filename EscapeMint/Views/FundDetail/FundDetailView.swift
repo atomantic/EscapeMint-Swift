@@ -50,8 +50,9 @@ struct FundDetailView: View {
                 Color.bg.ignoresSafeArea()
                     .onAppear { dismiss() }
             } else {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EscapeMintLoadingBanner(message: "Loading fund\u{2026}")
+                    .padding()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .background(Color.bg.ignoresSafeArea())
             }
         }
@@ -523,8 +524,11 @@ struct FundDetailView: View {
         return cols
     }
 
+    /// Prefix for the per-fund column-visibility/order UserDefaults keys.
+    private static let columnPrefsPrefix = "columns_"
+
     private func columnPrefsKey(_ suffix: String) -> String {
-        "columns_\(fundId)_\(suffix)"
+        "\(Self.columnPrefsPrefix)\(fundId)_\(suffix)"
     }
 
     private func saveColumnPrefs() {
@@ -834,7 +838,7 @@ struct FundDetailView: View {
             if let mb = entry.margin_borrowed { Text(formatCurrency(mb, decimals: d)).foregroundColor(.orange) }
             else { Self.dash }
         case "notes":
-            if let n = entry.notes, !n.isEmpty { Text(n).foregroundColor(.textMuted).lineLimit(1) }
+            if let n = entry.notes, !n.isEmpty { Text(n).foregroundColor(.textMuted).lineLimit(3) }
             else { Self.dash }
         case "contracts":
             if let c = entry.contracts { Text(String(format: "%.2f", c)).foregroundColor(.textSecondary) }
