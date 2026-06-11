@@ -408,7 +408,7 @@ struct ValueChartView: View {
                     }
                 }
                 .chartForegroundStyleScale(["Value": Color.mint, "Invested": Color.purple, "Target": Color.green])
-                .chartXAxis { emDateAxisTemporal() }
+                .chartXAxis { emDateAxisTemporal(spanDays: chartSpanDays(points)) }
                 .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
                 .chartOverlay { proxy in
@@ -464,29 +464,31 @@ struct PLChartView: View {
             if let points {
                 let hasNegative = points.contains { $0.realized < 0 || $0.liquid < 0 }
                 let allValues = points.flatMap { [$0.realized, $0.liquid] }
+                let domain = chartYDomain(bounds, points: allValues)
                 Chart {
                     ForEach(points) { pt in
                         let d = pt.dateValue
                         AreaMark(
                             x: .value("Date", d),
-                            yStart: .value("Baseline", 0),
-                            yEnd: .value("Liquid", pt.liquid)
+                            yStart: .value("Baseline", domain.clamping(0)),
+                            yEnd: .value("Liquid", domain.clamping(pt.liquid))
                         )
                             .foregroundStyle(Color.blue.opacity(0.1))
                             .interpolationMethod(.monotone)
-                        LineMark(x: .value("Date", d), y: .value("Realized", pt.realized))
+                        LineMark(x: .value("Date", d), y: .value("Realized", domain.clamping(pt.realized)))
                             .foregroundStyle(by: .value("Type", "Realized"))
                             .interpolationMethod(.monotone)
-                        LineMark(x: .value("Date", d), y: .value("Liquid", pt.liquid))
+                        LineMark(x: .value("Date", d), y: .value("Liquid", domain.clamping(pt.liquid)))
                             .foregroundStyle(by: .value("Type", "Liquid"))
                             .interpolationMethod(.monotone)
                     }
                     if hasNegative { emZeroLine() }
                 }
                 .chartForegroundStyleScale(["Realized": Color.mint, "Liquid": Color.blue])
-                .chartXAxis { emDateAxisTemporal() }
+                .chartXAxis { emDateAxisTemporal(spanDays: chartSpanDays(points)) }
                 .chartYAxis { emCurrencyAxis() }
-                .chartYScale(domain: chartYDomain(bounds, points: allValues))
+                .chartYScale(domain: domain)
+                .chartPlotStyle { $0.clipped() }
                 .chartLegend(.hidden)
                 .chartOverlay { proxy in
                     let d = config.dollarDec
@@ -540,25 +542,31 @@ struct APYChartView: View {
                 let hasNegative = points.contains { $0.realizedAPY < 0 || $0.liquidAPY < 0 }
                 let allValues = points.flatMap { [$0.realizedAPY, $0.liquidAPY] }
                 let effectiveBounds = bounds ?? apyAutoBounds(allValues)
+                let domain = chartYDomain(effectiveBounds, points: allValues)
                 Chart {
                     ForEach(points) { pt in
                         let d = isoDateFormatter.date(from: pt.date) ?? Date()
-                        AreaMark(x: .value("Date", d), y: .value("L.APY", pt.liquidAPY))
+                        // Clamp into the domain: early-life APYs can annualize to
+                        // absurd values; saturate at the edge (tooltip shows truth).
+                        let rAPY = domain.clamping(pt.realizedAPY)
+                        let lAPY = domain.clamping(pt.liquidAPY)
+                        AreaMark(x: .value("Date", d), y: .value("L.APY", lAPY))
                             .foregroundStyle(Color.blue.opacity(0.1))
                             .interpolationMethod(.monotone)
-                        LineMark(x: .value("Date", d), y: .value("R.APY", pt.realizedAPY))
+                        LineMark(x: .value("Date", d), y: .value("R.APY", rAPY))
                             .foregroundStyle(by: .value("Type", "Realized"))
                             .interpolationMethod(.monotone)
-                        LineMark(x: .value("Date", d), y: .value("L.APY", pt.liquidAPY))
+                        LineMark(x: .value("Date", d), y: .value("L.APY", lAPY))
                             .foregroundStyle(by: .value("Type", "Liquid"))
                             .interpolationMethod(.monotone)
                     }
                     if hasNegative { emZeroLine() }
                 }
                 .chartForegroundStyleScale(["Realized": Color.mint, "Liquid": Color.blue])
-                .chartXAxis { emDateAxisTemporal() }
+                .chartXAxis { emDateAxisTemporal(spanDays: chartSpanDays(points)) }
                 .chartYAxis { emPercentAxis() }
-                .chartYScale(domain: chartYDomain(effectiveBounds, points: allValues))
+                .chartYScale(domain: domain)
+                .chartPlotStyle { $0.clipped() }
                 .chartLegend(.hidden)
                 .chartOverlay { proxy in
                     chartHoverOverlay(proxy: proxy, entries: points, hoverIndex: $hoverIndex) { pt in
@@ -641,7 +649,7 @@ struct CapturedProfitChartView: View {
                     }
                 }
                 .chartForegroundStyleScale(["Extracted": Color.mint, "Dividends": Color.green, "Interest": Color.yellow])
-                .chartXAxis { emDateAxisTemporal() }
+                .chartXAxis { emDateAxisTemporal(spanDays: chartSpanDays(points)) }
                 .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
                 .chartOverlay { proxy in
@@ -680,16 +688,26 @@ struct CapturedProfitChartView: View {
 // Date formatters (isoDateFormatter, shortDateFormatter) and format helpers
 // (formatDateLabel, formatTooltipDate) are in Converters.swift
 
-@AxisContentBuilder
-func emDateAxisTemporal() -> some AxisContent {
-    AxisMarks(values: .automatic(desiredCount: 4)) { value in
+/// Date axis with span-aware labels: histories under ~6 months label ticks by day
+/// ("May 18") so short ranges don't repeat the same month label on every tick;
+/// longer (or unknown) spans keep month labels ("May '26").
+func emDateAxisTemporal(spanDays: Int? = nil) -> some AxisContent {
+    let formatter = (spanDays ?? Int.max) <= 180 ? monthDayFormatter : shortDateFormatter
+    return AxisMarks(values: .automatic(desiredCount: 4)) { value in
         AxisValueLabel {
             if let date = value.as(Date.self) {
-                Text(shortDateFormatter.string(from: date))
+                Text(formatter.string(from: date))
                     .font(.caption2).foregroundColor(.textMuted)
             }
         }
     }
+}
+
+/// Days between the first and last point of a chart series — feeds the span-aware
+/// date axis. Nil (month labels) when there are fewer than two points.
+func chartSpanDays<T: DateIdentifiable>(_ points: [T]) -> Int? {
+    guard points.count >= 2, let first = points.first, let last = points.last else { return nil }
+    return daysBetween(first.date, last.date)
 }
 
 @AxisContentBuilder

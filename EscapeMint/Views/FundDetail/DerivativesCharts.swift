@@ -342,6 +342,15 @@ func chartYDomain(_ bounds: ChartBounds?, points values: [Double]) -> ClosedRang
     return yMin...yMax
 }
 
+extension ClosedRange<Double> {
+    /// Clamp a chart value into the visible domain so off-scale outliers saturate
+    /// flat at the plot edge instead of drawing wild strokes outside the plot area.
+    /// (Swift Charts does not clip marks to the Y domain by itself.)
+    func clamping(_ value: Double) -> Double {
+        Swift.min(Swift.max(value, lowerBound), upperBound)
+    }
+}
+
 // MARK: - P&L Chart (Derivatives)
 
 struct DerivativesPLChart: View {
@@ -372,9 +381,10 @@ struct DerivativesPLChart: View {
                     if hasNeg { emZeroLine() }
                 }
                 .chartForegroundStyleScale(["Liquid": Color.orange, "Realized": Color.mint])
-                .chartXAxis { emDateAxisTemporal() }
+                .chartXAxis { emDateAxisTemporal(spanDays: chartSpanDays(points)) }
                 .chartYAxis { emCurrencyAxis() }
                 .chartYScale(domain: chartYDomain(bounds, points: points.flatMap { [$0.liquidPL, $0.capturedProfit] }))
+                .chartPlotStyle { $0.clipped() }
                 .chartLegend(.hidden)
                 .chartOverlay { proxy in
                     let dd = dollarDecimals
@@ -422,9 +432,10 @@ struct DerivativesAPYChart: View {
                     if hasNeg { emZeroLine() }
                 }
                 .chartForegroundStyleScale(["Liquid": Color.orange, "Realized": Color.mint])
-                .chartXAxis { emDateAxisTemporal() }
+                .chartXAxis { emDateAxisTemporal(spanDays: chartSpanDays(points)) }
                 .chartYAxis { emPercentAxis() }
                 .chartYScale(domain: chartYDomain(bounds, points: points.flatMap { [$0.liquidAPY, $0.realizedAPY] }))
+                .chartPlotStyle { $0.clipped() }
                 .chartLegend(.hidden)
                 .chartOverlay { proxy in
                     chartHoverOverlay(proxy: proxy, entries: points, hoverIndex: $hoverIndex) { pt in
@@ -475,7 +486,7 @@ struct DerivativesValueChart: View {
                     }
                 }
                 .chartForegroundStyleScale(["Notional": Color.purple, "Cost Basis": Color.blue, "Position Value": Color.mint])
-                .chartXAxis { emDateAxisTemporal() }
+                .chartXAxis { emDateAxisTemporal(spanDays: chartSpanDays(points)) }
                 .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
                 .chartOverlay { proxy in
@@ -532,9 +543,10 @@ struct DerivativesPriceChart: View {
                     }
                 }
                 .chartForegroundStyleScale(["Avg Entry": Color.orange, "Liq Price": Color.mint])
-                .chartXAxis { emDateAxisTemporal() }
+                .chartXAxis { emDateAxisTemporal(spanDays: chartSpanDays(withPosition)) }
                 .chartYAxis { emCurrencyAxis() }
                 .chartYScale(domain: chartYDomain(bounds, points: clampedPoints.flatMap { [$0.avgEntry, $0.liqPrice] }))
+                .chartPlotStyle { $0.clipped() }
                 .chartLegend(.hidden)
                 .chartOverlay { proxy in
                     let dd = dollarDecimals
@@ -580,7 +592,7 @@ struct DerivativesMarginChart: View {
             }
         }
         .chartForegroundStyleScale(["Cash": Color.blue, "Margin Locked": Color.orange])
-        .chartXAxis { emDateAxisTemporal() }
+        .chartXAxis { emDateAxisTemporal(spanDays: chartSpanDays(points)) }
         .chartYAxis { emCurrencyAxis() }
         .chartLegend(.hidden)
     }
@@ -706,7 +718,7 @@ struct DerivativesCapturedProfitChart: View {
                     "Realized": Color.green, "Funding": Color.blue,
                     "Interest": Color.purple, "Rebates": Color.cyan, "Fees": Color.red
                 ])
-                .chartXAxis { emDateAxisTemporal() }
+                .chartXAxis { emDateAxisTemporal(spanDays: chartSpanDays(points)) }
                 .chartYAxis { emCurrencyAxis() }
                 .chartLegend(.hidden)
                 .chartOverlay { proxy in

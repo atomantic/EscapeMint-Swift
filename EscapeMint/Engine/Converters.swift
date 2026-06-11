@@ -72,6 +72,14 @@ let shortDateFormatter: DateFormatter = {
     return f
 }()
 
+/// Day-granularity axis labels ("May 18") for charts spanning weeks rather than years.
+let monthDayFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateFormat = "MMM d"
+    f.locale = Locale(identifier: "en_US_POSIX")
+    return f
+}()
+
 private let tooltipDateFormatter: DateFormatter = {
     let f = DateFormatter()
     f.dateFormat = "MMM d, yyyy"
