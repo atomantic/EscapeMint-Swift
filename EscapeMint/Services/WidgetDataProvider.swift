@@ -89,24 +89,4 @@ final class WidgetDataProvider {
     }
 }
 
-// MARK: - Shared Data Types (used by both app and widget)
-
-struct WidgetSnapshot: Codable {
-    let totalValue: Double
-    let totalGainUsd: Double
-    let totalGainPct: Double
-    let activeFunds: Int
-    let actionableCount: Int
-    let topFunds: [WidgetFundSnapshot]
-    let updatedAt: Date
-}
-
-struct WidgetFundSnapshot: Codable {
-    let ticker: String
-    let platform: String
-    let value: Double
-    let gainPct: Double
-    let isDueForAction: Bool
-    let recommendedAction: String?
-    let recommendedAmount: Double?
-}
+// WidgetSnapshot and WidgetFundSnapshot are defined in Shared/WidgetSnapshotModels.swift
