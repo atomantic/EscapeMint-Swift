@@ -99,10 +99,53 @@ final class FundDataStore {
 
     private init() {}
 
+    // MARK: - Recompute Observers
+
+    /// Snapshot handed to recompute observers so they react to the latest derived
+    /// state without the store reaching into Services / ViewCache / AppKit itself.
+    struct RecomputeContext: Sendable {
+        let funds: [FundData]
+        let actionableCount: Int
+    }
+
+    private var recomputeObservers: [@MainActor (RecomputeContext) -> Void] = []
+    private var fundInvalidationObservers: [@MainActor (String) -> Void] = []
+    private var didBootstrapObservers = false
+
+    /// Register a side-effect that should run after every recompute. Observers own any
+    /// debounce / task cancellation they need; the store just hands them the context.
+    func addRecomputeObserver(_ observer: @escaping @MainActor (RecomputeContext) -> Void) {
+        recomputeObservers.append(observer)
+    }
+
+    /// Register a callback invoked with a fundId whenever that fund's entries change,
+    /// so presentation caches can drop their per-fund data without the store importing
+    /// the cache type.
+    func addFundInvalidationObserver(_ observer: @escaping @MainActor (String) -> Void) {
+        fundInvalidationObservers.append(observer)
+    }
+
+    private func notifyFundInvalidated(_ fundId: String) {
+        for observer in fundInvalidationObservers { observer(fundId) }
+    }
+
+    /// Register the app's standard post-recompute side effects (services rescheduling,
+    /// chart precompute, macOS dock badge) exactly once. Called from `loadIfNeeded` so
+    /// tests that exercise recompute directly never wire up notification/Spotlight/widget
+    /// side effects. No-op if observers are already registered (e.g. set up by a test).
+    private func bootstrapRecomputeObserversIfNeeded() {
+        guard !didBootstrapObservers else { return }
+        didBootstrapObservers = true
+        if recomputeObservers.isEmpty {
+            registerDefaultRecomputeObservers()
+        }
+    }
+
     // MARK: - Initial Load (Progressive)
 
     func loadIfNeeded() async {
         guard !isLoaded else { return }
+        bootstrapRecomputeObserversIfNeeded()
 
         // Yield immediately so the UI (intro guide sheet) can finish rendering
         await Task.yield()
@@ -452,7 +495,7 @@ final class FundDataStore {
         }
         for fundId in touched {
             bumpFundVersion(fundId)
-            ViewCache.shared.invalidateFundCache(fundId: fundId)
+            notifyFundInvalidated(fundId)
         }
 
         // Optimistic fast-path: apply updated funds + freshly-computed summaries
@@ -491,7 +534,7 @@ final class FundDataStore {
             var snapshot = funds
             snapshot[idx].entries = entries
             bumpFundVersion(fundId)
-            ViewCache.shared.invalidateFundCache(fundId: fundId)
+            notifyFundInvalidated(fundId)
             await recomputeWith(snapshot)
         }
         do {
@@ -528,72 +571,68 @@ final class FundDataStore {
 
     // MARK: - Advanced Tools (Recalculate / Interpolate)
 
-    /// Backup fund, recalculate fund_size for all entries, save to disk.
-    func recalculateFund(fundId: String) async -> (success: Bool, message: String) {
+    /// Shared preamble for the destructive advanced-tools operations: resolve the fund,
+    /// back it up to disk, then run `operation` with the fund. Returns the operation's
+    /// result, or a failure tuple if the fund is missing or the backup fails (so the
+    /// caller never mutates data it couldn't back up first).
+    private func withBackup(
+        fundId: String,
+        operation: (FundData) async -> (success: Bool, message: String)
+    ) async -> (success: Bool, message: String) {
         guard let fund = fund(byId: fundId) else {
             return (false, "Fund not found")
         }
-        // Backup first
         do {
             _ = try await FundStore.shared.backupFund(id: fundId)
         } catch {
             return (false, "Backup failed: \(error.localizedDescription)")
         }
+        return await operation(fund)
+    }
 
-        let config = fund.config
-        let entries = fund.entries
-        let recalculated = await Task.detached(priority: .userInitiated) {
-            recalculateFundSize(entries: entries, config: config)
-        }.value
+    /// Backup fund, recalculate fund_size for all entries, save to disk.
+    func recalculateFund(fundId: String) async -> (success: Bool, message: String) {
+        await withBackup(fundId: fundId) { fund in
+            let config = fund.config
+            let entries = fund.entries
+            let recalculated = await Task.detached(priority: .userInitiated) {
+                recalculateFundSize(entries: entries, config: config)
+            }.value
 
-        await replaceEntries(fundId: fundId, entries: recalculated)
-        return (true, "Recalculated fund_size for \(recalculated.count) entries")
+            await replaceEntries(fundId: fundId, entries: recalculated)
+            return (true, "Recalculated fund_size for \(recalculated.count) entries")
+        }
     }
 
     /// Backup fund, recalculate prices from amount/shares, save to disk.
     func recalculatePrices(fundId: String) async -> (success: Bool, message: String) {
-        guard let fund = fund(byId: fundId) else {
-            return (false, "Fund not found")
-        }
-        do {
-            _ = try await FundStore.shared.backupFund(id: fundId)
-        } catch {
-            return (false, "Backup failed: \(error.localizedDescription)")
-        }
+        await withBackup(fundId: fundId) { fund in
+            let entries = fund.entries
+            let dd = fund.config.dollarDec
+            let (updatedEntries, updated) = await Task.detached(priority: .userInitiated) {
+                recalculateEntryPrices(entries: entries, dollarDecimals: dd)
+            }.value
 
-        let entries = fund.entries
-        let dd = fund.config.dollarDec
-        let (updatedEntries, updated) = await Task.detached(priority: .userInitiated) {
-            recalculateEntryPrices(entries: entries, dollarDecimals: dd)
-        }.value
-
-        if updated > 0 {
-            await replaceEntries(fundId: fundId, entries: updatedEntries)
+            if updated > 0 {
+                await replaceEntries(fundId: fundId, entries: updatedEntries)
+            }
+            return (true, "Recalculated \(updated) prices (\(entries.count) entries)")
         }
-        return (true, "Recalculated \(updated) prices (\(entries.count) entries)")
     }
 
     /// Backup fund, interpolate missing values for a column, save to disk.
     func interpolateFundColumn(fundId: String, column: InterpolatableColumn) async -> (success: Bool, message: String) {
-        guard let fund = fund(byId: fundId) else {
-            return (false, "Fund not found")
-        }
-        // Backup first
-        do {
-            _ = try await FundStore.shared.backupFund(id: fundId)
-        } catch {
-            return (false, "Backup failed: \(error.localizedDescription)")
-        }
+        await withBackup(fundId: fundId) { fund in
+            let entries = fund.entries
+            let (updatedEntries, result) = await Task.detached(priority: .userInitiated) {
+                interpolateColumn(column, entries: entries)
+            }.value
 
-        let entries = fund.entries
-        let (updatedEntries, result) = await Task.detached(priority: .userInitiated) {
-            interpolateColumn(column, entries: entries)
-        }.value
-
-        if result.interpolated > 0 {
-            await replaceEntries(fundId: fundId, entries: updatedEntries)
+            if result.interpolated > 0 {
+                await replaceEntries(fundId: fundId, entries: updatedEntries)
+            }
+            return (true, "Interpolated \(result.interpolated) \(column.label) values (\(result.knownValues) known of \(result.totalEntries))")
         }
-        return (true, "Interpolated \(result.interpolated) \(column.label) values (\(result.knownValues) known of \(result.totalEntries))")
     }
 
     // MARK: - Recompute Derived State
@@ -679,7 +718,6 @@ final class FundDataStore {
         _auditEntries = nil
 
         revision += 1
-        updateDockBadge(actionableFunds.count)
 
         historyCacheTask?.cancel()
         historyCacheTask = Task { @MainActor [weak self] in
@@ -687,29 +725,14 @@ final class FundDataStore {
             await self.persistHistoryCachesIfNeeded(from: result.summaries)
         }
 
-        // Pre-compute chart data in background so fund detail pages load instantly
-        ViewCache.shared.precomputeFundCharts(snapshot)
-
-        // Debounce expensive side effects (notifications, Spotlight, widget)
-        // so rapid recomputes during progressive load don't trigger them repeatedly
-        sideEffectTask?.cancel()
-        let currentFunds = funds
-        sideEffectTask = Task {
-            try? await Task.sleep(for: .seconds(2))
-            guard !Task.isCancelled else { return }
-            await DCANotificationManager.shared.rescheduleAll()
-            Task.detached { SpotlightIndexer.shared.indexFunds(currentFunds) }
-            // Widget extension is iOS-only. On macOS, touching the iOS-style
-            // (`group.*`) App Group container triggers the macOS 15 Sequoia
-            // "would like to access data from other apps" TCC prompt for no
-            // benefit, since nothing on macOS reads the snapshot.
-            #if os(iOS)
-            WidgetDataProvider.shared.updateSnapshot()
-            #endif
-        }
+        // Hand the new derived state to registered observers (chart precompute, the
+        // debounced services side effects, the macOS dock badge). The store no longer
+        // references ViewCache / Services / AppKit directly. Observers own their own
+        // debounce + cancellation.
+        let context = RecomputeContext(funds: funds, actionableCount: actionableFunds.count)
+        for observer in recomputeObservers { observer(context) }
     }
 
-    private var sideEffectTask: Task<Void, Never>?
     private var deferredICloudRecoveryTask: Task<Void, Never>?
     private var historyCacheTask: Task<Void, Never>?
 
@@ -776,11 +799,5 @@ final class FundDataStore {
             }
         }
         return entries.sorted { $0.date > $1.date }
-    }
-
-    private func updateDockBadge(_ count: Int) {
-        #if os(macOS)
-        NSApp?.dockTile.badgeLabel = count > 0 ? "\(count)" : nil
-        #endif
     }
 }
