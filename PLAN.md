@@ -3,6 +3,8 @@
 For project context see [README.md](README.md) and [CLAUDE.md](CLAUDE.md).
 For completed work see [DONE.md](DONE.md).
 
+> **2026-06-11 better-swift audit:** 8-agent audit findings are tracked as GitHub issues under the `plan` label ([open issues](https://github.com/atomantic/EscapeMint-Swift/issues?q=is%3Aissue+is%3Aopen+label%3Aplan)), not duplicated here. Shipped this pass (PRs open for review): CI scheme fix #48, biometric-flag→Keychain #49, shared widget models #50.
+
 ## Next Up
 
 1. **Deepen service tests** — `AuthManager` has 4 happy-path tests but no lock-state-machine / keychain / biometric-flow coverage; `SpotlightIndexer` has crash-only smoke tests (no indexing assertions)
