@@ -21,13 +21,14 @@ struct BacktestConfigPanel: View {
             #if os(macOS)
             HStack(spacing: 16) {
                 allocationColumn
-                Divider().frame(height: 180)
+                Divider()
                 strategyColumn
-                Divider().frame(height: 180)
+                Divider()
                 dcaTiersColumn
-                Divider().frame(height: 180)
+                Divider()
                 fundModeColumn
             }
+            .fixedSize(horizontal: false, vertical: true)
             .padding(12)
             #else
             if isWide {
@@ -103,13 +104,22 @@ struct BacktestConfigPanel: View {
                     if width > 0 {
                         ZStack {
                             Rectangle().fill(segment.color)
+                            // The bar is a fixed 20pt tall, so its labels can't scale with
+                            // Dynamic Type. Rather than shrink below legibility, show the
+                            // label only when the segment is wide enough to hold it, and
+                            // hide it entirely on narrow slices (the a11y label on the bar
+                            // conveys the full breakdown to VoiceOver).
                             if segment.pct >= 0.20 {
                                 Text("\(segment.label) \(Int(segment.pct * 100))%")
-                                    .font(.system(size: 8, weight: .bold))
+                                    .font(.caption2.weight(.bold))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
                                     .foregroundColor(.white)
-                            } else if segment.pct >= 0.10 {
+                            } else if segment.pct >= 0.15 {
                                 Text("\(Int(segment.pct * 100))%")
-                                    .font(.system(size: 7, weight: .bold))
+                                    .font(.caption2.weight(.bold))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
                                     .foregroundColor(.white)
                             }
                         }
@@ -139,7 +149,7 @@ struct BacktestConfigPanel: View {
             Circle().fill(color).frame(width: 6, height: 6)
                 .accessibilityHidden(true)
             Text(label)
-                .font(.system(size: 10)).foregroundColor(.textSecondary)
+                .font(.caption).foregroundColor(.textSecondary)
                 .frame(width: 42, alignment: .leading)
             CompactSlider(value: value, range: 0...1, step: 0.05, tint: color) {
                 onConfigChanged()
@@ -148,7 +158,7 @@ struct BacktestConfigPanel: View {
             .accessibilityValue("\(Int(value.wrappedValue * 100)) percent")
             .accessibilityIdentifier("slider-\(label.lowercased())")
             Text("\(Int(value.wrappedValue * 100))%")
-                .font(.system(size: 10, design: .monospaced)).foregroundColor(.textMuted)
+                .font(.caption.monospaced()).foregroundColor(.textMuted)
                 .frame(width: 28, alignment: .trailing)
                 .accessibilityHidden(true)
         }
@@ -219,7 +229,7 @@ struct BacktestConfigPanel: View {
                     onConfigChanged()
                 } label: {
                     Text("Accumulate")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.caption.weight(.medium))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 5)
                         .background(config.accumulate ? Color.blue : Color.bgInput)
@@ -236,7 +246,7 @@ struct BacktestConfigPanel: View {
                     onConfigChanged()
                 } label: {
                     Text("Harvest")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.caption.weight(.medium))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 5)
                         .background(!config.accumulate ? Color.orange : Color.bgInput)
@@ -252,7 +262,7 @@ struct BacktestConfigPanel: View {
             Text(config.accumulate
                  ? "Sell min DCA amount when over target + min profit."
                  : "Close entire position to cash when over target + min profit.")
-                .font(.system(size: 9))
+                .font(.caption2)
                 .foregroundColor(.textMuted)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -264,10 +274,10 @@ struct BacktestConfigPanel: View {
                 } label: {
                     HStack(spacing: 3) {
                         Image(systemName: config.reinvest ? "checkmark.square.fill" : "square")
-                            .font(.system(size: 10))
+                            .font(.caption)
                             .foregroundColor(config.reinvest ? .blue : .textMuted)
                         Text("Re-invest proceeds")
-                            .font(.system(size: 9))
+                            .font(.caption2)
                             .foregroundColor(.textSecondary)
                     }
                 }
@@ -276,7 +286,7 @@ struct BacktestConfigPanel: View {
             }
 
             // Presets
-            Text("Presets").font(.system(size: 9)).foregroundColor(.textMuted)
+            Text("Presets").font(.caption2).foregroundColor(.textMuted)
 
             let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 5)
             LazyVGrid(columns: columns, spacing: 4) {
@@ -289,7 +299,7 @@ struct BacktestConfigPanel: View {
                         onConfigChanged()
                     } label: {
                         Text(preset.rawValue)
-                            .font(.system(size: 9, weight: .medium))
+                            .font(.caption2.weight(.medium))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 4)
                             .background(selectedPreset == preset
@@ -317,7 +327,7 @@ struct BacktestConfigPanel: View {
                               format: @escaping (Double) -> String) -> some View {
         HStack(spacing: 4) {
             Text(label)
-                .font(.system(size: 10)).foregroundColor(.textMuted)
+                .font(.caption).foregroundColor(.textMuted)
                 #if os(macOS)
                 .frame(width: 85, alignment: .leading)
                 #else
@@ -331,7 +341,7 @@ struct BacktestConfigPanel: View {
             .accessibilityValue(format(value.wrappedValue))
             .accessibilityIdentifier("slider-\(label.lowercased().replacingOccurrences(of: " ", with: "-"))")
             Text(format(value.wrappedValue))
-                .font(.system(size: 10, design: .monospaced)).foregroundColor(.textSecondary)
+                .font(.caption.monospaced()).foregroundColor(.textSecondary)
                 .frame(width: 60, alignment: .trailing)
                 .accessibilityHidden(true)
         }

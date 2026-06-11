@@ -45,23 +45,24 @@ struct FundCardView: View {
 
             HStack(spacing: 12) {
                 if fund.config.status == .closed {
-                    metricColumn("Size", formatCurrency(summary.metrics.fundSize))
-                    metricColumn("Realized $", formatCurrency(summary.effectiveRealized),
-                                 color: summary.effectiveRealized >= 0 ? .mint : .red)
-                    metricColumn("Realized %", formatPercent(summary.effectiveRealizedAPY),
-                                 color: summary.effectiveRealizedAPY >= 0 ? .mint : .red)
+                    StatBox(label: "Size", value: formatCurrency(summary.metrics.fundSize), showCard: false)
+                    StatBox(label: "Realized $", value: formatCurrency(summary.effectiveRealized),
+                            color: summary.effectiveRealized >= 0 ? .mint : .red, showCard: false)
+                    StatBox(label: "Realized %", value: formatPercent(summary.effectiveRealizedAPY),
+                            color: summary.effectiveRealizedAPY >= 0 ? .mint : .red, showCard: false)
                 } else if summary.isCash {
-                    metricColumn("Balance", formatCurrency(value))
-                    metricColumn("Interest", "+\(formatCurrency(state.cashInterestUsd))", color: .mint)
-                    metricColumn("APY", formatPercent(realizedAPY),
-                                 color: realizedAPY > 0 ? .mint : .textMuted)
+                    StatBox(label: "Balance", value: formatCurrency(value), showCard: false)
+                    StatBox(label: "Interest", value: "+\(formatCurrency(state.cashInterestUsd))",
+                            color: .mint, showCard: false)
+                    StatBox(label: "APY", value: formatPercent(realizedAPY),
+                            color: realizedAPY > 0 ? .mint : .textMuted, showCard: false)
                 } else {
-                    metricColumn("Size", formatCurrency(summary.metrics.fundSize))
-                    metricColumn("Value", formatCurrency(value))
-                    metricColumn("Realized", formatPercent(realizedAPY),
-                                 color: realizedAPY > 0 ? .mint : .red)
-                    metricColumn("Liquid", formatPercent(liquidAPY),
-                                 color: liquidAPY > 0 ? .mint : .red)
+                    StatBox(label: "Size", value: formatCurrency(summary.metrics.fundSize), showCard: false)
+                    StatBox(label: "Value", value: formatCurrency(value), showCard: false)
+                    StatBox(label: "Realized", value: formatPercent(realizedAPY),
+                            color: realizedAPY > 0 ? .mint : .red, showCard: false)
+                    StatBox(label: "Liquid", value: formatPercent(liquidAPY),
+                            color: liquidAPY > 0 ? .mint : .red, showCard: false)
                 }
             }
 
@@ -75,15 +76,5 @@ struct FundCardView: View {
         }
         .padding(12)
         .cardStyle()
-        #if os(iOS)
-        .padding(.horizontal)
-        #endif
-    }
-
-    private func metricColumn(_ label: String, _ value: String, color: Color = .textPrimary) -> some View {
-        VStack(alignment: .leading) {
-            Text(label).font(.caption2).foregroundColor(.textMuted)
-            Text(value).font(.caption).foregroundColor(color)
-        }
     }
 }
