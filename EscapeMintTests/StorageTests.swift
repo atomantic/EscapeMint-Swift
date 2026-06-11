@@ -134,6 +134,99 @@ final class StorageTests: XCTestCase {
         }
     }
 
+    // MARK: - TSV Edge Cases (#40)
+
+    private static let tsvHeader = "date\tvalue\tcash\taction\tamount\tshares\tprice\tdividend\texpense\tcash_interest\tfund_size\tmargin_available\tmargin_borrowed\tmargin_expense\tnotes\tcontracts\tentry_price\tliquidation_price\tunrealized_pnl\tmargin_locked\tfee\tmargin"
+
+    /// A data row with FEWER columns than the header must still parse, with the absent
+    /// trailing columns left nil — not crash or shift values.
+    func testParseTSVShortRowFillsMissingColumnsWithNil() {
+        // Only date, value, cash, action provided (4 of 22 columns).
+        let tsv = "\(Self.tsvHeader)\n2025-01-01\t1000\t250\tBUY\n"
+        let parsed = parseTSV(tsv)
+
+        XCTAssertEqual(parsed.count, 1)
+        let e = parsed[0]
+        XCTAssertEqual(e.date, "2025-01-01")
+        XCTAssertEqual(e.value, 1000, accuracy: 0.01)
+        XCTAssertEqual(e.cash, 250)
+        XCTAssertEqual(e.action, .BUY)
+        // Everything past column 4 is absent → nil.
+        XCTAssertNil(e.amount)
+        XCTAssertNil(e.shares)
+        XCTAssertNil(e.fund_size)
+        XCTAssertNil(e.notes)
+        XCTAssertNil(e.margin)
+    }
+
+    /// Per #18, a row with an empty `date` column is DROPPED (not surfaced as a zeroed
+    /// FundEntry that would poison APY/gain math). Contract pinned here.
+    func testParseTSVEmptyDateRowIsDropped() {
+        // Row 1: empty date (should be dropped). Row 2: valid.
+        let tsv = "\(Self.tsvHeader)\n\t1000\t\tBUY\n2025-02-01\t1100\t\tHOLD\n"
+        let parsed = parseTSV(tsv)
+
+        XCTAssertEqual(parsed.count, 1, "Empty-date row must be filtered out")
+        XCTAssertEqual(parsed[0].date, "2025-02-01")
+        XCTAssertEqual(parsed[0].action, .HOLD)
+    }
+
+    /// parseEntryRow is the per-row gate: a missing/empty date returns nil so parseTSV's
+    /// compactMap drops it; a good row returns a populated entry.
+    func testParseEntryRowReturnsNilForEmptyDate() {
+        let headers = Self.tsvHeader.split(separator: "\t").map(String.init)
+        let dropped = parseEntryRow("\t999\t\tBUY", headers: headers, rowIndex: 1)
+        XCTAssertNil(dropped, "Empty date column → row dropped")
+
+        let kept = parseEntryRow("2025-03-01\t999\t\tSELL", headers: headers, rowIndex: 2)
+        XCTAssertEqual(kept?.date, "2025-03-01")
+        XCTAssertEqual(kept?.action, .SELL)
+    }
+
+    /// Non-numeric text in a numeric column falls back to 0 (via `Double(val) ?? 0`) for
+    /// `value`, and to nil for optional numeric columns that fail to parse.
+    func testParseTSVNonNumericValueFallsBackToZero() {
+        let tsv = "\(Self.tsvHeader)\n2025-01-01\tNaNsense\tabc\tBUY\n"
+        let parsed = parseTSV(tsv)
+
+        XCTAssertEqual(parsed.count, 1)
+        // `value` is non-optional → bad text becomes 0.
+        XCTAssertEqual(parsed[0].value, 0, accuracy: 0.01)
+        // `cash` is optional → `roundCurrency(Double("abc"))` = nil.
+        XCTAssertNil(parsed[0].cash)
+        XCTAssertEqual(parsed[0].action, .BUY)
+    }
+
+    /// Extra columns BEYOND the header are ignored — the parser only consumes columns
+    /// named by the header, so trailing junk doesn't corrupt parsed fields.
+    func testParseTSVIgnoresExtraColumnsBeyondHeader() {
+        let tsv = "\(Self.tsvHeader)\n2025-01-01\t1000\t250\tBUY\t100\t10\t150\t\t\t\t\t\t\t\tnote\t\t\t\t\t\t\t\tEXTRA1\tEXTRA2\n"
+        let parsed = parseTSV(tsv)
+
+        XCTAssertEqual(parsed.count, 1)
+        let e = parsed[0]
+        XCTAssertEqual(e.date, "2025-01-01")
+        XCTAssertEqual(e.value, 1000, accuracy: 0.01)
+        XCTAssertEqual(e.amount, 100)
+        XCTAssertEqual(e.shares, 10)
+        XCTAssertEqual(e.price!, 150, accuracy: 0.01)
+        XCTAssertEqual(e.notes, "note")
+        XCTAssertEqual(e.margin, nil, "The 22nd column (margin) was empty; extras ignored")
+    }
+
+    /// A file with only a header (no data rows) yields no entries — and crucially does
+    /// not trap on the `lines.count > 1` guard boundary.
+    func testParseTSVHeaderOnlyFileReturnsEmpty() {
+        let parsed = parseTSV("\(Self.tsvHeader)\n")
+        XCTAssertEqual(parsed.count, 0)
+    }
+
+    /// A truly empty string yields no entries (guard handles count <= 1).
+    func testParseTSVEmptyFileReturnsEmpty() {
+        XCTAssertEqual(parseTSV("").count, 0)
+        XCTAssertEqual(parseTSV("\n").count, 0)
+    }
+
     // MARK: - JSON Config Round-Trip
 
     func testFundConfigJSONRoundTrip() {
