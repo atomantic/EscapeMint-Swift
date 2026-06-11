@@ -242,7 +242,7 @@ struct BacktestChartsGrid: View {
 
         let apyEntries: [BacktestAPYEntry] = entries.map { e in
             let daysElapsed = daysBetween(firstDate, e.date)
-            let yearsElapsed = Double(daysElapsed) / 365.0
+            let yearsElapsed = Double(daysElapsed) / FundMath.daysPerYear
 
             let unrealized = e.equity - max(0, e.invested)
             let soldCostBasis = e.totalInvested - e.invested
