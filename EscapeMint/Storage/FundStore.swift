@@ -774,6 +774,8 @@ actor FundStore {
 
 // MARK: - TSV Parsing
 
+private let tsvLogger = Logger(subsystem: "net.shadowpuppet.EscapeMint", category: "TSVParsing")
+
 private let entryHeaders = ["date", "value", "cash", "action", "amount", "shares", "price", "dividend", "expense", "cash_interest", "fund_size", "margin_available", "margin_borrowed", "margin_expense", "notes", "contracts", "entry_price", "liquidation_price", "unrealized_pnl", "margin_locked", "fee", "margin"]
 
 func parseTSV(_ content: String) -> [FundEntry] {
@@ -782,9 +784,24 @@ func parseTSV(_ content: String) -> [FundEntry] {
     guard lines.count > 1 else { return [] }
 
     let headers = lines[0].split(separator: "\t").map(String.init)
-    return lines.dropFirst().compactMap { line in
-        parseEntry(String(line), headers: headers)
+    // Malformed rows (missing/empty date) return nil and are dropped here rather than
+    // flowing into APY/gain math as a zeroed FundEntry(date: "", value: 0).
+    return lines.dropFirst().enumerated().compactMap { index, line in
+        parseEntryRow(String(line), headers: headers, rowIndex: index + 1)
     }
+}
+
+/// Parse a TSV row, returning `nil` (and logging a warning with the 1-based data-row
+/// index) when the `date` column is empty or missing so `parseTSV`'s `compactMap`
+/// drops it. `parseEntry` itself stays non-optional for callers that parse a single
+/// known-good row.
+func parseEntryRow(_ line: String, headers: [String], rowIndex: Int) -> FundEntry? {
+    let entry = parseEntry(line, headers: headers)
+    guard !entry.date.isEmpty else {
+        tsvLogger.warning("dropping malformed TSV row \(rowIndex): missing/empty date column")
+        return nil
+    }
+    return entry
 }
 
 /// Rounds to `decimals` places to avoid IEEE 754 artifacts (e.g. 45.55000000000001).
