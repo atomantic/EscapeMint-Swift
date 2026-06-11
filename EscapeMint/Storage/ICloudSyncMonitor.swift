@@ -13,6 +13,10 @@ final class ICloudSyncMonitor {
     static let shared = ICloudSyncMonitor()
 
     private var query: NSMetadataQuery?
+    /// Idempotency guard: set true once observers are registered, reset in `stopMonitoring`.
+    /// Prevents a double `startMonitoring()` call from double-registering NotificationCenter
+    /// observers (which would fire each selector twice per change).
+    private var isMonitoring = false
     private var debounceTask: Task<Void, Never>?
     private var lastWriteDate = Date.distantPast
     private static let logger = Logger(subsystem: "net.shadowpuppet.EscapeMint", category: "ICloudSync")
@@ -33,7 +37,8 @@ final class ICloudSyncMonitor {
             Self.logger.info("☁️ not using iCloud, skipping sync monitor")
             return
         }
-        guard query == nil else { return }
+        guard !isMonitoring, query == nil else { return }
+        isMonitoring = true
 
         let metadataQuery = NSMetadataQuery()
         metadataQuery.searchScopes = [NSMetadataQueryUbiquitousDocumentsScope]
@@ -70,6 +75,7 @@ final class ICloudSyncMonitor {
         query = nil
         debounceTask?.cancel()
         NotificationCenter.default.removeObserver(self)
+        isMonitoring = false
     }
 
     /// Manual sync — force reload from disk (iCloud files)

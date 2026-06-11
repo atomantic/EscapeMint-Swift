@@ -18,7 +18,8 @@ actor FundStore {
     // bodies and nonisolated readers access them off-actor, so the underlying storage is
     // guarded by a lock rather than `nonisolated(unsafe)`. Computed-property accessors
     // keep the original call-site syntax unchanged.
-    private struct DirectoryState: Sendable {
+    // Internal (not private) so storage-fallback tests can assert the resolved branch.
+    struct DirectoryState: Sendable {
         var fundsDirectory: URL
         var isICloud: Bool
     }
@@ -46,76 +47,91 @@ actor FundStore {
         stateLock.withLock { $0! }.fundsDirectory
     }
 
+    /// Create a directory, logging a warning on failure instead of silently swallowing it.
+    /// Control flow is unchanged from the previous `try?` calls — this only makes the
+    /// failure observable (the caller still proceeds with the resolved directory).
+    private static func createDirectoryLoggingFailure(_ fm: FileManager, at url: URL) {
+        do {
+            try fm.createDirectory(at: url, withIntermediateDirectories: true)
+        } catch {
+            logger.warning("⚠️ failed to create directory \(url.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Resolve the funds directory and whether it lives in iCloud.
+    ///
+    /// Pure with respect to its inputs — it does file I/O via `fm` and reads the iCloud
+    /// container URL via `ubiquityURLProvider`, but takes no global state — so tests can
+    /// drive every branch (iCloud works / container present-but-inaccessible / URL nil /
+    /// iCloud skipped) by injecting a temp FileManager and a fake provider. The production
+    /// `init()` wires in the real `FileManager.url(forUbiquityContainerIdentifier:)`.
+    ///
+    /// Branch behavior (gotcha catalogue #4): a non-nil ubiquity URL is NOT proof the
+    /// container is usable, so we verify accessibility with `createDirectory` THEN
+    /// `contentsOfDirectory` in a do/catch and fall back to local Documents (never temp)
+    /// when that verification fails. Temp is only ever used as a last resort when even the
+    /// local Documents directory is unavailable.
+    static func resolveDirectoryState(
+        fm: FileManager,
+        skipICloud: Bool,
+        ubiquityURLProvider: () -> URL?
+    ) -> DirectoryState {
+        // Local fallback: prefer Documents/funds, drop to temp/funds only if Documents
+        // is unavailable. Shared by every non-iCloud branch.
+        func localFallback() -> URL {
+            if let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first {
+                let funds = docs.appendingPathComponent("funds")
+                createDirectoryLoggingFailure(fm, at: funds)
+                return funds
+            }
+            logger.warning("⚠️ documentDirectory unavailable, using temp directory")
+            let funds = fm.temporaryDirectory.appendingPathComponent("funds")
+            createDirectoryLoggingFailure(fm, at: funds)
+            return funds
+        }
+
+        guard !skipICloud else {
+            return DirectoryState(fundsDirectory: localFallback(), isICloud: false)
+        }
+
+        guard let iCloudURL = ubiquityURLProvider() else {
+            // iCloud URL returned nil — may be temporarily unavailable (e.g. after reboot).
+            // A deferred recovery retry runs once the UI is up.
+            logger.info("⚠️ iCloud unavailable at init, will retry during load")
+            return DirectoryState(fundsDirectory: localFallback(), isICloud: false)
+        }
+
+        let funds = iCloudURL.appendingPathComponent("Documents/funds")
+        var iCloudWorks = false
+        do {
+            try fm.createDirectory(at: funds, withIntermediateDirectories: true)
+            // Critical (gotcha #4): a non-nil ubiquity URL only means the entitlement is
+            // configured, not that the directory is usable. Verify by actually listing it.
+            _ = try fm.contentsOfDirectory(at: funds, includingPropertiesForKeys: nil)
+            iCloudWorks = true
+        } catch {
+            // iCloud container exists but isn't accessible (e.g. permission denied)
+            logger.warning("⚠️ iCloud container present but inaccessible: \(error.localizedDescription, privacy: .public)")
+        }
+        if iCloudWorks {
+            logger.info("☁️ using iCloud: \(funds.path, privacy: .public)")
+            return DirectoryState(fundsDirectory: funds, isICloud: true)
+        }
+        logger.warning("⚠️ iCloud container exists but inaccessible, using local")
+        return DirectoryState(fundsDirectory: localFallback(), isICloud: false)
+    }
+
     private init() {
         let fm = FileManager.default
-
-        // Try iCloud first, verify it's actually accessible, fall back to local
-        let resolvedDir: URL
-        let resolvedICloud: Bool
-
         // Simulator iCloud container directory creation can hang indefinitely.
         // Use local storage for normal simulator runs; pass -useICloudInSimulator
         // when intentionally testing iCloud behavior.
-        let skipICloud = Self.shouldUseLocalStorageOnly
-
-        if !skipICloud,
-           let iCloudURL = fm.url(forUbiquityContainerIdentifier: Self.iCloudContainerId) {
-            let funds = iCloudURL.appendingPathComponent("Documents/funds")
-            var iCloudWorks = false
-            do {
-                try fm.createDirectory(at: funds, withIntermediateDirectories: true)
-                _ = try fm.contentsOfDirectory(at: funds, includingPropertiesForKeys: nil)
-                iCloudWorks = true
-            } catch {
-                // iCloud container exists but isn't accessible (e.g. permission denied)
-            }
-            if iCloudWorks {
-                resolvedDir = funds
-                resolvedICloud = true
-                Self.logger.info("☁️ using iCloud: \(funds.path, privacy: .public)")
-            } else if let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first {
-                let local = docs.appendingPathComponent("funds")
-                try? fm.createDirectory(at: local, withIntermediateDirectories: true)
-                resolvedDir = local
-                resolvedICloud = false
-                Self.logger.warning("⚠️ iCloud container exists but inaccessible, using local")
-            } else {
-                Self.logger.warning("⚠️ documentDirectory unavailable, using temp directory")
-                let local = fm.temporaryDirectory.appendingPathComponent("funds")
-                try? fm.createDirectory(at: local, withIntermediateDirectories: true)
-                resolvedDir = local
-                resolvedICloud = false
-            }
-        } else if !skipICloud {
-            // iCloud URL returned nil — may be temporarily unavailable (e.g. after reboot)
-            Self.logger.info("⚠️ iCloud unavailable at init, will retry during load")
-            if let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first {
-                let funds = docs.appendingPathComponent("funds")
-                try? fm.createDirectory(at: funds, withIntermediateDirectories: true)
-                resolvedDir = funds
-                resolvedICloud = false
-            } else {
-                let funds = fm.temporaryDirectory.appendingPathComponent("funds")
-                try? fm.createDirectory(at: funds, withIntermediateDirectories: true)
-                resolvedDir = funds
-                resolvedICloud = false
-            }
-        } else {
-            if let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first {
-                let funds = docs.appendingPathComponent("funds")
-                try? fm.createDirectory(at: funds, withIntermediateDirectories: true)
-                resolvedDir = funds
-            } else {
-                let funds = fm.temporaryDirectory.appendingPathComponent("funds")
-                try? fm.createDirectory(at: funds, withIntermediateDirectories: true)
-                resolvedDir = funds
-            }
-            resolvedICloud = false
-        }
-
-        Self.stateLock.withLock { state in
-            state = DirectoryState(fundsDirectory: resolvedDir, isICloud: resolvedICloud)
-        }
+        let state = Self.resolveDirectoryState(
+            fm: fm,
+            skipICloud: Self.shouldUseLocalStorageOnly,
+            ubiquityURLProvider: { fm.url(forUbiquityContainerIdentifier: Self.iCloudContainerId) }
+        )
+        Self.stateLock.withLock { $0 = state }
     }
 
     /// Retry iCloud resolution if it wasn't available at init (e.g. after system reboot).
@@ -166,7 +182,15 @@ actor FundStore {
         return false
     }
 
-    /// Migrate local funds to iCloud if iCloud became available
+    /// Migrate local funds to iCloud if iCloud became available.
+    ///
+    /// Performs synchronous file I/O (copyItem per fund) on the actor's executor, which
+    /// blocks the actor for the duration. Left synchronous deliberately: it runs once,
+    /// off the main thread (callers `await` it from a detached load path), only copies
+    /// files that don't already exist in iCloud, and a one-time migration that takes a
+    /// few hundred ms for large portfolios is acceptable versus the added complexity /
+    /// changed semantics of chunking it across suspension points. Revisit only if a
+    /// portfolio large enough to noticeably stall the actor appears.
     func migrateToICloudIfNeeded() {
         guard isICloud else { return }
         let fm = fileManager
@@ -285,6 +309,21 @@ actor FundStore {
         defer { handle.closeFile() }
         handle.seekToEndOfFile()
         handle.write(lineData)
+
+        // Atomicity trade-off: this is an in-place FileHandle append, not an atomic
+        // rewrite. A crash mid-write could leave a truncated final line. We accept that
+        // because a full atomic rewrite (read all + serialize + atomic replace) per
+        // single-entry append is too costly for hot paths. The risk is bounded: a
+        // truncated final row loses its trailing columns (the leading `date` column is
+        // written first), and `parseEntryRow` defensively drops any row whose `date`
+        // column is empty — so a partial line cannot poison APY/gain math as a zeroed
+        // entry. Worst case is the silent loss of the single in-flight append.
+        #if os(iOS)
+        // Re-apply complete file protection like the sibling atomic write paths
+        // (writeFund/replaceEntries). An in-place append does not create a new file,
+        // but re-applying keeps the attribute consistent across all TSV write paths.
+        try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: tsvURL.path)
+        #endif
     }
 
     func replaceEntries(fundId: String, entries: [FundEntry]) throws {
