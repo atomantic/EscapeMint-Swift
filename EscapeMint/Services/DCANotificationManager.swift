@@ -136,9 +136,9 @@ final class DCANotificationManager {
             do {
                 try await UNUserNotificationCenter.current().add(request)
                 identifiers.append(identifier)
-                Self.logger.info("Scheduled DCA notification for \(fund.ticker) on \(fireDate)")
+                Self.logger.info("Scheduled DCA notification for \(fund.ticker, privacy: .private) on \(fireDate, privacy: .private)")
             } catch {
-                Self.logger.error("Failed to schedule notification for \(fund.ticker): \(error.localizedDescription)")
+                Self.logger.error("Failed to schedule notification for \(fund.ticker, privacy: .private): \(error.localizedDescription)")
             }
         }
 
