@@ -5,6 +5,13 @@ import os
 
 private let dashboardLogger = Logger(subsystem: "net.shadowpuppet.EscapeMint", category: "Dashboard")
 
+private struct MetricsGridWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 900
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 struct DashboardView: View {
     private var store: FundDataStore { .shared }
     private var cache: ViewCache { .shared }
@@ -23,6 +30,7 @@ struct DashboardView: View {
     @State private var closedSummariesByPlatform: [String: [FundSummary]] = [:]
     @State private var filteredPortfolio = PortfolioMetrics()
     @State private var cashFundCount: Int = 0
+    @State private var metricsGridWidth: CGFloat = 900
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var sizeClass
     #endif
@@ -334,15 +342,31 @@ struct DashboardView: View {
 
             Spacer()
 
+            ViewThatFits(in: .horizontal) {
+                headerControls(compact: false)
+                headerControls(compact: true)
+            }
+            .sheet(isPresented: $showCreateFund) {
+                CreateFundView {}
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func headerControls(compact: Bool) -> some View {
+        HStack {
             if !store.funds.isEmpty {
                 // Charts toggle
                 Toggle(isOn: $showCharts) {
-                    Text("Charts")
-                        .font(.callout).foregroundColor(.textSecondary)
+                    if !compact {
+                        Text("Charts")
+                            .font(.callout).foregroundColor(.textSecondary)
+                    }
                 }
                 .toggleStyle(.switch)
                 .tint(.mint)
-                .frame(width: 110)
+                .frame(width: compact ? nil : 110)
+                .help("Show charts")
             }
 
             // Platform filter
@@ -353,19 +377,23 @@ struct DashboardView: View {
                         Text(p.capitalized).tag(p as String?)
                     }
                 }
-                .frame(minWidth: 150)
+                .labelsHidden()
+                .frame(minWidth: compact ? nil : 150)
             }
 
             // Add Fund
             Button { showCreateFund = true } label: {
-                Label("Add Fund", systemImage: "plus.circle.fill")
-                    .font(.callout).fontWeight(.medium)
+                if compact {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.callout)
+                } else {
+                    Label("Add Fund", systemImage: "plus.circle.fill")
+                        .font(.callout).fontWeight(.medium)
+                }
             }
             .buttonStyle(.borderedProminent)
             .tint(.mint)
-            .sheet(isPresented: $showCreateFund) {
-                CreateFundView {}
-            }
+            .help("Add Fund")
         }
     }
 
@@ -379,7 +407,21 @@ struct DashboardView: View {
         let unrealizedPct = p.totalStartInput > 0 ? p.totalUnrealizedGains / p.totalStartInput : 0
         let liquidPct = p.totalStartInput > 0 ? p.totalGainUsd / p.totalStartInput : 0
         let hasCash = p.cashBalance > 0.01
-        let colCount = hasCash ? 9 : 8
+        let fullColCount = hasCash ? 9 : 8
+        // Narrow detail panes (e.g. Stage Manager) squeeze ~62pt cards that truncate
+        // every value; step the column count down so cards stay legible.
+        let colCount = metricsGridWidth >= 900 ? fullColCount : (metricsGridWidth >= 600 ? 4 : 2)
+        metricsGridContent(p: p, fundCount: fundCount, avgDays: avgDays, unrealizedPct: unrealizedPct, liquidPct: liquidPct, hasCash: hasCash, colCount: colCount)
+            .background(
+                GeometryReader { geo in
+                    Color.clear.preference(key: MetricsGridWidthKey.self, value: geo.size.width)
+                }
+            )
+            .onPreferenceChange(MetricsGridWidthKey.self) { metricsGridWidth = $0 }
+    }
+
+    @ViewBuilder
+    private func metricsGridContent(p: PortfolioMetrics, fundCount: Int, avgDays: Int, unrealizedPct: Double, liquidPct: Double, hasCash: Bool, colCount: Int) -> some View {
         LazyVGrid(columns: Array(repeating: .init(.flexible(), spacing: 10), count: colCount), spacing: 10) {
             MetricCard(label: "Total Fund Size", value: formatCurrency(p.totalFundSize), sub: "\(fundCount) funds", tooltip: "Total capital allocated across all funds")
             MetricCard(label: "Current Value", value: formatCurrency(p.totalValue), sub: "\(p.activeFunds) active", tooltip: "Current market value of all positions")
@@ -408,8 +450,8 @@ struct DashboardView: View {
             }
         }
 
-        // Time series charts — 3-column grid for density
-        LazyVGrid(columns: [.init(.flexible()), .init(.flexible()), .init(.flexible())], spacing: 8) {
+        // Time series charts — adaptive grid so columns reflow on narrow detail panes
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 8)], spacing: 8) {
             DashboardAPYChart(points: cache.dashboardTimeSeries)
             DashboardGainChart(points: cache.dashboardTimeSeries)
             DashboardFundSizeChart(points: cache.dashboardTimeSeries)
@@ -598,15 +640,19 @@ struct DashboardView: View {
                             Text(formatCurrency(s.metrics.realizedGains))
                                 .foregroundColor(s.metrics.realizedGains > 0 ? .mint : .red)
                                 .frame(maxWidth: .infinity, alignment: .trailing)
+                                .accessibilityLabel("Realized \(gainLossWord(s.metrics.realizedGains)) \(formatCurrency(s.metrics.realizedGains))")
                             Text(formatPercent(s.realizedAPY))
                                 .foregroundColor(s.realizedAPY > 0 ? .mint : .red)
                                 .frame(maxWidth: .infinity, alignment: .trailing)
+                                .accessibilityLabel("Realized APY \(gainLossWord(s.realizedAPY)) \(formatPercent(s.realizedAPY))")
                             Text(formatCurrency(s.liquidGain))
                                 .foregroundColor(s.liquidGain >= 0 ? .mint : .red)
                                 .frame(maxWidth: .infinity, alignment: .trailing)
+                                .accessibilityLabel("Liquid \(gainLossWord(s.liquidGain)) \(formatCurrency(s.liquidGain))")
                             Text(formatPercent(s.liquidAPY))
                                 .foregroundColor(s.liquidAPY > 0 ? .mint : .red)
                                 .frame(maxWidth: .infinity, alignment: .trailing)
+                                .accessibilityLabel("Liquid APY \(gainLossWord(s.liquidAPY)) \(formatPercent(s.liquidAPY))")
                             Text("\(s.fund.entries.count)")
                                 .foregroundColor(.textMuted)
                                 .frame(maxWidth: .infinity, alignment: .trailing)
@@ -625,6 +671,11 @@ struct DashboardView: View {
             }
             .cornerRadius(8)
         }
+    }
+
+    // Conveys the color-coded gain/loss state to VoiceOver, which can't perceive the tint.
+    private func gainLossWord(_ value: Double) -> String {
+        value >= 0 ? "gain" : "loss"
     }
 
     private var tableColumns: [(label: String, alignment: Alignment)] {
