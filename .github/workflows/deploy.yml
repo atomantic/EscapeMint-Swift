@@ -51,4 +51,7 @@ jobs:
           EOF
 
       - name: Deploy to TestFlight
+        # --skip-tests is a deliberate trade-off: the CI workflow (ci.yml) now
+        # runs the iOS and macOS test suites on every push/PR, so tests have
+        # already passed on this commit before a release tag is cut.
         run: ./deploy.sh --skip-tests --no-bump
