@@ -20,6 +20,7 @@ import SwiftUI
 /// Settings toggle `AppStorageKeys.advancedEntryMode`.
 struct GuidedAddEntryView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let fundId: String
     var onSaved: () -> Void
 
@@ -201,7 +202,7 @@ struct GuidedAddEntryView: View {
         HStack {
             if step > 1 {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.18)) { step -= 1 }
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) { step -= 1 }
                 } label: {
                     Label("Back", systemImage: "chevron.left")
                         .labelStyle(.titleAndIcon)
@@ -334,7 +335,7 @@ struct GuidedAddEntryView: View {
             equityAfterOverride = String(format: "%.\(dd)f", max(0, after))
             didSeedStep3 = true
         }
-        withAnimation(.easeInOut(duration: 0.18)) { step += 1 }
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) { step += 1 }
     }
 
     private func save() {
@@ -453,18 +454,18 @@ private struct GuidedStepIndicator: View {
 
 // MARK: - Reusable onboarding-style question view
 
-private struct GuidedQuestion<Footer: View>: View {
+private struct GuidedQuestion<Input: View, Footer: View>: View {
     let eyebrow: String
     let question: String
     let subtitle: String?
-    @ViewBuilder var input: () -> AnyView
+    @ViewBuilder var input: () -> Input
     @ViewBuilder var footer: () -> Footer
 
     init(
         eyebrow: String,
         question: String,
         subtitle: String? = nil,
-        @ViewBuilder input: @escaping () -> AnyView,
+        @ViewBuilder input: @escaping () -> Input,
         @ViewBuilder footer: @escaping () -> Footer = { EmptyView() }
     ) {
         self.eyebrow = eyebrow
@@ -521,14 +522,18 @@ private struct BigDollarInput: View {
     var suffix: String? = nil
     var placeholder: String = "0.00"
     @FocusState private var focused: Bool
+    // Scale the hero point sizes with Dynamic Type (anchored to the largeTitle style)
+    // so the primary input grows at accessibility text sizes like the rest of the UI.
+    @ScaledMetric(relativeTo: .largeTitle) private var prefixSize: CGFloat = 34
+    @ScaledMetric(relativeTo: .largeTitle) private var fieldSize: CGFloat = 40
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(prefix)
-                .font(.system(size: 34, weight: .regular, design: .rounded))
+                .font(.system(size: prefixSize, weight: .regular, design: .rounded))
                 .foregroundColor(.textMuted)
             TextField("", text: $text, prompt: Text(placeholder).foregroundColor(.textMuted.opacity(0.4)))
-                .font(.system(size: 40, weight: .semibold, design: .rounded))
+                .font(.system(size: fieldSize, weight: .semibold, design: .rounded))
                 .foregroundColor(.textPrimary)
                 .multilineTextAlignment(.leading)
                 .formulaKeyboard()
@@ -580,6 +585,7 @@ private struct GuidedStep1: View {
             case .shares_price: sharesPriceBody
             }
         }
+        .scrollDismissesKeyboard(.interactively)
         .background(Color.bg.ignoresSafeArea())
     }
 
@@ -592,7 +598,7 @@ private struct GuidedStep1: View {
                 : "What's your current equity?",
             subtitle: "Enter the total value of this fund as shown on your trading platform right now.",
             input: {
-                AnyView(BigDollarInput(text: $enteredEquity))
+                BigDollarInput(text: $enteredEquity)
             },
             footer: {
                 VStack(spacing: 16) {
@@ -614,13 +620,11 @@ private struct GuidedStep1: View {
             question: "If you bought \(formatCurrency(preliminaryDcaAmount, decimals: dd)) of \(fund.ticker.uppercased()) today, how many shares would that be?",
             subtitle: "We'll use that to figure out today's price and your current equity — no need to look it up.",
             input: {
-                AnyView(
-                    BigDollarInput(
-                        text: $sharesForDca,
-                        prefix: "",
-                        suffix: "shares",
-                        placeholder: "0"
-                    )
+                BigDollarInput(
+                    text: $sharesForDca,
+                    prefix: "",
+                    suffix: "shares",
+                    placeholder: "0"
                 )
             },
             footer: {
@@ -677,6 +681,10 @@ private struct GuidedStep2: View {
     @Binding var actualShares: String
     let capturesShares: Bool
     @Binding var exitedPosition: Bool
+
+    // Scale the recommendation headline with Dynamic Type (anchored to .title).
+    @ScaledMetric(relativeTo: .title) private var recAmountSize: CGFloat = 28
+    @ScaledMetric(relativeTo: .title2) private var recManualSize: CGFloat = 24
 
     private var dd: Int { fund.config.dollarDec }
 
@@ -743,6 +751,7 @@ private struct GuidedStep2: View {
                 Spacer(minLength: 8)
             }
         }
+        .scrollDismissesKeyboard(.interactively)
         .background(Color.bg.ignoresSafeArea())
     }
 
@@ -779,7 +788,7 @@ private struct GuidedStep2: View {
                     Text(rec.action == .HOLD
                          ? "HOLD"
                          : "\(rec.action.rawValue) \(formatCurrency(rec.amount, decimals: dd))")
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .font(.system(size: recAmountSize, weight: .bold, design: .rounded))
                         .foregroundColor(Color.forAction(rec.action))
                     Text(rec.reasoning)
                         .font(.caption)
@@ -787,7 +796,7 @@ private struct GuidedStep2: View {
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
                     Text("Manual entry")
-                        .font(.system(size: 24, weight: .semibold, design: .rounded))
+                        .font(.system(size: recManualSize, weight: .semibold, design: .rounded))
                         .foregroundColor(.textSecondary)
                     Text("This fund doesn't compute DCA recommendations — record what happened below.")
                         .font(.caption).foregroundColor(.textMuted)
@@ -914,6 +923,7 @@ private struct GuidedStep3: View {
                 Spacer(minLength: 8)
             }
         }
+        .scrollDismissesKeyboard(.interactively)
         .background(Color.bg.ignoresSafeArea())
     }
 
