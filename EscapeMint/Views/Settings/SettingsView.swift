@@ -149,6 +149,9 @@ struct SettingsView: View {
                 .padding()
             }
         }
+        // Guard against the window shrinking below the single-column breakpoint,
+        // where the grouped forms clip horizontally.
+        .frame(minWidth: 540)
         #else
         VStack(spacing: 0) {
             Picker("Settings Tab", selection: Binding(
@@ -505,7 +508,7 @@ private struct LoadingPreviewSheet: View {
                 dismiss()
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 24, weight: .semibold))
+                    .font(.title2.weight(.semibold))
                     .foregroundStyle(Color.textSecondary, Color.bgCard)
                     .padding(12)
                     .contentShape(Rectangle())

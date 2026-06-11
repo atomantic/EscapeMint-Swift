@@ -304,8 +304,18 @@ struct NewFundCommand: View {
     var body: some View {
         Button("New Fund") {
             ensureMainWindow()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                NotificationCenter.default.post(name: .showCreateFund, object: nil)
+            // Wait for the main window (and its notification observer) to exist
+            // before posting, instead of guessing with a fixed delay. Poll on the
+            // main actor with a short cap so the command still fires even if the
+            // window never reports ready.
+            Task { @MainActor in
+                for _ in 0..<30 { // up to ~1.5s (30 * 50ms)
+                    if NSApp.windows.contains(where: { $0.canBecomeMain && $0.isVisible }) {
+                        break
+                    }
+                    try? await Task.sleep(for: .milliseconds(50))
+                }
+                NotificationCenter.default.postShowCreateFund()
             }
         }
         .keyboardShortcut("n", modifiers: .command)

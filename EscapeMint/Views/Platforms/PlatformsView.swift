@@ -147,7 +147,7 @@ struct PlatformsView: View {
         } else {
             #if os(macOS)
             Button {
-                NotificationCenter.default.post(name: .selectPlatform, object: info.name)
+                NotificationCenter.default.postSelectPlatform(name: info.name)
             } label: {
                 platformCardContent(info)
             }
@@ -200,6 +200,10 @@ struct PlatformsView: View {
             LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 8) {
                 StatBox(label: "Fund Size", value: formatCurrency(info.totalFundSize), showCard: false)
                 StatBox(label: "Value", value: formatCurrency(info.totalValue), color: .mint, showCard: false)
+                StatBox(label: "Realized", value: formatCurrency(info.totalRealized),
+                        color: info.totalRealized >= 0 ? .mint : .red, showCard: false)
+                StatBox(label: "Unrealized", value: formatCurrency(info.totalUnrealized),
+                        color: info.totalUnrealized >= 0 ? .mint : .red, showCard: false)
             }
             #endif
         }
