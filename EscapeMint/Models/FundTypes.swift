@@ -114,6 +114,10 @@ extension FundConfig {
     /// Effective dollar decimal places (defaults to 2)
     var dollarDec: Int { dollar_decimals ?? 2 }
 
+    /// Whether this fund manages its own cash pool (defaults to true).
+    /// When false, cash lives in the platform's shared cash fund.
+    var managesOwnCash: Bool { manage_cash != false }
+
     /// Effective equity-input method for the guided entry wizard.
     /// Defaults to `.direct` for all fund types — the common case is a user who can
     /// see the fund's current dollar value on their trading platform. `.shares_price`
@@ -483,6 +487,9 @@ struct FundMetrics {
     let totalDividends: Double
     let totalExpenses: Double
     let totalCashInterest: Double
+    /// In-fund cash held by this fund (latest entry cash, or fund_size − net invested).
+    /// Always 0 for manage_cash=false funds — their cash lives in the platform cash fund.
+    var cash: Double = 0
     var fundShares: Double = 0
     var fundSharesPct: Double = 0
 }

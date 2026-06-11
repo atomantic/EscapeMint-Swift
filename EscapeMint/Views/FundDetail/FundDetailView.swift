@@ -252,7 +252,9 @@ struct FundDetailView: View {
                     }
                     Spacer()
                     if state.cashAvailableUsd > 0 {
-                        Text("Cash: \(formatCurrency(state.cashAvailableUsd, decimals: config.dollarDec))")
+                        // For manage_cash=false funds this balance comes from the platform
+                        // cash fund, not the fund itself — label it accordingly.
+                        Text("\(config.managesOwnCash ? "Cash" : "Platform cash"): \(formatCurrency(state.cashAvailableUsd, decimals: config.dollarDec))")
                     }
                     if config.margin_enabled == true,
                        let marginAvail = fund.entries.last?.margin_available, marginAvail > 0 {

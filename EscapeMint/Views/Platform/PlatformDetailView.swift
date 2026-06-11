@@ -109,8 +109,9 @@ struct PlatformDetailView: View {
 
     @ViewBuilder
     private var breakdownPanel: some View {
-        // Match web app: cash only from active funds; dividends/expenses/interest from all
-        let totalCash = activeSummaries.reduce(0.0) { $0 + $1.state.cashAvailableUsd }
+        // Cash only from active funds; dividends/expenses/interest from all.
+        // In-fund cash (see FundMetrics.cash) so shared platform cash is counted once.
+        let totalCash = activeSummaries.reduce(0.0) { $0 + $1.metrics.cash }
         let totalDividends = platformSummaries.reduce(0.0) { $0 + $1.metrics.totalDividends }
         let totalExpenses = platformSummaries.reduce(0.0) { $0 + $1.metrics.totalExpenses }
         let totalInterest = platformSummaries.reduce(0.0) { $0 + $1.metrics.totalCashInterest }

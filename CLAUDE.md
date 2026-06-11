@@ -6,7 +6,7 @@ Native SwiftUI port of the EscapeMint web app (`../EscapeMint/`). Portfolio mana
 
 ## Context
 
-This app is a feature-parity port of the web app. The web app is the reference implementation — run `npm run dev` in `../EscapeMint/` and compare at `http://localhost:5551/`.
+This app started as a feature-parity port of the web app (`../EscapeMint/`), but **the Swift app is now the primary implementation** — the web app is somewhat out of date. The web app remains useful as a behavioral reference for ported engine logic (run `npm run dev` in `../EscapeMint/` and compare at `http://localhost:5551/`), but when its behavior conflicts with what makes sense here, prefer the better design rather than strict parity.
 
 ### What We Port
 

@@ -223,6 +223,9 @@ struct ActiveFundStateCard: View {
 
     var body: some View {
         let d = dollarDecimals
+        // In-fund cash only. For manage_cash=false funds the fund holds no cash —
+        // platform cash is shown in the header chip, not here.
+        let manageCash = summary.fund.config.managesOwnCash
         StateCardContainer {
             Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 8) {
                 GridRow {
@@ -231,7 +234,9 @@ struct ActiveFundStateCard: View {
                 }
                 GridRow {
                     StatBox(label: "Unrealized", value: "\(summary.unrealizedGains >= 0 ? "+" : "")\(formatCurrencyFull(summary.unrealizedGains, decimals: d))", color: summary.unrealizedGains >= 0 ? .mint : .red, showCard: false)
-                    StatBox(label: "Cash", value: formatCurrencyFull(state.cashAvailableUsd, decimals: d), showCard: false)
+                    if manageCash {
+                        StatBox(label: "Cash", value: formatCurrencyFull(summary.metrics.cash, decimals: d), showCard: false)
+                    }
                 }
                 GridRow {
                     StatBox(label: "Realized", value: formatCurrencyFull(state.realizedGainsUsd, decimals: d), color: state.realizedGainsUsd > 0 ? .mint : .textPrimary, showCard: false)

@@ -34,7 +34,8 @@ struct PlatformsView: View {
                 totalFundSize: active.reduce(0) { $0 + $1.metrics.fundSize },
                 totalRealized: summaries.reduce(0) { $0 + $1.effectiveRealized },
                 totalUnrealized: summaries.reduce(0) { $0 + $1.unrealizedGains },
-                cashBalance: active.reduce(0) { $0 + $1.state.cashAvailableUsd }
+                // In-fund cash (see FundMetrics.cash) so shared platform cash is counted once
+                cashBalance: active.reduce(0) { $0 + $1.metrics.cash }
             )
         }.sorted { $0.totalValue > $1.totalValue }
     }

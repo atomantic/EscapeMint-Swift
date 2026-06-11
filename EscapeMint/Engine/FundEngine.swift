@@ -588,6 +588,7 @@ private func computeDerivativesFundMetrics(_ fund: FundData, asOfDate: String) -
     }
 
     let isClosed = config.status == .closed
+    let freeCollateral = effectiveMarginBalance - costBasis
     let fundSize = isClosed ? 0 : effectiveMarginBalance
     let currentValue = isClosed ? 0 : equity
     let projAnnual = computeProjectedAnnualReturn(currentValue, realizedAPY)
@@ -606,11 +607,12 @@ private func computeDerivativesFundMetrics(_ fund: FundData, asOfDate: String) -
         realizedAPY: realizedAPY, liquidAPY: liquidAPY,
         projectedAnnualReturn: projAnnual,
         gainUsd: unrealized, gainPct: costBasis > 0 ? unrealized / costBasis : 0,
-        totalDividends: 0, totalExpenses: cumFees, totalCashInterest: cumInterest
+        totalDividends: 0, totalExpenses: cumFees, totalCashInterest: cumInterest,
+        cash: isClosed ? 0 : freeCollateral
     )
 
     let state = FundState(
-        cashAvailableUsd: effectiveMarginBalance - costBasis,
+        cashAvailableUsd: freeCollateral,
         expectedTargetUsd: equity,
         actualValueUsd: equity,
         startInputUsd: costBasis,
@@ -890,6 +892,7 @@ func computeFundMetricsForFund(_ fund: FundData, asOfDate: String) -> (metrics: 
         totalDividends: sumDividends,
         totalExpenses: sumExpenses,
         totalCashInterest: sumCashInterest,
+        cash: cash,
         fundShares: 0,
         fundSharesPct: 0
     )
