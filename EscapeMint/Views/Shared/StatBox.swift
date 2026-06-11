@@ -8,6 +8,18 @@ struct StatBox: View {
     var color: Color = .textPrimary
     var showCard: Bool = true
 
+    /// VoiceOver announces gain/loss direction so it isn't conveyed by color alone.
+    /// When the value is colored .mint (gain) or .red (loss), append a spoken
+    /// direction derived from the leading "-" in the value string. Callers that
+    /// want explicit wording can pass an override.
+    var accessibilityDirection: String? = nil
+
+    private var directionSuffix: String {
+        if let accessibilityDirection { return ", \(accessibilityDirection)" }
+        guard color == .mint || color == .red else { return "" }
+        return value.trimmingCharacters(in: .whitespaces).hasPrefix("-") ? ", loss" : ", gain"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label).font(.caption2).foregroundColor(.textMuted)
@@ -17,5 +29,8 @@ struct StatBox: View {
         .padding(showCard ? 10 : 0)
         .background(showCard ? Color.bgCard : .clear)
         .cornerRadius(showCard ? 8 : 0)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue("\(value)\(directionSuffix)")
     }
 }
