@@ -728,6 +728,20 @@ actor FundStore {
         return backupURL
     }
 
+    /// Export a backup JSON and move it into the user's Documents directory, returning
+    /// the destination URL. Encapsulates the documentDirectory resolution + move that
+    /// the Settings view used to perform with direct FileManager calls.
+    func exportToDocuments() throws -> URL {
+        let backupURL = try exportToBackupJSON()
+        guard let docs = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            throw NSError(domain: "FundStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not access Documents directory"])
+        }
+        let dest = docs.appendingPathComponent(backupURL.lastPathComponent)
+        try? fileManager.removeItem(at: dest)
+        try fileManager.moveItem(at: backupURL, to: dest)
+        return dest
+    }
+
     /// Create a timestamped backup of a single fund before a destructive operation.
     /// Returns the backup directory URL for the toast message.
     func backupFund(id: String) throws -> URL {

@@ -469,14 +469,7 @@ struct SettingsView: View {
             let stats = await FundStore.shared.dataStats()
             if stats.fundCount > 0 {
                 do {
-                    let backupURL = try await FundStore.shared.exportToBackupJSON()
-                    guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-                        showToast("Could not access Documents directory")
-                        return
-                    }
-                    let dest = docs.appendingPathComponent(backupURL.lastPathComponent)
-                    try? FileManager.default.removeItem(at: dest)
-                    try FileManager.default.moveItem(at: backupURL, to: dest)
+                    _ = try await FundStore.shared.exportToDocuments()
                     try await FundStore.shared.deleteAllFunds()
                     await refreshStats()
                     await FundDataStore.shared.reload()
