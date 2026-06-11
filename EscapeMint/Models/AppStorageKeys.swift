@@ -10,4 +10,9 @@ enum AppStorageKeys {
     static let sidebarCollapsed = "escapemint-sidebar-collapsed"
     static let dashboardCollapsed = "escapemint-dashboard-collapsed"
     static let advancedEntryMode = "escapemint-advanced-entry-mode"
+
+    /// Per-fund toggle for showing the optional fields section in Add Entry.
+    static func addEntryShowOptional(fundId: String) -> String {
+        "addEntry_showOptional_\(fundId)"
+    }
 }

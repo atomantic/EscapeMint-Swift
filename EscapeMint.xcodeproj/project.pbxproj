@@ -136,6 +136,7 @@
 		BCBDF87F48F3742996392369 /* spxl-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = A1CDA29D3BC058B300AC82EA /* spxl-weekly.json */; };
 		BE54A8C9C11054F4DE6F27D5 /* AdvancedTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE306CC057A54F1DBFC1B1CA /* AdvancedTools.swift */; };
 		BF86A28C297812E6CC78D1C6 /* robinhoodtest-tqqq.tsv in Resources */ = {isa = PBXBuildFile; fileRef = 2259AF8CF6454043EE230821 /* robinhoodtest-tqqq.tsv */; };
+		C36A1E39CA3F5E7BD8F1F087 /* EntryHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 762CA3A59DB3B401014402C2 /* EntryHelpers.swift */; };
 		C5EA5640DF0B733C575E0FE0 /* AdvancedTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE306CC057A54F1DBFC1B1CA /* AdvancedTools.swift */; };
 		CAB653772F235CDAA552A708 /* EscapeMintWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23E3D71E800AE946CD1BCB3C /* EscapeMintWidget.swift */; };
 		CBF230C3FE1A6EB5F2D9E4CF /* FundTypeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84E4D35AF8187D701960FA42 /* FundTypeConfig.swift */; };
@@ -153,6 +154,7 @@
 		DBD3CC62B6F1522CA01C89ED /* IntroCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4948BA46E25035E9E656E36 /* IntroCharts.swift */; };
 		DBF3B221C34D9633C2A18EDF /* BacktestEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E725D16A17E4F0835D06D981 /* BacktestEngine.swift */; };
 		E0001C2ADB941F78F9699EBD /* SpotlightIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4BBCB99D2DC606FB7140405 /* SpotlightIndexer.swift */; };
+		E411C6417CF80B12FEC071DF /* EntryHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 762CA3A59DB3B401014402C2 /* EntryHelpers.swift */; };
 		E4E0DD9225F3EB3FF014E108 /* tqqq-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = AA7B587266915BE35EF3BDDF /* tqqq-weekly.json */; };
 		E52B732DFC6F5AB39688B125 /* EscapeMintLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 015479839B54BBA737A6903D /* EscapeMintLoadingView.swift */; };
 		E6C3021DF3A8B16A7C437147 /* robinhoodtest-spxl.tsv in Resources */ = {isa = PBXBuildFile; fileRef = 21D4714188FFBF94FFC7D146 /* robinhoodtest-spxl.tsv */; };
@@ -256,6 +258,7 @@
 		72B24FDF289E498E5460BB1F /* vti-weekly.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "vti-weekly.json"; sourceTree = "<group>"; };
 		72E8011701E83725108665A2 /* AuditTrailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuditTrailView.swift; sourceTree = "<group>"; };
 		73E706FC8B143B51FB8C2E3C /* coinbasetest-btc.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "coinbasetest-btc.json"; sourceTree = "<group>"; };
+		762CA3A59DB3B401014402C2 /* EntryHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryHelpers.swift; sourceTree = "<group>"; };
 		78146FC52E9061B1A1504136 /* EntryFormHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryFormHelpers.swift; sourceTree = "<group>"; };
 		78DC2F09A67B37D9062AFAC8 /* FundCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundCharts.swift; sourceTree = "<group>"; };
 		7A691160995BF44A1DFE5634 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -579,6 +582,7 @@
 				E725D16A17E4F0835D06D981 /* BacktestEngine.swift */,
 				6AE4FB89CA6A1686B8844967 /* ChartSeries.swift */,
 				15B673A9482FD463F5027CA9 /* Converters.swift */,
+				762CA3A59DB3B401014402C2 /* EntryHelpers.swift */,
 				D8A67F19978F79577997C81D /* FormulaParser.swift */,
 				ADF82E9F62C6337CA018D70F /* FundEngine.swift */,
 				E1AB06925B2363B15915944E /* PortfolioTimeSeries.swift */,
@@ -811,6 +815,7 @@
 				3FF9F76DC70C4D2D2AAA77E2 /* EditEntryView.swift in Sources */,
 				952FF89A615E2D3D7D2B804A /* EditFundView.swift in Sources */,
 				16EA12C051E1C27B3CEF8647 /* EntryFormHelpers.swift in Sources */,
+				E411C6417CF80B12FEC071DF /* EntryHelpers.swift in Sources */,
 				42536F85618CDA7693CC33F2 /* EscapeMintApp.swift in Sources */,
 				E52B732DFC6F5AB39688B125 /* EscapeMintLoadingView.swift in Sources */,
 				742EB8FE398D7704E9A21F98 /* FilePickerHelper.swift in Sources */,
@@ -882,6 +887,7 @@
 				B2458A2217463775A1EE26B3 /* EditEntryView.swift in Sources */,
 				4410F30862490B374CCE6632 /* EditFundView.swift in Sources */,
 				8E2AC520DB68235E8E35DE60 /* EntryFormHelpers.swift in Sources */,
+				C36A1E39CA3F5E7BD8F1F087 /* EntryHelpers.swift in Sources */,
 				CFF07BF43EECAB7A8E1A4ECB /* EscapeMintApp.swift in Sources */,
 				7202A09CF06020B67B8D4E86 /* EscapeMintLoadingView.swift in Sources */,
 				616D4F04771A242D1C8336EA /* FilePickerHelper.swift in Sources */,
