@@ -27,7 +27,8 @@ struct EscapeMintLoadingView: View {
 
                 VStack(spacing: 16) {
                     MarketLoadingGraphic(time: time)
-                        .frame(width: 420, height: 170)
+                        .aspectRatio(420.0 / 170.0, contentMode: .fit)
+                        .frame(maxWidth: 420, maxHeight: 170)
                         .accessibilityHidden(true)
                     LoadingStatusPanel(
                         message: message,

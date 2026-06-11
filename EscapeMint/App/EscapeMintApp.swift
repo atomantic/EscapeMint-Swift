@@ -45,8 +45,8 @@ struct EscapeMintApp: App {
 
         // Handle -loadTestData synchronously before any views load
         if CommandLine.arguments.contains("-loadTestData") {
-            UserDefaults.standard.set(true, forKey: "escapemint-intro-completed")
-            UserDefaults.standard.set(false, forKey: "escapemint-show-intro-on-launch")
+            UserDefaults.standard.set(true, forKey: AppStorageKeys.introCompleted)
+            UserDefaults.standard.set(false, forKey: AppStorageKeys.showIntroOnLaunch)
             let fm = FileManager.default
             let dir = FundStore.shared.fundsDirectory
             // Delete all existing funds
@@ -338,7 +338,9 @@ struct ShowMainWindowCommand: View {
 #if os(macOS)
 struct MacContentView: View {
     private var store: FundDataStore { .shared }
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedNav: NavItem? = .dashboard
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var pendingAddEntryFundId: String?
 
     enum NavItem: Hashable {
@@ -395,7 +397,7 @@ struct MacContentView: View {
 
     private func toggleSidebarPlatform(_ platform: String, closed: Bool) {
         let key = sidebarPlatformKey(platform, closed: closed)
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
             if collapsedPlatforms.contains(key) {
                 collapsedPlatforms.remove(key)
             } else {
@@ -421,7 +423,7 @@ struct MacContentView: View {
     }
 
     var body: some View {
-        NavigationSplitView(columnVisibility: .constant(.all)) {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebar
                 .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 300)
         } detail: {
@@ -436,7 +438,7 @@ struct MacContentView: View {
                     let closed = fund.config.status == .closed
                     let key = sidebarPlatformKey(fund.platform, closed: closed)
                     if collapsedPlatforms.contains(key) {
-                        withAnimation(.easeInOut(duration: 0.2)) { _ = collapsedPlatforms.remove(key) }
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) { _ = collapsedPlatforms.remove(key) }
                         saveSidebarCollapsedState()
                     }
                 }

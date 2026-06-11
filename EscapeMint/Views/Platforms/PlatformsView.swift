@@ -66,16 +66,14 @@ struct PlatformsView: View {
             }
         }
         #endif
-        .alert(
+        .confirmationDialog(
             "Delete Platform?",
             isPresented: Binding(
                 get: { platformToDelete != nil },
                 set: { if !$0 { platformToDelete = nil } }
-            )
+            ),
+            titleVisibility: .visible
         ) {
-            Button("Cancel", role: .cancel) {
-                platformToDelete = nil
-            }
             if let info = platformToDelete {
                 Button("Delete \(info.fundCount) Fund\(info.fundCount == 1 ? "" : "s")", role: .destructive) {
                     deletePlatform(info)

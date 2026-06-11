@@ -174,8 +174,9 @@ struct CreateFundView: View {
 
             Divider().background(Color.bgInput)
 
-            VStack(spacing: 16) {
-                HStack(alignment: .top, spacing: 16) {
+            ScrollView {
+                VStack(spacing: 16) {
+                    HStack(alignment: .top, spacing: 16) {
                     macPanel("Fund Identity") {
                         macTextField("Platform", placeholder: "robinhood", text: $platform)
                             .noAutoCapitalization()
@@ -254,8 +255,9 @@ struct CreateFundView: View {
                         }
                     }
                 }
+                }
+                .padding(20)
             }
-            .padding(20)
 
             Divider().background(Color.bgInput)
 
@@ -271,7 +273,10 @@ struct CreateFundView: View {
             }
             .padding(16)
         }
-        .frame(minWidth: 760, idealWidth: 840, minHeight: isTradingFund ? 560 : 320, idealHeight: isTradingFund ? 560 : 320, alignment: .top)
+        // Content scrolls internally, so the sheet no longer needs to grow/shrink on a
+        // cash<->trading type switch. A fixed ideal keeps the initial presentation sensible
+        // while minHeight lets the user shrink the window without clipping fields.
+        .frame(minWidth: 760, idealWidth: 840, minHeight: 420, idealHeight: 560, alignment: .top)
         .background(Color.bg)
     }
 
