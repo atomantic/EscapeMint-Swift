@@ -66,20 +66,58 @@ enum Layout {
 // MARK: - Card Style Modifier
 
 struct CardStyle: ViewModifier {
+    var cornerRadius: CGFloat = 12
+    var borderColor: Color = .cardBorder
+
     func body(content: Content) -> some View {
         content
             .background(Color.bgCard)
-            .cornerRadius(12)
+            .cornerRadius(cornerRadius)
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.cardBorder, lineWidth: 1)
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .stroke(borderColor, lineWidth: 1)
             )
     }
 }
 
 extension View {
-    func cardStyle() -> some View {
-        modifier(CardStyle())
+    /// Standard card chrome: card background, rounded corners, and a 1pt border.
+    /// - Parameters:
+    ///   - cornerRadius: corner radius for background and stroke (default 12).
+    ///   - borderColor: stroke color (default `.cardBorder`). Some hand-rolled
+    ///     cards use `.textMuted.opacity(0.2)`; pass it explicitly to preserve output.
+    func cardStyle(cornerRadius: CGFloat = 12, borderColor: Color = .cardBorder) -> some View {
+        modifier(CardStyle(cornerRadius: cornerRadius, borderColor: borderColor))
+    }
+}
+
+extension View {
+    /// Intro-guide chart card: 12pt inset + standard card chrome. Used by the
+    /// six step charts in IntroCharts to avoid repeating `.padding(12).cardStyle()`.
+    func introCardStyle() -> some View {
+        self.padding(12).cardStyle()
+    }
+}
+
+// MARK: - Status / Action Badges
+
+extension View {
+    /// Small inline status chip (e.g. "Closed", category labels). Horizontal 6 /
+    /// vertical 2 padding, rounded 4. Caller supplies the background fill.
+    func tagBadge(background: Color) -> some View {
+        self
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background(background)
+            .cornerRadius(4)
+    }
+
+    /// Larger action chip (e.g. BUY/SELL/recalc buttons). Horizontal 8 /
+    /// vertical 4 padding, rounded 6. Caller supplies the background fill.
+    func actionBadge(background: Color) -> some View {
+        self
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(background)
+            .cornerRadius(6)
     }
 }
 

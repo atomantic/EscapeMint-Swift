@@ -349,12 +349,7 @@ private struct ChartCardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .padding(10)
-            .background(Color.bgCard)
-            .cornerRadius(10)
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color.textMuted.opacity(0.2), lineWidth: 1)
-            )
+            .cardStyle(cornerRadius: 10, borderColor: .textMuted.opacity(0.2))
     }
 }
 

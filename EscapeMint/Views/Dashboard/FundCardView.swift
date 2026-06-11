@@ -23,8 +23,7 @@ struct FundCardView: View {
                     .font(.caption2).foregroundColor(.textMuted)
                 if fund.config.status == .closed {
                     Text("Closed").font(.caption2)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Color.bgInput).cornerRadius(4)
+                        .tagBadge(background: .bgInput)
                         .foregroundColor(.textMuted)
                 }
                 if summary.fundSharesPct > 0 {
@@ -37,9 +36,7 @@ struct FundCardView: View {
                     Text("\(rec.action.rawValue) \(formatCurrency(rec.amount))")
                         .font(.caption2).fontWeight(.semibold)
                         .foregroundColor(isHold ? .textMuted : .white)
-                        .padding(.horizontal, 8).padding(.vertical, 4)
-                        .background(Color.backgroundForAction(rec.action))
-                        .cornerRadius(6)
+                        .actionBadge(background: Color.backgroundForAction(rec.action))
                 }
             }
 

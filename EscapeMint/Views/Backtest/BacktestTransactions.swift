@@ -100,12 +100,7 @@ struct BacktestTransactions: View {
             .padding(.horizontal, 8).padding(.vertical, 4)
             .background(Color.bg.opacity(0.5))
         }
-        .background(Color.bgCard)
-        .cornerRadius(10)
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.textMuted.opacity(0.2), lineWidth: 1)
-        )
+        .cardStyle(cornerRadius: 10, borderColor: .textMuted.opacity(0.2))
     }
 
     // MARK: - Entry Row
@@ -207,12 +202,7 @@ struct BacktestTablePlaceholder: View {
             .padding(.horizontal, 8).padding(.vertical, 4)
             .background(Color.bg.opacity(0.5))
         }
-        .background(Color.bgCard)
-        .cornerRadius(10)
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.textMuted.opacity(0.2), lineWidth: 1)
-        )
+        .cardStyle(cornerRadius: 10, borderColor: .textMuted.opacity(0.2))
     }
 }
 
