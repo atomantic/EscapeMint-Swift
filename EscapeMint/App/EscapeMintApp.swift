@@ -70,7 +70,7 @@ struct EscapeMintApp: App {
             CommandGroup(after: .toolbar) {
                 Button("Refresh") {
                     AppDelegate.showOrCreateMainWindow()
-                    NotificationCenter.default.post(name: .fundsDidChange, object: nil)
+                    NotificationCenter.default.postFundsDidChange()
                 }
                 .keyboardShortcut("r", modifiers: .command)
             }
@@ -142,7 +142,7 @@ struct ContentView: View {
         )
         .onContinueUserActivity(CSSearchableItemActionType) { activity in
             guard let fundId = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String else { return }
-            NotificationCenter.default.post(name: .selectFund, object: fundId)
+            NotificationCenter.default.postSelectFund(id: fundId)
         }
         .sheet(isPresented: $showIntroGuide) {
             IntroGuideView(isPresented: $showIntroGuide)
@@ -165,7 +165,7 @@ struct ContentView: View {
                idx + 1 < CommandLine.arguments.count {
                 let fundId = CommandLine.arguments[idx + 1]
                 try? await Task.sleep(for: .milliseconds(500))
-                NotificationCenter.default.post(name: .selectFund, object: fundId)
+                NotificationCenter.default.postSelectFund(id: fundId)
             }
         }
         .onAppear {
@@ -239,12 +239,10 @@ struct ContentView: View {
                 }
             }
             .liquidGlassTabBar()
-            .onReceive(NotificationCenter.default.publisher(for: .selectFund)) { note in
-                if let id = note.object as? String {
-                    selectedTab = 0
-                    dashboardPath = NavigationPath()
-                    dashboardPath.append(id)
-                }
+            .onReceive(NotificationCenter.default.selectFundPublisher()) { id in
+                selectedTab = 0
+                dashboardPath = NavigationPath()
+                dashboardPath.append(id)
             }
         } else {
             TabView(selection: $selectedTab) {
@@ -269,12 +267,10 @@ struct ContentView: View {
                     .tabItem { Label("Settings", systemImage: "gear") }
                     .tag(4)
             }
-            .onReceive(NotificationCenter.default.publisher(for: .selectFund)) { note in
-                if let id = note.object as? String {
-                    selectedTab = 0
-                    dashboardPath = NavigationPath()
-                    dashboardPath.append(id)
-                }
+            .onReceive(NotificationCenter.default.selectFundPublisher()) { id in
+                selectedTab = 0
+                dashboardPath = NavigationPath()
+                dashboardPath.append(id)
             }
         }
     }
@@ -446,24 +442,20 @@ struct MacContentView: View {
             detail
         }
         .navigationSplitViewStyle(.balanced)
-        .onReceive(NotificationCenter.default.publisher(for: .selectFund)) { note in
-            if let id = note.object as? String {
-                selectedNav = .fund(id)
-                // Auto-expand platform if collapsed
-                if let fund = store.funds.first(where: { $0.id == id }) {
-                    let closed = fund.config.status == .closed
-                    let key = sidebarPlatformKey(fund.platform, closed: closed)
-                    if collapsedPlatforms.contains(key) {
-                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) { _ = collapsedPlatforms.remove(key) }
-                        saveSidebarCollapsedState()
-                    }
+        .onReceive(NotificationCenter.default.selectFundPublisher()) { id in
+            selectedNav = .fund(id)
+            // Auto-expand platform if collapsed
+            if let fund = store.funds.first(where: { $0.id == id }) {
+                let closed = fund.config.status == .closed
+                let key = sidebarPlatformKey(fund.platform, closed: closed)
+                if collapsedPlatforms.contains(key) {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) { _ = collapsedPlatforms.remove(key) }
+                    saveSidebarCollapsedState()
                 }
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .showAddEntry)) { note in
-            if let id = note.object as? String {
-                pendingAddEntryFundId = id
-            }
+        .onReceive(NotificationCenter.default.showAddEntryPublisher()) { id in
+            pendingAddEntryFundId = id
         }
         .onReceive(NotificationCenter.default.publisher(for: .selectDashboard)) { _ in
             selectedNav = .dashboard
@@ -471,10 +463,8 @@ struct MacContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .selectBacktest)) { _ in
             selectedNav = .backtest
         }
-        .onReceive(NotificationCenter.default.publisher(for: .selectPlatform)) { note in
-            if let name = note.object as? String {
-                selectedNav = .platform(name)
-            }
+        .onReceive(NotificationCenter.default.selectPlatformPublisher()) { name in
+            selectedNav = .platform(name)
         }
         .onChange(of: selectedNav) { _, newNav in
             // Clear stale pending add-entry if user navigated elsewhere

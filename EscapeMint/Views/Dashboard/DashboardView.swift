@@ -776,13 +776,13 @@ struct DashboardView: View, SizeClassAware {
 
     private func navigateToFund(_ id: String) {
         #if os(macOS)
-        NotificationCenter.default.post(name: .selectFund, object: id)
+        NotificationCenter.default.postSelectFund(id: id)
         #endif
     }
 
     private func navigateToPlatform(_ platform: String) {
         #if os(macOS)
-        NotificationCenter.default.post(name: .selectPlatform, object: platform)
+        NotificationCenter.default.postSelectPlatform(name: platform)
         #endif
     }
 }

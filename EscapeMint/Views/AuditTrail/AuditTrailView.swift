@@ -310,7 +310,7 @@ struct AuditTrailView: View {
 
             ForEach(filteredEntries) { entry in
                 Button {
-                    NotificationCenter.default.post(name: .selectFund, object: entry.fundId)
+                    NotificationCenter.default.postSelectFund(id: entry.fundId)
                 } label: {
                     HStack(spacing: 0) {
                         textCell(entry.date, width: 100, color: .textSecondary)
