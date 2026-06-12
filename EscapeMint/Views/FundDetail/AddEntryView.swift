@@ -159,7 +159,9 @@ struct AddEntryView: View {
             .formStyle(.grouped)
             .navigationTitle(isCash ? "Cash Balance Entry" : "Add Entry")
             #if os(macOS)
-            .frame(minWidth: 420, minHeight: 380)
+            // Trading funds have an Optional section that overflows the default
+            // window height when expanded, so give them a taller minimum.
+            .frame(minWidth: 420, minHeight: isCash ? 380 : 520)
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
