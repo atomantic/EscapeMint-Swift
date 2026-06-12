@@ -11,7 +11,7 @@ settings:
   base:
     DEVELOPMENT_TEAM: TYQ32QCF6K  # forks: override via a gitignored xcconfig or env; CI uses secrets.TEAM_ID
     MARKETING_VERSION: "1.2.13"
-    CURRENT_PROJECT_VERSION: 71
+    CURRENT_PROJECT_VERSION: 72
     SWIFT_VERSION: "6.0"
     DEAD_CODE_STRIPPING: YES
     ENABLE_USER_SCRIPT_SANDBOXING: YES
