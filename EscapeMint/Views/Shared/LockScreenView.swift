@@ -3,12 +3,15 @@ import LocalAuthentication
 
 struct LockScreenView: View {
     @State private var auth = AuthManager.shared
+    // Scale the lock glyph with Dynamic Type so it grows alongside the
+    // surrounding text instead of staying a fixed 48pt.
+    @ScaledMetric(relativeTo: .largeTitle) private var lockIconSize: CGFloat = 48
 
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
             Image(systemName: "lock.fill")
-                .font(.system(size: 48))
+                .font(.system(size: lockIconSize))
                 .foregroundColor(.mint)
                 .accessibilityHidden(true)
             Text("EscapeMint is Locked")
