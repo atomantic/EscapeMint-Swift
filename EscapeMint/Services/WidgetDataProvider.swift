@@ -9,8 +9,8 @@ import WidgetKit
 final class WidgetDataProvider {
     static let shared = WidgetDataProvider()
     private static let logger = Logger(subsystem: "net.shadowpuppet.EscapeMint", category: "WidgetData")
-    static let appGroupId = "group.net.shadowpuppet.EscapeMint"
-    static let snapshotFileName = "widget-snapshot.json"
+    nonisolated static let appGroupId = "group.net.shadowpuppet.EscapeMint"
+    nonisolated static let snapshotFileName = "widget-snapshot.json"
 
     private init() {}
 
@@ -78,10 +78,13 @@ final class WidgetDataProvider {
         }
     }
 
-    /// Read snapshot from the shared container (called by widget).
-    /// Resolves the real App Group container URL, then delegates to the
-    /// directory-injectable overload below so tests can seed and assert a read.
-    static func readSnapshot() -> WidgetSnapshot? {
+    /// Read snapshot from the shared container (called by the widget and by the
+    /// App Intents). Resolves the real App Group container URL, then delegates to
+    /// the directory-injectable overload below so tests can seed and assert a read.
+    /// `nonisolated` because it touches only static `let` constants and the
+    /// filesystem — no MainActor state — so intents running off the main actor
+    /// (and in a separate process) can read it without a hop.
+    nonisolated static func readSnapshot() -> WidgetSnapshot? {
         guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) else {
             return nil
         }
@@ -92,7 +95,7 @@ final class WidgetDataProvider {
     /// production). Factored out so tests can point at a temp directory, seed a
     /// known `widget-snapshot.json`, and assert the decoded result — production
     /// behavior is unchanged because `readSnapshot()` passes the real container.
-    static func readSnapshot(from containerURL: URL) -> WidgetSnapshot? {
+    nonisolated static func readSnapshot(from containerURL: URL) -> WidgetSnapshot? {
         let fileURL = containerURL.appendingPathComponent(snapshotFileName)
         guard let data = try? Data(contentsOf: fileURL) else { return nil }
         return try? JSONDecoder().decode(WidgetSnapshot.self, from: data)
