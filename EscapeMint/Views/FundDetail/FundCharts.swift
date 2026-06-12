@@ -170,7 +170,7 @@ struct ValueChartView: View {
             if let points {
                 Chart {
                     ForEach(points) { pt in
-                        let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                        let d = pt.dateValue
                         AreaMark(x: .value("Date", d), y: .value("Invested", pt.invested))
                             .foregroundStyle(
                                 .linearGradient(
@@ -307,7 +307,7 @@ struct APYChartView: View {
                 let domain = chartYDomain(effectiveBounds, points: allValues)
                 Chart {
                     ForEach(points) { pt in
-                        let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                        let d = pt.dateValue
                         // Clamp into the domain: early-life APYs can annualize to
                         // absurd values; saturate at the edge (tooltip shows truth).
                         let rAPY = domain.clamping(pt.realizedAPY)
@@ -379,7 +379,7 @@ struct CapturedProfitChartView: View {
         } chart: {
             if let points {
                 Chart(points) { pt in
-                    let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                    let d = pt.dateValue
                     AreaMark(x: .value("Date", d), y: .value("Total", pt.total))
                         .foregroundStyle(Color.mint.opacity(0.15))
                         .interpolationMethod(.monotone)
