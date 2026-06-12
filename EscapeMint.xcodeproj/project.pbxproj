@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		00C69901BFC3ED1EB67B856D /* FundMetricsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD7045F4A08A28EE158CB394 /* FundMetricsTests.swift */; };
 		00CF1D256E98CC6CDB47E710 /* FormulaParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A67F19978F79577997C81D /* FormulaParser.swift */; };
+		01CD089BD98EA27556CECDC5 /* DerivativesEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5439BBC1177FF1E1731CC88A /* DerivativesEngine.swift */; };
 		028FBE500288EC70FBD20E9A /* ServicesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA953739D75435BB66AB189B /* ServicesTests.swift */; };
 		05E6EE7E9E935792AFD0637E /* coinbasetest-cash.tsv in Resources */ = {isa = PBXBuildFile; fileRef = E0E8FFADDDBD64D9D18EDA3F /* coinbasetest-cash.tsv */; };
 		08E38C053E193DFFF664ACF6 /* CashSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B549A3BFFCFE267E268C335 /* CashSyncTests.swift */; };
@@ -152,6 +153,8 @@
 		BDCB853DFC266635DB3458F9 /* HistoricalDataLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E886B330895070707EA7018 /* HistoricalDataLoader.swift */; };
 		BE54A8C9C11054F4DE6F27D5 /* AdvancedTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE306CC057A54F1DBFC1B1CA /* AdvancedTools.swift */; };
 		BF86A28C297812E6CC78D1C6 /* robinhoodtest-tqqq.tsv in Resources */ = {isa = PBXBuildFile; fileRef = 2259AF8CF6454043EE230821 /* robinhoodtest-tqqq.tsv */; };
+		BF9F8885045B3594D0D28670 /* DerivativesEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5439BBC1177FF1E1731CC88A /* DerivativesEngine.swift */; };
+		C0E7BD4DD95B42116A303CA3 /* PortfolioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E53C89115C135EEDC05D6679 /* PortfolioEngine.swift */; };
 		C36A1E39CA3F5E7BD8F1F087 /* EntryHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 762CA3A59DB3B401014402C2 /* EntryHelpers.swift */; };
 		C5EA5640DF0B733C575E0FE0 /* AdvancedTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE306CC057A54F1DBFC1B1CA /* AdvancedTools.swift */; };
 		CAB653772F235CDAA552A708 /* EscapeMintWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23E3D71E800AE946CD1BCB3C /* EscapeMintWidget.swift */; };
@@ -166,6 +169,7 @@
 		D19B5BE222995BF7D3FFFF5E /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A6F3B49FC8BE5BDD0D59CDD /* AuthManager.swift */; };
 		D1CE1B005710D6A0481D7506 /* StoreDockBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18B568AF3D3DF9595431CEBE /* StoreDockBadge.swift */; };
 		D4AA378DD170290DE9E65AD4 /* FundCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78DC2F09A67B37D9062AFAC8 /* FundCharts.swift */; };
+		D82EDD49A5A8F5D7BB34E4E8 /* PortfolioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E53C89115C135EEDC05D6679 /* PortfolioEngine.swift */; };
 		D8472A006B773BB05E6364FA /* AdvancedToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43EA0A1D7008E27E20D07B13 /* AdvancedToolsTests.swift */; };
 		DA1119CCE8C47551F26DCCB1 /* vti-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 72B24FDF289E498E5460BB1F /* vti-weekly.json */; };
 		DBD3CC62B6F1522CA01C89ED /* IntroCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4948BA46E25035E9E656E36 /* IntroCharts.swift */; };
@@ -266,6 +270,7 @@
 		50BB80B0D333342E7009BBD6 /* EscapeMint-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "EscapeMint-macOS.entitlements"; sourceTree = "<group>"; };
 		5178FBFF2608094D106457C0 /* EditFundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditFundView.swift; sourceTree = "<group>"; };
 		524A60C790216C69F3B6D153 /* LockScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockScreenView.swift; sourceTree = "<group>"; };
+		5439BBC1177FF1E1731CC88A /* DerivativesEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DerivativesEngine.swift; sourceTree = "<group>"; };
 		5439E3A322BB84FE60191A58 /* IntroGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroGuideView.swift; sourceTree = "<group>"; };
 		55C07B5D650437E29AF74984 /* MetricCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricCard.swift; sourceTree = "<group>"; };
 		5730A378FC32A73CBE470B4D /* PortfolioCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioCharts.swift; sourceTree = "<group>"; };
@@ -326,6 +331,7 @@
 		DE273771E41052451E80DD9F /* BacktestCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacktestCharts.swift; sourceTree = "<group>"; };
 		E0E8FFADDDBD64D9D18EDA3F /* coinbasetest-cash.tsv */ = {isa = PBXFileReference; path = "coinbasetest-cash.tsv"; sourceTree = "<group>"; };
 		E1AB06925B2363B15915944E /* PortfolioTimeSeries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioTimeSeries.swift; sourceTree = "<group>"; };
+		E53C89115C135EEDC05D6679 /* PortfolioEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioEngine.swift; sourceTree = "<group>"; };
 		E725D16A17E4F0835D06D981 /* BacktestEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacktestEngine.swift; sourceTree = "<group>"; };
 		EE13E05BF89434FDA4849CA4 /* coinbasetest-btc.tsv */ = {isa = PBXFileReference; path = "coinbasetest-btc.tsv"; sourceTree = "<group>"; };
 		EE306CC057A54F1DBFC1B1CA /* AdvancedTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedTools.swift; sourceTree = "<group>"; };
@@ -618,9 +624,11 @@
 				E725D16A17E4F0835D06D981 /* BacktestEngine.swift */,
 				6AE4FB89CA6A1686B8844967 /* ChartSeries.swift */,
 				15B673A9482FD463F5027CA9 /* Converters.swift */,
+				5439BBC1177FF1E1731CC88A /* DerivativesEngine.swift */,
 				762CA3A59DB3B401014402C2 /* EntryHelpers.swift */,
 				D8A67F19978F79577997C81D /* FormulaParser.swift */,
 				ADF82E9F62C6337CA018D70F /* FundEngine.swift */,
+				E53C89115C135EEDC05D6679 /* PortfolioEngine.swift */,
 				E1AB06925B2363B15915944E /* PortfolioTimeSeries.swift */,
 			);
 			path = Engine;
@@ -848,6 +856,7 @@
 				2B676A43D4F8628DEA0F5879 /* DCANotificationManager.swift in Sources */,
 				5E2FF513C6EB32565600A3A4 /* DashboardView.swift in Sources */,
 				3A8A4108E6390930A06CAC9A /* DerivativesCharts.swift in Sources */,
+				BF9F8885045B3594D0D28670 /* DerivativesEngine.swift in Sources */,
 				3FF9F76DC70C4D2D2AAA77E2 /* EditEntryView.swift in Sources */,
 				952FF89A615E2D3D7D2B804A /* EditFundView.swift in Sources */,
 				16EA12C051E1C27B3CEF8647 /* EntryFormHelpers.swift in Sources */,
@@ -880,6 +889,7 @@
 				7D9CEDB96C240E4C9B866F50 /* PlatformModifiers.swift in Sources */,
 				3361AFF542BA7F42EDE09394 /* PlatformsView.swift in Sources */,
 				215E053FDD165C9E469C48A6 /* PortfolioCharts.swift in Sources */,
+				D82EDD49A5A8F5D7BB34E4E8 /* PortfolioEngine.swift in Sources */,
 				A9903C8077DF9DBC6FC8DA28 /* PortfolioTimeSeries.swift in Sources */,
 				9393767F6EF181A9BB23C53A /* SettingsView.swift in Sources */,
 				E0001C2ADB941F78F9699EBD /* SpotlightIndexer.swift in Sources */,
@@ -924,6 +934,7 @@
 				9862AF46D12BC9C034A58091 /* DCANotificationManager.swift in Sources */,
 				8DF900326F27FB50847A2FA5 /* DashboardView.swift in Sources */,
 				5653E180C5C5F8DE88179A6B /* DerivativesCharts.swift in Sources */,
+				01CD089BD98EA27556CECDC5 /* DerivativesEngine.swift in Sources */,
 				B2458A2217463775A1EE26B3 /* EditEntryView.swift in Sources */,
 				4410F30862490B374CCE6632 /* EditFundView.swift in Sources */,
 				8E2AC520DB68235E8E35DE60 /* EntryFormHelpers.swift in Sources */,
@@ -956,6 +967,7 @@
 				11C864866C071577BE475340 /* PlatformModifiers.swift in Sources */,
 				9E11DB41559D7F147E9C1B15 /* PlatformsView.swift in Sources */,
 				5C9B25248B881F120DC7AC22 /* PortfolioCharts.swift in Sources */,
+				C0E7BD4DD95B42116A303CA3 /* PortfolioEngine.swift in Sources */,
 				7667826D79A274883D32ED96 /* PortfolioTimeSeries.swift in Sources */,
 				7C8493E3B622C77F494D3D53 /* SettingsView.swift in Sources */,
 				4728DC6C08A385211230D45E /* SpotlightIndexer.swift in Sources */,
