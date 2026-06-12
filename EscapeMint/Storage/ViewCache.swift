@@ -190,7 +190,17 @@ final class ViewCache {
         }
     }
 
-    /// Type-erased wrapper for chart point arrays
+    /// Type-erased wrapper for chart point arrays.
+    ///
+    /// `@unchecked Sendable` justification — invariant: every read/write of a
+    /// `ChartCacheEntry` happens through `chartPointsCache`, which is a stored property of
+    /// `@MainActor`-isolated `ViewCache`. The `cacheChartPoints` / `cachedChartPoints`
+    /// accessors are likewise main-actor-isolated, so the wrapped `Any` (which is `[T]`
+    /// for some chart-point type `T`) is never touched off the main actor and never races.
+    /// We use type erasure rather than a typed enum because the cache API is generic over
+    /// the chart-point type `T` (see `FundCharts.swift`); enumerating every point type into
+    /// an enum would break that generic call site for no concurrency-safety gain given the
+    /// main-actor invariant above.
     private struct ChartCacheEntry: @unchecked Sendable {
         let value: Any
         func unwrap<T>(as _: T.Type) -> [T]? { value as? [T] }
