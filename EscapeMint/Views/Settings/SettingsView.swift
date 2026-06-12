@@ -248,7 +248,7 @@ struct SettingsView: View {
             LabeledContent("Location", value: storageLocation)
             LabeledContent("Funds", value: "\(fundCount)")
             LabeledContent("Data Size", value: dataSize)
-            if FundStore.shared.isICloud {
+            if FundDataStore.shared.isICloud {
                 Button {
                     Task {
                         await ICloudSyncMonitor.shared.syncNow()
@@ -358,11 +358,11 @@ struct SettingsView: View {
     }
 
     private func refreshStats() async {
-        let stats = await FundStore.shared.dataStats()
+        let stats = await FundDataStore.shared.dataStats()
         fundCount = stats.fundCount
         dataSize = stats.formattedSize
-        storageLocation = FundStore.shared.isICloud ? "iCloud Drive" : "Local"
-        testFundCount = await FundStore.shared.testFundCount()
+        storageLocation = FundDataStore.shared.isICloud ? "iCloud Drive" : "Local"
+        testFundCount = await FundDataStore.shared.testFundCount()
     }
 
     private func pickAndImportJSON() {
@@ -396,26 +396,20 @@ struct SettingsView: View {
             let gotAccess = url.startAccessingSecurityScopedResource()
             defer { if gotAccess { url.stopAccessingSecurityScopedResource() } }
             do {
-                _ = try await FundStore.shared.backupJSONFundCount(url)
-                if mode == .replace {
-                    try await FundStore.shared.deleteAllFunds()
-                }
-                let count = try await FundStore.shared.importFromBackupJSON(url)
-                ICloudSyncMonitor.shared.markLocalWrite()
+                let count = try await FundDataStore.shared.importFromBackupJSON(url, replacingExisting: mode == .replace)
                 let action = mode == .replace ? "Replaced data with" : "Merged"
                 showToast("\(action) \(count) fund(s) from backup")
             } catch {
                 showToast("Import failed. Please check the file format.")
             }
             await refreshStats()
-            await FundDataStore.shared.reload()
         }
     }
 
     private func exportBackup() {
         Task {
             do {
-                let url = try await FundStore.shared.exportToBackupJSON()
+                let url = try await FundDataStore.shared.exportToBackupJSON()
                 #if os(macOS)
                 let panel = NSSavePanel()
                 panel.title = "Save Backup"
@@ -444,8 +438,7 @@ struct SettingsView: View {
     private func loadTestData() {
         Task {
             do {
-                let count = try await FundStore.shared.loadTestData()
-                await FundDataStore.shared.reload()
+                let count = try await FundDataStore.shared.loadTestData()
                 await refreshStats()
                 showToast("Created \(count) test funds with simulated DCA history")
             } catch {
@@ -457,8 +450,7 @@ struct SettingsView: View {
     private func removeTestData() {
         Task {
             do {
-                let count = try await FundStore.shared.deleteTestFunds()
-                await FundDataStore.shared.reload()
+                let count = try await FundDataStore.shared.deleteTestFunds()
                 await refreshStats()
                 showToast("Deleted \(count) test fund(s)")
             } catch {
@@ -469,22 +461,12 @@ struct SettingsView: View {
 
     private func clearDataWithBackup() {
         Task {
-            let stats = await FundStore.shared.dataStats()
-            if stats.fundCount > 0 {
-                do {
-                    _ = try await FundStore.shared.exportToDocuments()
-                    try await FundStore.shared.deleteAllFunds()
-                    await refreshStats()
-                    await FundDataStore.shared.reload()
-                    showToast("Backed up \(stats.fundCount) fund(s), then cleared")
-                } catch {
-                    showToast("Backup failed. Data was not cleared.")
-                }
-            } else {
-                do { try await FundStore.shared.deleteAllFunds() } catch { showToast("Failed to clear data") }
-                await FundDataStore.shared.reload()
+            do {
+                let backedUp = try await FundDataStore.shared.clearAllDataWithBackup()
                 await refreshStats()
-                showToast("All data cleared")
+                showToast(backedUp > 0 ? "Backed up \(backedUp) fund(s), then cleared" : "All data cleared")
+            } catch {
+                showToast("Backup failed. Data was not cleared.")
             }
         }
     }
