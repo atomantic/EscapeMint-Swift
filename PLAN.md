@@ -3,15 +3,17 @@
 For project context see [README.md](README.md) and [CLAUDE.md](CLAUDE.md).
 For completed work see [DONE.md](DONE.md).
 
-> **2026-06-11 better-swift audit:** 8-agent audit findings are tracked as GitHub issues under the `plan` label ([open issues](https://github.com/atomantic/EscapeMint-Swift/issues?q=is%3Aissue+is%3Aopen+label%3Aplan)), not duplicated here. Shipped this pass (PRs open for review): CI scheme fix #48, biometric-flag→Keychain #49, shared widget models #50.
+> **2026-06-11 better-swift audit — COMPLETE.** All 38 findings (#10–#47) were filed as `plan`-labeled issues, remediated across 12 PRs (#48–#59), and merged to `main`; both iOS and macOS build clean with 330 passing tests. The earlier "Next Up" list is now substantially closed by that pass: CI scheme fix (#10/#48), biometric flag → Keychain (#19/#49), `FundEngine` split (#44/#56), pure engine extraction out of views (#12–#16/#51), Dynamic Type / sub-legible fonts (#21,#24/#52), engine+storage test coverage (#33–#40/#54). See closed issues for the full record.
 
 ## Next Up
 
-1. **Deepen service tests** — `AuthManager` has 4 happy-path tests but no lock-state-machine / keychain / biometric-flow coverage; `SpotlightIndexer` has crash-only smoke tests (no indexing assertions)
-2. **GuidedAddEntryView wizard tests** — added 2026-04-21 with zero coverage; extract step-transition + recommendation-recompute helpers; cover direct-equity / shares-price / exit-toggle branches
-3. **AuthManager biometric pref → Keychain** — currently in `UserDefaults`, bypassable on jailbreak (use `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`)
-4. **Split `FundEngine.swift`** — 1371-line god file → TradeEngine / RecommendationEngine / PortfolioEngine
-5. **Dynamic Type & adaptive colors** — 15× hardcoded 7-10pt fonts need `@ScaledMetric`; 8× `.foregroundColor(.white)` need adaptive variants
+Small follow-ups surfaced during the audit (intentionally scoped out of their PRs to avoid cross-branch churn):
+
+1. **`isWide` dedup** — a 5-line `private var isWide` wrapper still repeats in `BacktestView`, `DashboardView`, `BacktestCharts`, `BacktestConfigPanel`. A real fix unguards `horizontalSizeClass` on macOS (always `.regular`) so one shared `View.isWide` extension can replace all four.
+2. **Typed NotificationCenter helpers — finish adoption** — `postSelectFund(id:)`/`postSelectPlatform(name:)`/`postShowAddEntry(id:)` exist now; remaining `note.object as? String` post/observe sites (`EscapeMintApp`, `DCANotificationManager`, `PlatformDetailView`, `IntroGuideView`, `ActionableFundsBanner`, `AuditTrailView`) should adopt them.
+3. **Remaining Dynamic Type stragglers** — `LockScreenView` 48pt icon and `AddEntryView` macOS `minHeight: 380` were outside the font-fix PR's ownership; convert to `@ScaledMetric` / a taller min for trading funds.
+4. **Testability seams** — `WidgetDataProvider.readSnapshot()` and `SpotlightIndexer` still lack injection points to assert their side effects (flagged by the test pass). `FundStore` now has an injectable directory resolver (#47) — extend the same pattern.
+5. **Adaptive colors** — 8× `.foregroundColor(.white)` still need dark-mode-aware variants (not covered by the audit's font work).
 
 ## Backlog
 
