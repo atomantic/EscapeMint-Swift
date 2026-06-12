@@ -584,3 +584,16 @@ struct ShareSheetView: View {
     }
 }
 #endif
+
+#if DEBUG
+#Preview("Settings") {
+    PreviewData.seedStore()
+    return NavigationStack { SettingsView() }
+}
+
+#Preview("Settings — Dark") {
+    PreviewData.seedStore()
+    return NavigationStack { SettingsView() }
+        .preferredColorScheme(.dark)
+}
+#endif

@@ -885,3 +885,16 @@ struct FundDetailView: View {
     }
 
 }
+
+#if DEBUG
+#Preview("FundDetail — Stock") {
+    PreviewData.seedStore()
+    return NavigationStack { FundDetailView(fundId: PreviewData.stockFund.id) }
+}
+
+#Preview("FundDetail — Closed (Dark)") {
+    PreviewData.seedStore()
+    return NavigationStack { FundDetailView(fundId: PreviewData.closedFund.id) }
+        .preferredColorScheme(.dark)
+}
+#endif

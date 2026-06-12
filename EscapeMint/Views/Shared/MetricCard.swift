@@ -24,3 +24,32 @@ struct MetricCard: View {
         .accessibilityIdentifier("metric-\(label.lowercased().replacingOccurrences(of: " ", with: "-"))")
     }
 }
+
+#if DEBUG
+#Preview("MetricCard") {
+    HStack {
+        MetricCard(label: "Total Value", value: "$12,480", sub: "+$1,240")
+        MetricCard(label: "Liquid APY", value: "24.8%", color: .mint)
+        MetricCard(label: "Drawdown", value: "-8.2%", color: .red)
+    }
+    .padding()
+    .background(Color.bg)
+}
+
+#Preview("MetricCard — Dark") {
+    HStack {
+        MetricCard(label: "Total Value", value: "$12,480", sub: "+$1,240")
+        MetricCard(label: "Liquid APY", value: "24.8%", color: .mint)
+    }
+    .padding()
+    .background(Color.bg)
+    .preferredColorScheme(.dark)
+}
+
+#Preview("MetricCard — XXL Type") {
+    MetricCard(label: "Total Value", value: "$12,480", sub: "+$1,240")
+        .padding()
+        .background(Color.bg)
+        .environment(\.dynamicTypeSize, .accessibility3)
+}
+#endif

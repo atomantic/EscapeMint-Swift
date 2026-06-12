@@ -303,3 +303,16 @@ struct PlatformsView: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("Platforms") {
+    PreviewData.seedStore()
+    return NavigationStack { PlatformsView() }
+}
+
+#Preview("Platforms — Dark") {
+    PreviewData.seedStore()
+    return NavigationStack { PlatformsView() }
+        .preferredColorScheme(.dark)
+}
+#endif

@@ -451,3 +451,14 @@ struct CreateFundView: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("CreateFund") {
+    CreateFundView(onCreated: {})
+}
+
+#Preview("CreateFund — Dark") {
+    CreateFundView(onCreated: {})
+        .preferredColorScheme(.dark)
+}
+#endif

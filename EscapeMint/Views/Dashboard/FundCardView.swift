@@ -75,3 +75,35 @@ struct FundCardView: View {
         .cardStyle()
     }
 }
+
+#if DEBUG
+#Preview("FundCardView — Active") {
+    FundCardView(summary: PreviewData.stockSummary)
+        .padding()
+        .background(Color.bg)
+        .frame(maxWidth: 360)
+}
+
+#Preview("FundCardView — Cash") {
+    FundCardView(summary: PreviewData.cashSummary)
+        .padding()
+        .background(Color.bg)
+        .frame(maxWidth: 360)
+}
+
+#Preview("FundCardView — Closed (Dark)") {
+    FundCardView(summary: PreviewData.closedSummary)
+        .padding()
+        .background(Color.bg)
+        .frame(maxWidth: 360)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("FundCardView — XXL Type") {
+    FundCardView(summary: PreviewData.stockSummary)
+        .padding()
+        .background(Color.bg)
+        .frame(maxWidth: 360)
+        .environment(\.dynamicTypeSize, .accessibility2)
+}
+#endif

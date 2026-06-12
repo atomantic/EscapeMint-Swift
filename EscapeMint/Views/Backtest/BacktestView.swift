@@ -438,3 +438,16 @@ extension Color {
         dark: Color(red: 203/255, green: 213/255, blue: 225/255)     // slate-300
     )
 }
+
+#if DEBUG
+#Preview("Backtest") {
+    PreviewData.seedStore()
+    return NavigationStack { BacktestView() }
+}
+
+#Preview("Backtest — Dark") {
+    PreviewData.seedStore()
+    return NavigationStack { BacktestView() }
+        .preferredColorScheme(.dark)
+}
+#endif

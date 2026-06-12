@@ -786,3 +786,16 @@ struct DashboardView: View, SizeClassAware {
         #endif
     }
 }
+
+#if DEBUG
+#Preview("Dashboard") {
+    PreviewData.seedStore()
+    return NavigationStack { DashboardView() }
+}
+
+#Preview("Dashboard — Dark") {
+    PreviewData.seedStore()
+    return NavigationStack { DashboardView() }
+        .preferredColorScheme(.dark)
+}
+#endif
