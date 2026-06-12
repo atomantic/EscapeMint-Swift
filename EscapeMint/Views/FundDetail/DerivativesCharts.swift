@@ -41,7 +41,7 @@ struct ClosedFundStateCard: View {
                 }
                 GridRow {
                     StatBox(label: "Duration", value: "\(cm.durationDays) days", showCard: false)
-                    StatBox(label: "Expenses", value: formatCurrencyFull(-cm.totalExpensesUsd, decimals: d), color: cm.totalExpensesUsd > 0 ? .red : .white, showCard: false)
+                    StatBox(label: "Expenses", value: formatCurrencyFull(-cm.totalExpensesUsd, decimals: d), color: cm.totalExpensesUsd > 0 ? .red : .textPrimary, showCard: false)
                 }
             }
         }
