@@ -297,75 +297,17 @@ func computeDerivativesChartData(entries: [FundEntry], config: FundConfig) -> [D
     let imr = config.initial_margin_rate ?? 0.25
     let mmr = config.maintenance_margin_rate ?? 0.20
     let startDate = entries.first?.date ?? ""
-
-    var position = 0.0
-    var marginBalance = 0.0
-    var lastTradePrice = 0.0 // per-contract price for unrealized estimation
-    var cumFunding = 0.0
-    var cumInterest = 0.0
-    var cumRebates = 0.0
-    var cumFees = 0.0
-    var cumRealized = 0.0
-    var totalBuyCost = 0.0
-    var totalBuyContracts = 0.0
+    var acc = DerivativesAccumulator()
 
     let all = entries.map { entry -> DerivativesChartPoint in
-        let action = entry.action
-        let contracts = entry.contracts ?? 0
-        let amount = entry.amount ?? 0
-        let fee = entry.fee ?? 0
-        let tradePrice = entry.price ?? 0
-
-        switch action {
-        case .DEPOSIT:
-            marginBalance += abs(amount)
-        case .WITHDRAW:
-            marginBalance -= abs(amount)
-        case .BUY:
-            position += contracts
-            totalBuyCost += abs(amount)
-            totalBuyContracts += contracts
-            let absFee = abs(fee)
-            cumFees += absFee
-            marginBalance -= absFee
-            if tradePrice > 0 { lastTradePrice = tradePrice }
-        case .SELL:
-            let sellContracts = min(contracts, totalBuyContracts)
-            if sellContracts > 0 {
-                let avgCostPerContract = totalBuyCost / totalBuyContracts
-                let costOfSold = avgCostPerContract * sellContracts
-                let pnl = abs(amount) - costOfSold
-                cumRealized += pnl
-                marginBalance += pnl
-                totalBuyCost -= costOfSold
-                totalBuyContracts -= sellContracts
-            }
-            position = max(0, position - contracts)
-            let absFee = abs(fee)
-            cumFees += absFee
-            marginBalance -= absFee
-            if tradePrice > 0 { lastTradePrice = tradePrice }
-        case .FUNDING:
-            cumFunding += amount
-            marginBalance += amount
-        case .INTEREST:
-            cumInterest += amount
-            marginBalance += amount
-        case .REBATE:
-            cumRebates += amount
-            marginBalance += amount
-        case .FEE:
-            let absFee = abs(amount)
-            cumFees += absFee
-            marginBalance -= absFee
-        default:
-            break
-        }
+        acc.apply(entry)
 
         // Use TSV values if available, otherwise compute from trade data
-        let avgCostPerContract = totalBuyContracts > 0 ? totalBuyCost / totalBuyContracts : 0
+        let avgCostPerContract = acc.avgCostPerContract
+        let position = acc.position
+        let lastTradePrice = acc.lastTradePrice
         let avgEntry = entry.entry_price ?? (position > 0 ? avgCostPerContract / cm : 0)
-        let costBasis = totalBuyCost
+        let costBasis = acc.totalBuyCost
         let marginLocked = entry.margin_locked ?? (position > 0 ? position * avgCostPerContract * imr : 0)
 
         // Dynamic leverage = Current Notional / Margin Locked (matches Coinbase's display)
@@ -382,13 +324,13 @@ func computeDerivativesChartData(entries: [FundEntry], config: FundConfig) -> [D
         let liqPrice: Double = entry.liquidation_price ?? {
             guard position > 0 else { return 0 }
             let notionalSize = position * cm
-            return (costBasis - marginBalance) / (notionalSize * (1.0 - mmr))
+            return (costBasis - acc.marginBalance) / (notionalSize * (1.0 - mmr))
         }()
 
         // Margin balance: prefer TSV cash if available
-        let effectiveMarginBalance = entry.cash ?? marginBalance
+        let effectiveMarginBalance = entry.cash ?? acc.marginBalance
 
-        let capturedProfit = cumRealized + cumFunding + cumInterest + cumRebates - cumFees
+        let capturedProfit = acc.cumRealized + acc.cumFunding + acc.cumInterest + acc.cumRebates - acc.cumFees
         let liquidPL = capturedProfit + unrealized
 
         let days = Double(max(1, daysBetween(startDate, entry.date)))
@@ -411,11 +353,11 @@ func computeDerivativesChartData(entries: [FundEntry], config: FundConfig) -> [D
             liquidPL: liquidPL,
             realizedAPY: realizedAPY,
             liquidAPY: liquidAPY,
-            sumRealized: cumRealized,
-            sumFunding: cumFunding,
-            sumInterest: cumInterest,
-            sumRebates: cumRebates,
-            sumFees: cumFees
+            sumRealized: acc.cumRealized,
+            sumFunding: acc.cumFunding,
+            sumInterest: acc.cumInterest,
+            sumRebates: acc.cumRebates,
+            sumFees: acc.cumFees
         )
     }
 
