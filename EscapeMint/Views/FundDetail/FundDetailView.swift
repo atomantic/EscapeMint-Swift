@@ -26,6 +26,7 @@ struct FundDetailView: View {
     @State private var showAdvancedToast = false
     @AppStorage(AppStorageKeys.advancedTools) private var advancedToolsEnabled = false
     @AppStorage(AppStorageKeys.advancedEntryMode) private var advancedEntryMode = false
+    @State private var viewModel = FundDetailViewModel()
 
     private var fund: FundData? { store.fund(byId: fundId) }
     private var summary: FundSummary? { store.summary(byId: fundId) }
@@ -158,29 +159,7 @@ struct FundDetailView: View {
                 }
                 .tint(.textSecondary)
                 .task(id: "\(fund.id)-\(fund.entries.count)-\(store.revision)") {
-                    let ec = fund.entries.count
-                    let entries = fund.entries
-                    let config = fund.config
-                    let fid = fund.id
-                    // Compute entry rows off main thread
-                    if cache.cachedRows(fundId: fid, entryCount: ec) == nil {
-                        let rows = await Task.detached(priority: .userInitiated) {
-                            computeEntryRows(entries: entries, config: config)
-                        }.value
-                        guard !Task.isCancelled else { return }
-                        cache.cacheRows(rows, fundId: fid, entryCount: ec)
-                    }
-                    if config.fund_type == .derivatives {
-                        if cache.cachedDerivPoints(fundId: fid, entryCount: ec) == nil {
-                            let pts = await Task.detached(priority: .userInitiated) {
-                                computeDerivativesChartData(entries: entries, config: config)
-                            }.value
-                            guard !Task.isCancelled else { return }
-                            cache.cacheDerivPoints(pts, fundId: fid, entryCount: ec)
-                        }
-                    } else {
-                        cache.cacheDerivPoints(nil, fundId: fid, entryCount: ec)
-                    }
+                    await viewModel.loadComputedData(fundId: fund.id, entries: fund.entries, config: fund.config)
                 }
 
                 // Entries table
