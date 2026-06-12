@@ -55,12 +55,35 @@ extension Color {
         light: Color(red: 148/255, green: 163/255, blue: 184/255),  // slate-400
         dark: Color(red: 100/255, green: 116/255, blue: 139/255)    // slate-500
     )
+
+    /// Adaptive "invested" purple used by the intro/backtest area fills.
+    static let investedPurple = Color(
+        light: Color(red: 106/255, green: 58/255, blue: 210/255),
+        dark: Color(red: 120/255, green: 70/255, blue: 220/255)
+    )
+}
+
+// MARK: - Chart Color Palettes
+
+extension Color {
+    /// Distinct hues for platform-allocation slices, cycled by index.
+    static let platformPalette: [Color] = [
+        .blue, .green, .orange, .purple, .pink, .cyan, .brown, .indigo
+    ]
+
+    /// Distinct hues for per-fund time-series series, cycled by index.
+    static let fundPalette: [Color] = [
+        .blue, .mint, .orange, .purple, .pink, .cyan, .yellow, .green, .red, .indigo
+    ]
 }
 
 // MARK: - Layout Constants
 
 enum Layout {
     static let chartFrameHeight: CGFloat = 160
+    /// Height of the compact dashboard time-series charts (shorter than the
+    /// fund-detail `chartFrameHeight` since several stack on one screen).
+    static let dashboardChartHeight: CGFloat = 150
 }
 
 // MARK: - Card Style Modifier

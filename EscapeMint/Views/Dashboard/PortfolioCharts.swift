@@ -31,11 +31,8 @@ struct FundAllocationChart: View {
 struct PlatformAllocationChart: View {
     let summaries: [FundSummary]
 
-    private static let platformColors: [Color] = [
-        .blue, .green, .orange, .purple, .pink, .cyan, .brown, .indigo
-    ]
-
     private var slices: [(label: String, value: Double, color: Color)] {
+        let palette = Color.platformPalette
         let grouped = Dictionary(grouping: summaries, by: { $0.fund.platform })
         return grouped.map { platform, sums in
             (platform.capitalized, sums.reduce(0.0) { $0 + $1.currentValue })
@@ -47,7 +44,7 @@ struct PlatformAllocationChart: View {
             (
                 label: item.0,
                 value: item.1,
-                color: Self.platformColors[i % Self.platformColors.count]
+                color: palette[i % palette.count]
             )
         }
     }
@@ -257,7 +254,7 @@ struct DashboardAPYChart: View {
                         ]
                     }
                 }
-                .frame(height: 150)
+                .frame(height: Layout.dashboardChartHeight)
             } else {
                 emChartPlaceholder
             }
@@ -312,7 +309,7 @@ struct DashboardGainChart: View {
                         ]
                     }
                 }
-                .frame(height: 150)
+                .frame(height: Layout.dashboardChartHeight)
             } else {
                 emChartPlaceholder
             }
@@ -359,7 +356,7 @@ struct DashboardValueChart: View {
                         ]
                     }
                 }
-                .frame(height: 150)
+                .frame(height: Layout.dashboardChartHeight)
             } else {
                 emChartPlaceholder
             }
@@ -371,9 +368,7 @@ struct DashboardFundSizeChart: View {
     let points: [PortfolioTimeSeriesPoint]
     @State private var hoverIndex: Int?
 
-    private static let fundColors: [Color] = [
-        .blue, .mint, .orange, .purple, .pink, .cyan, .yellow, .green, .red, .indigo
-    ]
+    private let fundColors = Color.fundPalette
 
     var body: some View {
         let data = points
@@ -382,7 +377,7 @@ struct DashboardFundSizeChart: View {
 
         EMChartCard(title: "Total Fund Size") {
             ForEach(tickers.prefix(5).indices, id: \.self) { i in
-                LegendDot(color: Self.fundColors[i % Self.fundColors.count], label: tickers[i])
+                LegendDot(color: fundColors[i % fundColors.count], label: tickers[i])
             }
         } chart: {
             if data.count >= 2 && !tickers.isEmpty {
@@ -402,7 +397,7 @@ struct DashboardFundSizeChart: View {
                 }
                 .chartForegroundStyleScale(
                     domain: tickers,
-                    range: tickers.indices.map { Self.fundColors[$0 % Self.fundColors.count] }
+                    range: tickers.indices.map { fundColors[$0 % fundColors.count] }
                 )
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emCurrencyAxis() }
@@ -410,11 +405,11 @@ struct DashboardFundSizeChart: View {
                 .chartOverlay { proxy in
                     chartHoverOverlay(proxy: proxy, entries: data, hoverIndex: $hoverIndex) { pt in
                         tickers.prefix(5).enumerated().map { i, ticker in
-                            (label: ticker, value: formatCurrency(pt.perFundValues[ticker] ?? 0), color: Self.fundColors[i % Self.fundColors.count])
+                            (label: ticker, value: formatCurrency(pt.perFundValues[ticker] ?? 0), color: fundColors[i % fundColors.count])
                         }
                     }
                 }
-                .frame(height: 150)
+                .frame(height: Layout.dashboardChartHeight)
             } else {
                 emChartPlaceholder
             }
@@ -463,7 +458,7 @@ struct DashboardLiquidValueChart: View {
                         ]
                     }
                 }
-                .frame(height: 150)
+                .frame(height: Layout.dashboardChartHeight)
             } else {
                 emChartPlaceholder
             }
@@ -520,7 +515,7 @@ struct DashboardMarginChart: View {
                             ]
                         }
                     }
-                    .frame(height: 150)
+                    .frame(height: Layout.dashboardChartHeight)
                 } else {
                     emChartPlaceholder
                 }
@@ -581,7 +576,7 @@ struct DashboardCashVsAssetChart: View {
                         ]
                     }
                 }
-                .frame(height: 150)
+                .frame(height: Layout.dashboardChartHeight)
             } else {
                 emChartPlaceholder
             }
@@ -627,5 +622,5 @@ private var emChartPlaceholder: some View {
     Text("Not enough data for chart")
         .font(.caption).foregroundColor(.textMuted)
         .frame(maxWidth: .infinity)
-        .frame(height: 150)
+        .frame(height: Layout.dashboardChartHeight)
 }
