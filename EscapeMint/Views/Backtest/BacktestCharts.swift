@@ -15,24 +15,14 @@ private struct BacktestAPYEntry: DateIdentifiable {
 
 // MARK: - Charts Grid
 
-struct BacktestChartsGrid: View {
+struct BacktestChartsGrid: View, SizeClassAware {
     let result: BacktestResult
     let initialCash: Double
     @Binding var hoverVA: Int?
     @Binding var hoverCP: Int?
     @Binding var hoverGB: Int?
     @Binding var hoverAPY: Int?
-    #if os(iOS)
-    @Environment(\.horizontalSizeClass) private var sizeClass
-    #endif
-
-    private var isWide: Bool {
-        #if os(macOS)
-        true
-        #else
-        computeIsWide(sizeClass: sizeClass)
-        #endif
-    }
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     var body: some View {
         let sampled = sampleArray(result.entries, maxPoints: 120)

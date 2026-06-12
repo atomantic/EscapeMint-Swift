@@ -12,7 +12,7 @@ private struct MetricsGridWidthKey: PreferenceKey {
     }
 }
 
-struct DashboardView: View {
+struct DashboardView: View, SizeClassAware {
     private var store: FundDataStore { .shared }
     private var cache: ViewCache { .shared }
     @State private var showCreateFund = false
@@ -31,17 +31,7 @@ struct DashboardView: View {
     @State private var filteredPortfolio = PortfolioMetrics()
     @State private var cashFundCount: Int = 0
     @State private var metricsGridWidth: CGFloat = 900
-    #if os(iOS)
-    @Environment(\.horizontalSizeClass) private var sizeClass
-    #endif
-
-    private var isWide: Bool {
-        #if os(macOS)
-        true
-        #else
-        computeIsWide(sizeClass: sizeClass)
-        #endif
-    }
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     enum ViewMode: String, CaseIterable {
         case grid = "Grid"

@@ -1,19 +1,25 @@
 import SwiftUI
-#if os(iOS)
-import UIKit
-#endif
 
 // MARK: - isWide helper
 
-#if os(iOS)
-/// Returns true when the horizontal size class is regular (iPad landscape/split view).
-func computeIsWide(sizeClass: UserInterfaceSizeClass?) -> Bool {
-    sizeClass == .regular
+/// Views that drive multi-column layouts off the horizontal size class.
+///
+/// `horizontalSizeClass` is valid on every platform — on macOS it is always
+/// `.regular`, so the single `isWide` default below works everywhere and
+/// replaces the per-view `#if os(macOS)` wrappers. Conformers just declare
+/// `@Environment(\.horizontalSizeClass) var horizontalSizeClass`.
+@MainActor
+protocol SizeClassAware {
+    var horizontalSizeClass: UserInterfaceSizeClass? { get }
 }
-#else
-/// macOS is always wide layout.
-func computeIsWide() -> Bool { true }
-#endif
+
+extension SizeClassAware {
+    /// True when the horizontal size class is regular (iPad landscape/split
+    /// view, or macOS — which is always `.regular`).
+    var isWide: Bool {
+        horizontalSizeClass == .regular
+    }
+}
 
 // MARK: - Toast Modifier
 
