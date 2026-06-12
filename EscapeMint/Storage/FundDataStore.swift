@@ -287,6 +287,22 @@ final class FundDataStore {
         summaryMap[id]
     }
 
+    /// Aggregate portfolio metrics for the summaries on a single platform, or the
+    /// whole portfolio when `platform` is nil.
+    ///
+    /// Lives here (not in the dashboard view) so the filter-then-aggregate path is
+    /// observable from `@Observable` state and unit-testable without a view. When
+    /// `platform` is nil the result equals the precomputed `portfolio`, so callers
+    /// can pass their current filter directly.
+    func filteredPortfolio(platform: String?) -> PortfolioMetrics {
+        guard let platform else { return portfolio }
+        let matching = summaries.filter { $0.fund.platform == platform }
+        return computePortfolioAggregate(
+            matching.map { $0.fund },
+            perFundMetrics: matching.map { ($0.metrics, $0.state) }
+        )
+    }
+
     // MARK: - Mutations (memory first for instant UI, then persist to disk)
 
     func addFund(_ fund: FundData) async {

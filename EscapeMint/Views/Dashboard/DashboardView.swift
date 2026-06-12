@@ -63,10 +63,7 @@ struct DashboardView: View {
         activeSummariesByPlatform = Dictionary(grouping: active, by: { $0.fund.platform })
         closedSummariesByPlatform = Dictionary(grouping: closed, by: { $0.fund.platform })
         let allFiltered = active + closed
-        filteredPortfolio = computePortfolioAggregate(
-            allFiltered.map { $0.fund },
-            perFundMetrics: allFiltered.map { ($0.metrics, $0.state) }
-        )
+        filteredPortfolio = store.filteredPortfolio(platform: filter)
         cashFundCount = allFiltered.filter { $0.isCash }.count
     }
 
