@@ -17,7 +17,7 @@ struct EMChartLoadingPlaceholder: View {
 // MARK: - Async Chart Data Loading
 
 extension View {
-    /// Loads a chart series for a fund: serve from `ViewCache` if present, otherwise
+    /// Loads a chart series for a fund: serve from `ChartCache` if present, otherwise
     /// compute off the main actor, honor cancellation, cache the result, and publish
     /// it into `points`. Keyed by `fundId`+`entryCount` so it reloads when either
     /// changes; clears `points` when the fund switches. Replaces four identical
@@ -31,12 +31,12 @@ extension View {
     ) -> some View {
         self
             .task(id: "\(fundId)-\(entryCount)") {
-                if let cached = ViewCache.shared.cachedChartPoints(type: T.self, fundId: fundId, entryCount: entryCount) {
+                if let cached = ChartCache.shared.cachedChartPoints(type: T.self, fundId: fundId, entryCount: entryCount) {
                     points.wrappedValue = cached
                 } else {
                     let computed = await Task.detached(priority: priority, operation: compute).value
                     guard !Task.isCancelled else { return }
-                    ViewCache.shared.cacheChartPoints(computed, type: T.self, fundId: fundId, entryCount: entryCount)
+                    ChartCache.shared.cacheChartPoints(computed, type: T.self, fundId: fundId, entryCount: entryCount)
                     points.wrappedValue = computed
                 }
             }

@@ -14,7 +14,7 @@ private struct MetricsGridWidthKey: PreferenceKey {
 
 struct DashboardView: View, SizeClassAware {
     private var store: FundDataStore { .shared }
-    private var cache: ViewCache { .shared }
+    private var cache: ChartCache { .shared }
     @State private var showCreateFund = false
     @State private var showImport = false
     @State private var showCharts = true

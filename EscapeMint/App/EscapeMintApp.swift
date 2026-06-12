@@ -151,7 +151,7 @@ struct ContentView: View {
             // -loadTestData is handled in EscapeMintApp.init() before views load
             let isFirstTime = !introCompleted || showIntroOnLaunch
             // Start historical data loading immediately, boosted priority for first-time users
-            ViewCache.shared.startLoading(prioritizeGuide: isFirstTime)
+            BacktestCache.shared.startLoading(prioritizeGuide: isFirstTime)
             if isFirstTime {
                 ModeComparisonPreloader.shared.preload()
             }
