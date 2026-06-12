@@ -34,19 +34,27 @@ private func sortedByDateStable(_ entries: [FundEntry]) -> [FundEntry] {
         .map(\.element)
 }
 
-private func latestPointPerDate<T: DateIdentifiable>(_ points: [T]) -> [T] {
+/// Collapse same-date items to the last one (end-of-day snapshot). Input must be
+/// date-sorted: only adjacent duplicates collapse. Charts need at most one point
+/// per date — repeated x-values from intra-day entries degenerate area fills into
+/// self-intersecting polygons and duplicate ForEach ids.
+private func latestPerDate<T>(_ items: [T], date: (T) -> String) -> [T] {
     var daily: [T] = []
-    daily.reserveCapacity(points.count)
+    daily.reserveCapacity(items.count)
 
-    for point in points {
-        if daily.last?.date == point.date {
-            daily[daily.count - 1] = point
+    for item in items {
+        if let last = daily.last, date(last) == date(item) {
+            daily[daily.count - 1] = item
         } else {
-            daily.append(point)
+            daily.append(item)
         }
     }
 
     return daily
+}
+
+private func latestPointPerDate<T: DateIdentifiable>(_ points: [T]) -> [T] {
+    latestPerDate(points) { $0.date }
 }
 
 // MARK: - Chart Data Point Structs
@@ -149,12 +157,13 @@ func computeAPYPoints(entries: [FundEntry], config: FundConfig) -> [APYPoint] {
     }
 
     // Use the same per-entry computation as the entries table (matches web app),
-    // then sample for chart display
-    let rows = computeEntryRows(entries: entries, config: config)
-    let sampled = sampleArray(zip(entries, rows).map { ($0, $1) })
-    return sampled.map { entry, row in
+    // then collapse to end-of-day and sample for chart display
+    let ordered = sortedByDateStable(entries)
+    let rows = computeEntryRows(entries: ordered, config: config)
+    let allPoints = zip(ordered, rows).map { entry, row in
         APYPoint(id: entry.date, date: entry.date, realizedAPY: row.realizedApy, liquidAPY: row.liquidApy)
     }
+    return sampleArray(latestPointPerDate(allPoints))
 }
 
 /// Cash fund APY uses TWAB (time-weighted average balance) as denominator — matches web app
@@ -167,7 +176,7 @@ private func computeCashAPYPoints(entries: [FundEntry], config: FundConfig) -> [
     var sumExpenses = 0.0
 
     var all: [APYPoint] = []
-    for entry in entries {
+    for entry in sortedByDateStable(entries) {
         if let ld = lastDate {
             let daysBtw = max(0, Double(daysBetween(ld, entry.date)))
             twabNumerator += lastBalance * daysBtw
@@ -187,7 +196,7 @@ private func computeCashAPYPoints(entries: [FundEntry], config: FundConfig) -> [
             : 0.0
         all.append(APYPoint(id: entry.date, date: entry.date, realizedAPY: apy, liquidAPY: apy))
     }
-    return sampleArray(all)
+    return sampleArray(latestPointPerDate(all))
 }
 
 func computeProfitPoints(entries: [FundEntry], config: FundConfig) -> [ProfitPoint] {
@@ -199,7 +208,7 @@ func computeProfitPoints(entries: [FundEntry], config: FundConfig) -> [ProfitPoi
     var totalSells = 0.0
     var sumShares = 0.0
     var costBasis = 0.0
-    let all = entries.map { entry -> ProfitPoint in
+    let all = sortedByDateStable(entries).map { entry -> ProfitPoint in
         cumD += entry.dividend ?? 0
         cumI += entry.cash_interest ?? 0
         if entry.action == .BUY, let amt = entry.amount {
@@ -230,7 +239,7 @@ func computeProfitPoints(entries: [FundEntry], config: FundConfig) -> [ProfitPoi
         }
         return ProfitPoint(id: entry.date, date: entry.date, cumDividend: cumD, cumInterest: cumI, cumExtracted: cumE)
     }
-    return sampleArray(all)
+    return sampleArray(latestPointPerDate(all))
 }
 
 func computeValuePoints(entries: [FundEntry], config: FundConfig) -> [ValuePoint] {
@@ -240,7 +249,8 @@ func computeValuePoints(entries: [FundEntry], config: FundConfig) -> [ValuePoint
     var sumShares = 0.0
 
     // Single pass: compute net invested per entry
-    let allWithInvested: [(entry: FundEntry, invested: Double)] = entries.map { entry in
+    let ordered = sortedByDateStable(entries)
+    let allWithInvested: [(entry: FundEntry, invested: Double)] = ordered.map { entry in
         if entry.action == .BUY, let amt = entry.amount {
             totalBuys += amt
             sumShares += abs(entry.shares ?? 0)
@@ -264,8 +274,8 @@ func computeValuePoints(entries: [FundEntry], config: FundConfig) -> [ValuePoint
         return (entry, max(0, totalBuys - totalSells))
     }
 
-    // Sample, then compute target per sampled point
-    let sampled = sampleArray(allWithInvested)
+    // Collapse to end-of-day, sample, then compute target per sampled point
+    let sampled = sampleArray(latestPerDate(allWithInvested) { $0.entry.date })
 
     let cc = chartConfig(config)
 
@@ -273,9 +283,8 @@ func computeValuePoints(entries: [FundEntry], config: FundConfig) -> [ValuePoint
     // per sampled point — O(points × entries). `computeExpectedTarget` re-sorts its
     // trades internally, so only the *set* of prior entries matters, not their order.
     // Sort the dates once and binary-search the upper bound per sampled point, so the
-    // prior prefix is recovered in O(log n) without assuming the sampled dates (which
-    // follow the caller's entry order, not necessarily date order) are monotonic.
-    let dateSorted = entries.sorted { $0.date < $1.date }
+    // prior prefix is recovered in O(log n).
+    let dateSorted = ordered
     let sortedDates = dateSorted.map(\.date)
     return sampled.map { item in
         // Count of entries with date <= sampled date (upper-bound index).
@@ -296,10 +305,11 @@ func computeDerivativesChartData(entries: [FundEntry], config: FundConfig) -> [D
     let cm = config.contract_multiplier ?? 0.01
     let imr = config.initial_margin_rate ?? 0.25
     let mmr = config.maintenance_margin_rate ?? 0.20
-    let startDate = entries.first?.date ?? ""
+    let ordered = sortedByDateStable(entries)
+    let startDate = ordered.first?.date ?? ""
     var acc = DerivativesAccumulator()
 
-    let all = entries.map { entry -> DerivativesChartPoint in
+    let all = ordered.map { entry -> DerivativesChartPoint in
         acc.apply(entry)
 
         // Use TSV values if available, otherwise compute from trade data
@@ -362,12 +372,5 @@ func computeDerivativesChartData(entries: [FundEntry], config: FundConfig) -> [D
     }
 
     // Aggregate by date — keep only the last entry per date (end-of-day snapshot)
-    var byDate: [String: DerivativesChartPoint] = [:]
-    var dateOrder: [String] = []
-    for pt in all {
-        if byDate[pt.date] == nil { dateOrder.append(pt.date) }
-        byDate[pt.date] = pt
-    }
-    let aggregated = dateOrder.compactMap { byDate[$0] }
-    return sampleArray(aggregated)
+    return sampleArray(latestPointPerDate(all))
 }

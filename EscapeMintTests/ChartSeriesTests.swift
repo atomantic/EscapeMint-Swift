@@ -114,6 +114,40 @@ final class ChartSeriesTests: XCTestCase {
         XCTAssertLessThan(points[1].liquidAPY, 0.20)
     }
 
+    // MARK: - Same-date collapse (end-of-day snapshot)
+
+    /// Multiple entries on one date must collapse to a single end-of-day point in every
+    /// chart series. Repeated x-values render as vertical spikes and self-intersecting
+    /// area fills (the BTC2 chart artifacts), so this is a rendering invariant, not just
+    /// a data nicety. The intra-day BUY here transiently pushes invested to $11,000; the
+    /// same-day SELL brings it back down — only the post-sell state may surface.
+    func testSameDateEntriesCollapseToEndOfDayPoint() throws {
+        var config = FundConfig(fund_type: .stock, status: .active)
+        config.accumulate = false
+        let entries = [
+            FundEntry(date: "2024-01-01", value: 1000, action: .BUY, amount: 1000, shares: 10),
+            FundEntry(date: "2024-06-01", value: 11000, action: .BUY, amount: 10000, shares: 100),
+            FundEntry(date: "2024-06-01", value: 5500, action: .SELL, amount: 5500, shares: 55),
+            FundEntry(date: "2024-12-31", value: 5600, action: .HOLD),
+        ]
+
+        let valuePoints = computeValuePoints(entries: entries, config: config)
+        XCTAssertEqual(valuePoints.map(\.date), ["2024-01-01", "2024-06-01", "2024-12-31"],
+                       "Same-date entries must collapse to one point per date")
+        let midDay = try XCTUnwrap(valuePoints.first { $0.date == "2024-06-01" })
+        XCTAssertLessThan(midDay.invested, 11000,
+                          "The intra-day invested spike must not survive the end-of-day collapse")
+
+        let apyPoints = computeAPYPoints(entries: entries, config: config)
+        XCTAssertEqual(apyPoints.map(\.date), ["2024-01-01", "2024-06-01", "2024-12-31"])
+
+        let plPoints = computePLPoints(entries: entries, config: config)
+        XCTAssertEqual(plPoints.map(\.date), ["2024-01-01", "2024-06-01", "2024-12-31"])
+
+        let profitPoints = computeProfitPoints(entries: entries, config: config)
+        XCTAssertEqual(profitPoints.map(\.date), ["2024-01-01", "2024-06-01", "2024-12-31"])
+    }
+
     /// Cash fund APY uses TWAB. A single deposit earning a year of interest yields a
     /// positive APY at the interest entry; before any interest it is 0.
     func testCashAPYPointsForFixedInterestFund() throws {
