@@ -271,11 +271,25 @@ final class EngineTests: XCTestCase {
     }
 
     // Positive control: with the SAME non-default state and a standard stock config,
-    // computeRecommendation MUST return non-nil. This ensures the nil tests above are
-    // meaningfully testing the type/status branches.
+    // computeRecommendation MUST return a fully-specified, non-default recommendation.
+    // Asserting the exact action and amount (rather than merely non-nil) proves the
+    // recommendation engine actually evaluated this state — a regression that returned a
+    // default/empty Recommendation, or short-circuited to the wrong branch, would still
+    // pass a bare non-nil check. This makes the nil tests above meaningful: the same
+    // state yields a concrete BUY here, so their nil results are driven purely by the
+    // fund_type/status branches.
+    //
+    // Trace for makeNonDefaultState() with the standard stock config:
+    //   startInputUsd = 4000 (not initial buy), gainUsd = +1000 (in profit),
+    //   targetDiffUsd = 0 (default) which is NOT > min_profit_usd (100) -> no SELL,
+    //   computeLimit -> input_min_usd (100) since gain is positive,
+    //   buyAmount = min(limit 100, cashAvailableUsd 1500) = 100 -> BUY 100.
     func testComputeRecommendationNonNilForStockWithState() {
         let config = makeStockConfig()
-        XCTAssertNotNil(computeRecommendation(config: config, state: makeNonDefaultState()))
+        let rec = computeRecommendation(config: config, state: makeNonDefaultState())
+        XCTAssertNotNil(rec)
+        XCTAssertEqual(rec?.action, .BUY)
+        XCTAssertEqual(rec!.amount, 100, accuracy: 0.01)
     }
 
     // MARK: - computeExpectedTarget
@@ -1284,6 +1298,29 @@ final class EngineTests: XCTestCase {
         // Previously accuracy: 5.0 (a ~1.4% slack with no floating-point justification).
         // Tightened to 0.50 (~0.14%) which catches any off-by-day regression.
         XCTAssertEqual(interest, 362.08, accuracy: 0.50)
+    }
+
+    func testComputeCashInterestExactRateAndPeriod() {
+        // Precise, hand-computable interest. The engine compounds annually:
+        //   interest = principal * ((1 + apy)^(days / 365) - 1)
+        // Verifying the exact 5.0% APY result (rather than a loose threshold) pins down
+        // both the rate and the day-count, so a wrong base, exponent, or day delta fails.
+        let config = makeStockConfig(cashApy: 0.05)
+
+        // Case 1: $10,000 at 5.0% APY held EXACTLY one year (365 days, non-leap window)
+        // -> 10000 * ((1.05)^(365/365) - 1) = 10000 * 0.05 = $500.00 exactly.
+        let depositedYear = [CashFlow(date: "2025-01-01", amountUsd: 10000, type: .deposit)]
+        let yearInterest = computeCashInterest(
+            config: config, trades: [], cashflows: depositedYear, asOfDate: "2026-01-01")
+        XCTAssertEqual(yearInterest, 500.0, accuracy: 0.001)
+
+        // Case 2: the issue's worked example — 5.0% APY producing ~$0.10 of interest.
+        // $748.0516 held one day: 748.0516 * ((1.05)^(1/365) - 1) ≈ $0.10 exactly.
+        // A short, small-figure case is the most sensitive to per-day compounding errors.
+        let depositedDay = [CashFlow(date: "2025-01-01", amountUsd: 748.0516, type: .deposit)]
+        let dayInterest = computeCashInterest(
+            config: config, trades: [], cashflows: depositedDay, asOfDate: "2025-01-02")
+        XCTAssertEqual(dayInterest, 0.10, accuracy: 0.0001)
     }
 
     // MARK: - Portfolio Metrics
