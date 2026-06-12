@@ -474,6 +474,22 @@ func emPercentAxis() -> some AxisContent {
     }
 }
 
+/// Trailing leverage axis ("3.0x") drawn in green with cleared grid lines, for the
+/// overlaid leverage scale in the Capital & Leverage chart.
+@AxisContentBuilder
+func emLeverageAxis() -> some AxisContent {
+    AxisMarks(position: .trailing) { value in
+        AxisGridLine().foregroundStyle(.clear)
+        AxisValueLabel {
+            if let v = value.as(Double.self) {
+                Text("\(v, specifier: "%.1f")x")
+                    .font(.caption2)
+                    .foregroundColor(.green)
+            }
+        }
+    }
+}
+
 // MARK: - Zero Reference Line
 
 @ChartContentBuilder

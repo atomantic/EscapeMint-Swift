@@ -97,11 +97,6 @@ private let yearFormatter: DateFormatter = {
     return f
 }()
 
-private let investedPurple = Color(
-    light: Color(red: 106/255, green: 58/255, blue: 210/255),
-    dark: Color(red: 120/255, green: 70/255, blue: 220/255)
-)
-
 /// Cached historical data — loaded once from disk, shared across all intro charts
 
 
@@ -243,8 +238,12 @@ private func badgeOverlay(badges: [BuySellBadge], data: [PriceTargetPoint], visi
     }
 }
 
-// MARK: - Intro dollar Y-axis (smaller values, no comma formatting)
+// MARK: - Intro chart axes
+// The intro/illustrative charts use whole-dollar labels (no thousands separators,
+// optional "K" compaction) — distinct from the shared `emCurrencyAxis` which formats
+// real fund values. These two builders are the single source for all intro axes.
 
+/// Whole-dollar leading Y-axis ("$420"), no comma formatting.
 @AxisContentBuilder
 private func introDollarAxis() -> some AxisContent {
     AxisMarks(position: .leading) { value in
@@ -256,15 +255,19 @@ private func introDollarAxis() -> some AxisContent {
     }
 }
 
+/// Compact-thousands leading Y-axis ("$12K"), falling back to whole dollars below 1000.
+/// `desiredCount`/`labelFont` let the side-by-side mode-comparison charts reuse it with
+/// fewer, smaller ticks.
 @AxisContentBuilder
-private func introKAxis() -> some AxisContent {
-    AxisMarks(position: .leading) { value in
+private func introKAxis(desiredCount: Int = 0, labelFont: Font = .caption2) -> some AxisContent {
+    let values: AxisMarkValues = desiredCount > 0 ? .automatic(desiredCount: desiredCount) : .automatic
+    AxisMarks(position: .leading, values: values) { value in
         AxisValueLabel {
             if let v = value.as(Double.self) {
                 if v >= 1000 {
-                    Text("$\(Int(v / 1000))K").font(.caption2).foregroundColor(.textMuted)
+                    Text("$\(Int(v / 1000))K").font(labelFont).foregroundColor(.textMuted)
                 } else {
-                    Text("\(Int(v))").font(.caption2).foregroundColor(.textMuted)
+                    Text("\(Int(v))").font(labelFont).foregroundColor(.textMuted)
                 }
             }
         }
@@ -677,7 +680,7 @@ struct ModeComparisonChart: View {
 
                 HStack(spacing: 12) {
                     legendItem(color: .orange, label: "Value", style: .line)
-                    legendItem(color: investedPurple, label: "Invested", style: .square)
+                    legendItem(color: .investedPurple, label: "Invested", style: .square)
                     legendItem(color: .mint, label: "Cash", style: .square)
                     legendItem(color: .cyan, label: "Target", style: .dashed)
                 }
@@ -748,7 +751,7 @@ struct ModeComparisonChart: View {
                         .interpolationMethod(.monotone)
                 }
             }
-            .chartForegroundStyleScale(["Invested": investedPurple, "Cash": Color.green.opacity(0.6)])
+            .chartForegroundStyleScale(["Invested": Color.investedPurple, "Cash": Color.green.opacity(0.6)])
             .chartXAxis {
                 AxisMarks(values: .automatic(desiredCount: 3)) { value in
                     AxisValueLabel {
@@ -760,15 +763,7 @@ struct ModeComparisonChart: View {
                 }
             }
             .chartYScale(domain: 0...yMax)
-            .chartYAxis {
-                AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
-                    AxisValueLabel {
-                        if let v = value.as(Double.self) {
-                            Text("$\(Int(v / 1000))K").font(.system(size: 8)).foregroundColor(.textMuted)
-                        }
-                    }
-                }
-            }
+            .chartYAxis { introKAxis(desiredCount: 4, labelFont: .system(size: 8)) }
             .chartLegend(.hidden)
             .frame(height: 180)
         }
