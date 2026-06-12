@@ -317,41 +317,41 @@ final class FundDataStore {
     /// True when funds are stored in the iCloud ubiquity container rather than local Documents.
     /// Exposed so Settings can render iCloud-specific controls without touching the file-I/O actor.
     var isICloud: Bool {
-        FundStore.shared.isICloud
+        store.isICloud
     }
 
     /// On-disk fund count + total byte size, for the Settings storage summary.
     func dataStats() async -> FundStore.DataStats {
-        await FundStore.shared.dataStats()
+        await store.dataStats()
     }
 
     /// Number of test/demo funds currently on disk (platforms prefixed with "test").
     func testFundCount() async -> Int {
-        await FundStore.shared.testFundCount()
+        await store.testFundCount()
     }
 
     /// Import funds from a TSV+JSON directory, reloading in-memory state when anything was imported.
     /// Returns the imported fund count.
     func importFromDirectory(_ url: URL) async throws -> Int {
-        let count = try await FundStore.shared.importFromDirectory(url)
+        let count = try await store.importFromDirectory(url)
         if count > 0 { await reload() }
         return count
     }
 
     /// Inspect a backup JSON without importing — used to validate the file before a replace/merge.
     func backupJSONFundCount(_ url: URL) async throws -> Int {
-        try await FundStore.shared.backupJSONFundCount(url)
+        try await store.backupJSONFundCount(url)
     }
 
     /// Import funds from a backup JSON. When `replacingExisting` is true, all existing funds are
     /// deleted first. Marks the write for the iCloud monitor and reloads in-memory state.
     /// Returns the imported fund count.
     func importFromBackupJSON(_ url: URL, replacingExisting: Bool) async throws -> Int {
-        _ = try await FundStore.shared.backupJSONFundCount(url)
+        _ = try await store.backupJSONFundCount(url)
         if replacingExisting {
-            try await FundStore.shared.deleteAllFunds()
+            try await store.deleteAllFunds()
         }
-        let count = try await FundStore.shared.importFromBackupJSON(url)
+        let count = try await store.importFromBackupJSON(url)
         ICloudSyncMonitor.shared.markLocalWrite()
         await reload()
         return count
@@ -359,20 +359,20 @@ final class FundDataStore {
 
     /// Export all funds to a single backup JSON file, returning its URL.
     func exportToBackupJSON() async throws -> URL {
-        try await FundStore.shared.exportToBackupJSON()
+        try await store.exportToBackupJSON()
     }
 
     /// Generate simulated test funds with DCA history, then reload in-memory state.
     /// Returns the number of test funds created.
     func loadTestData() async throws -> Int {
-        let count = try await FundStore.shared.loadTestData()
+        let count = try await store.loadTestData()
         await reload()
         return count
     }
 
     /// Delete all test/demo funds, then reload in-memory state. Returns the deleted count.
     func deleteTestFunds() async throws -> Int {
-        let count = try await FundStore.shared.deleteTestFunds()
+        let count = try await store.deleteTestFunds()
         await reload()
         return count
     }
@@ -380,11 +380,11 @@ final class FundDataStore {
     /// Back up all funds to Documents (when any exist), delete everything, then reload in-memory
     /// state. Returns the fund count that was backed up before clearing.
     func clearAllDataWithBackup() async throws -> Int {
-        let stats = await FundStore.shared.dataStats()
+        let stats = await store.dataStats()
         if stats.fundCount > 0 {
-            _ = try await FundStore.shared.exportToDocuments()
+            _ = try await store.exportToDocuments()
         }
-        try await FundStore.shared.deleteAllFunds()
+        try await store.deleteAllFunds()
         await reload()
         return stats.fundCount
     }

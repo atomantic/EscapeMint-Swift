@@ -125,6 +125,19 @@ protocol FundStoreProtocol: Sendable {
     func deleteFund(id: String) async throws
     func deletePlatform(named platform: String) async throws -> Int
     func backupFund(id: String) async throws -> URL
+
+    // Bulk import/export and test-data operations the FundDataStore facade
+    // delegates to (views call FundDataStore, which routes through this store).
+    func dataStats() async -> FundStore.DataStats
+    func testFundCount() async -> Int
+    func importFromDirectory(_ sourceDir: URL) async throws -> Int
+    func backupJSONFundCount(_ jsonURL: URL) async throws -> Int
+    func importFromBackupJSON(_ jsonURL: URL) async throws -> Int
+    func exportToBackupJSON() async throws -> URL
+    func exportToDocuments() async throws -> URL
+    func loadTestData() async throws -> Int
+    func deleteTestFunds() async throws -> Int
+    func deleteAllFunds() async throws
 }
 
 extension FundStore: FundStoreProtocol {}
@@ -889,7 +902,7 @@ actor FundStore {
         return fundBackupDir
     }
 
-    struct DataStats {
+    struct DataStats: Sendable {
         let fundCount: Int
         let totalBytes: Int
         var formattedSize: String {

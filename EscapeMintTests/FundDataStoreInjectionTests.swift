@@ -108,6 +108,32 @@ final class FundDataStoreInjectionTests: XCTestCase {
             lock.withLock { $0.backupCount += 1 }
             return URL(fileURLWithPath: "/dev/null/\(id)")
         }
+
+        // Bulk import/export + test-data facade operations. The injection tests don't
+        // exercise these paths, so they return inert in-memory results derived from the
+        // seeded map — enough to satisfy the protocol without touching the filesystem.
+        func dataStats() async -> FundStore.DataStats {
+            lock.withLock { FundStore.DataStats(fundCount: $0.funds.count, totalBytes: 0) }
+        }
+        func testFundCount() async -> Int {
+            lock.withLock { state in state.funds.values.filter { $0.platform.hasPrefix("test") }.count }
+        }
+        func importFromDirectory(_ sourceDir: URL) async throws -> Int { 0 }
+        func backupJSONFundCount(_ jsonURL: URL) async throws -> Int { 0 }
+        func importFromBackupJSON(_ jsonURL: URL) async throws -> Int { 0 }
+        func exportToBackupJSON() async throws -> URL { URL(fileURLWithPath: "/dev/null/backup.json") }
+        func exportToDocuments() async throws -> URL { URL(fileURLWithPath: "/dev/null/export") }
+        func loadTestData() async throws -> Int { 0 }
+        func deleteTestFunds() async throws -> Int {
+            lock.withLock { state in
+                let ids = state.funds.values.filter { $0.platform.hasPrefix("test") }.map(\.id)
+                for id in ids { state.funds.removeValue(forKey: id) }
+                return ids.count
+            }
+        }
+        func deleteAllFunds() async throws {
+            lock.withLock { $0.funds.removeAll() }
+        }
     }
 
     private func makeFund(platform: String, ticker: String, entries: [FundEntry]) -> FundData {
