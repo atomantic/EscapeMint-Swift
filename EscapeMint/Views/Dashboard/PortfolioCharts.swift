@@ -80,8 +80,6 @@ struct PortfolioAllocationChart: View {
         }
     }
 
-    private var total: Double { categories.reduce(0) { $0 + $1.value } }
-
     private var marginStats: (available: Double, borrowed: Double) {
         summaries.reduce((0.0, 0.0)) { acc, s in
             let entry = s.fund.entries.last
@@ -90,6 +88,10 @@ struct PortfolioAllocationChart: View {
     }
 
     var body: some View {
+        // Compute the category grouping once; `categories` builds a Dictionary(grouping:)
+        // and was previously re-evaluated for every ForEach iteration and by `total`.
+        let categories = self.categories
+        let total = categories.reduce(0) { $0 + $1.value }
         let margin = marginStats
         VStack(alignment: .leading, spacing: 8) {
             Text("Portfolio Allocation")
