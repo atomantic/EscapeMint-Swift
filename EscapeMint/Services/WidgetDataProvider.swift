@@ -78,11 +78,21 @@ final class WidgetDataProvider {
         }
     }
 
-    /// Read snapshot from the shared container (called by widget)
+    /// Read snapshot from the shared container (called by widget).
+    /// Resolves the real App Group container URL, then delegates to the
+    /// directory-injectable overload below so tests can seed and assert a read.
     static func readSnapshot() -> WidgetSnapshot? {
         guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) else {
             return nil
         }
+        return readSnapshot(from: containerURL)
+    }
+
+    /// Decode the snapshot stored in `containerURL` (the App Group container in
+    /// production). Factored out so tests can point at a temp directory, seed a
+    /// known `widget-snapshot.json`, and assert the decoded result — production
+    /// behavior is unchanged because `readSnapshot()` passes the real container.
+    static func readSnapshot(from containerURL: URL) -> WidgetSnapshot? {
         let fileURL = containerURL.appendingPathComponent(snapshotFileName)
         guard let data = try? Data(contentsOf: fileURL) else { return nil }
         return try? JSONDecoder().decode(WidgetSnapshot.self, from: data)
