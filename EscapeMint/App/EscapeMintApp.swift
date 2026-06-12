@@ -376,13 +376,18 @@ struct MacContentView: View {
         }
     }
 
+    // Read from the store's pre-computed summaries rather than recomputing per
+    // render. `FundSummary` already carries the fund alongside its computed
+    // state/metrics, so the sidebar reuses that work instead of re-deriving it.
     var activeFunds: [FundData] {
-        store.funds.filter { $0.config.status != .closed }
-            .sorted { getLatestValue($0.entries) > getLatestValue($1.entries) }
+        store.summaries.filter { $0.fund.config.status != .closed }
+            .sorted { getLatestValue($0.fund.entries) > getLatestValue($1.fund.entries) }
+            .map { $0.fund }
     }
 
     var closedFunds: [FundData] {
-        store.funds.filter { $0.config.status == .closed }
+        store.summaries.filter { $0.fund.config.status == .closed }
+            .map { $0.fund }
     }
 
     var groupedActive: [(String, [FundData])] { groupByPlatform(activeFunds) }
