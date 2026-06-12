@@ -1613,6 +1613,182 @@ final class EngineTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(result.maxDrawdown, 0)
     }
 
+    // MARK: - BacktestEngine: Edge Cases (negative prices, zero dividends)
+
+    func testRunBacktestNegativePricesProducesFiniteResult() {
+        // Some data sources can emit malformed (negative) price points. The engine
+        // normalizes each asset to 100 at the start date, so a negative price feeds a
+        // negative blended price. This pins the behavior: the run must still complete
+        // and produce finite, non-NaN aggregates rather than crashing or returning NaN.
+        // Series starts positive (so basePrice > 0, normalization is well-defined),
+        // then declines into negative territory.
+        var prices: [HistoricalData.PricePoint] = []
+        for i in 0..<52 {
+            let value = 100.0 - Double(i) * 6.0  // 100 → -206 over 52 weeks
+            prices.append(HistoricalData.PricePoint(
+                date: dateByAddingWeeks(i, from: "2024-01-01"),
+                value: value
+            ))
+        }
+
+        let hist = HistoricalData(
+            ticker: "TEST", name: "Test Asset", type: "stock",
+            startDate: prices.first!.date, endDate: prices.last!.date,
+            dataPoints: prices.count, prices: prices, dividends: nil
+        )
+
+        var config = BacktestConfig()
+        config.spxlPct = 0; config.vtiPct = 0; config.brgnxPct = 0
+        config.tqqqPct = 0; config.btcPct = 1.0; config.gldPct = 0; config.slvPct = 0
+        config.initialCash = 10000
+        config.weeklyDCA = 100
+        config.targetAPY = 0.10
+        config.accumulate = true
+
+        let result = runBacktest(config: config, historicalData: ["BTC": hist])
+        XCTAssertNotNil(result)
+
+        guard let result else { return }
+        XCTAssertEqual(result.entries.count, 52)
+        // All aggregate outputs must be finite (no NaN/Inf leaking from negative prices).
+        XCTAssertTrue(result.finalValue.isFinite, "finalValue must be finite")
+        XCTAssertTrue(result.liquidGain.isFinite, "liquidGain must be finite")
+        XCTAssertTrue(result.liquidAPY.isFinite, "liquidAPY must be finite")
+        XCTAssertTrue(result.realizedAPY.isFinite, "realizedAPY must be finite")
+        XCTAssertTrue(result.unrealizedGain.isFinite, "unrealizedGain must be finite")
+        XCTAssertTrue(result.maxDrawdown.isFinite, "maxDrawdown must be finite")
+        // Per-entry values must also be finite.
+        for entry in result.entries {
+            XCTAssertTrue(entry.equity.isFinite, "entry equity must be finite")
+            XCTAssertTrue(entry.cash.isFinite, "entry cash must be finite")
+            XCTAssertTrue(entry.fundSize.isFinite, "entry fundSize must be finite")
+        }
+        // maxDrawdown is a ratio and is always reported as non-negative.
+        XCTAssertGreaterThanOrEqual(result.maxDrawdown, 0)
+    }
+
+    func testRunBacktestZeroDividendsYieldsNoDividendIncome() {
+        // A dividends array present but containing only zero-amount entries must
+        // contribute exactly nothing to dividend income. This pins that zero-amount
+        // dividend points are summed (eqShares * 0 == 0) and never alter cash.
+        let prices = (0..<52).map { i in
+            HistoricalData.PricePoint(
+                date: dateByAddingWeeks(i, from: "2024-01-01"),
+                value: 100.0 + Double(i) * 0.5  // gentle uptrend so buys occur
+            )
+        }
+        let zeroDivs = (0..<52).map { i in
+            HistoricalData.DividendPoint(
+                exDate: dateByAddingWeeks(i, from: "2024-01-01"),
+                amount: 0.0
+            )
+        }
+
+        let hist = HistoricalData(
+            ticker: "TEST", name: "Test Asset", type: "stock",
+            startDate: prices.first!.date, endDate: prices.last!.date,
+            dataPoints: prices.count, prices: prices, dividends: zeroDivs
+        )
+
+        var config = BacktestConfig()
+        config.spxlPct = 0; config.vtiPct = 0; config.brgnxPct = 0
+        config.tqqqPct = 0; config.btcPct = 1.0; config.gldPct = 0; config.slvPct = 0
+        config.initialCash = 10000
+        config.weeklyDCA = 100
+        config.targetAPY = 0.25
+        config.accumulate = true
+
+        let result = runBacktest(config: config, historicalData: ["BTC": hist])
+        XCTAssertNotNil(result)
+
+        guard let result else { return }
+        XCTAssertEqual(result.entries.count, 52)
+        // Zero-amount dividends contribute zero income.
+        XCTAssertEqual(result.sumDividends, 0, accuracy: 1e-9)
+        for entry in result.entries {
+            XCTAssertEqual(entry.dividend, 0, accuracy: 1e-9)
+            XCTAssertEqual(entry.sumDividends, 0, accuracy: 1e-9)
+        }
+    }
+
+    func testRunBacktestNilDividendsMatchesEmptyDividendsBehavior() {
+        // `dividends: nil` and `dividends: []` must behave identically — both mean
+        // "no dividend income". This guards the `hist.dividends ?? []` fallback.
+        let prices = (0..<52).map { i in
+            HistoricalData.PricePoint(
+                date: dateByAddingWeeks(i, from: "2024-01-01"),
+                value: 100.0 + Double(i) * 0.5
+            )
+        }
+
+        func makeHist(_ divs: [HistoricalData.DividendPoint]?) -> HistoricalData {
+            HistoricalData(
+                ticker: "TEST", name: "Test Asset", type: "stock",
+                startDate: prices.first!.date, endDate: prices.last!.date,
+                dataPoints: prices.count, prices: prices, dividends: divs
+            )
+        }
+
+        var config = BacktestConfig()
+        config.spxlPct = 0; config.vtiPct = 0; config.brgnxPct = 0
+        config.tqqqPct = 0; config.btcPct = 1.0; config.gldPct = 0; config.slvPct = 0
+        config.initialCash = 10000
+        config.weeklyDCA = 100
+        config.targetAPY = 0.25
+        config.accumulate = true
+
+        let nilResult = runBacktest(config: config, historicalData: ["BTC": makeHist(nil)])
+        let emptyResult = runBacktest(config: config, historicalData: ["BTC": makeHist([])])
+
+        XCTAssertNotNil(nilResult)
+        XCTAssertNotNil(emptyResult)
+        guard let nilResult, let emptyResult else { return }
+
+        XCTAssertEqual(nilResult.sumDividends, 0, accuracy: 1e-9)
+        XCTAssertEqual(emptyResult.sumDividends, 0, accuracy: 1e-9)
+        // Both runs should produce identical aggregates.
+        XCTAssertEqual(nilResult.finalValue, emptyResult.finalValue, accuracy: 1e-6)
+        XCTAssertEqual(nilResult.totalInvested, emptyResult.totalInvested, accuracy: 1e-6)
+        XCTAssertEqual(nilResult.totalBuys, emptyResult.totalBuys)
+    }
+
+    func testRunBacktestPositiveDividendsAddIncome() {
+        // Contrast case: with a real (positive) dividend the engine must accrue income,
+        // confirming the zero/nil cases above are meaningfully distinct from the path
+        // that actually pays dividends.
+        let prices = (0..<52).map { i in
+            HistoricalData.PricePoint(
+                date: dateByAddingWeeks(i, from: "2024-01-01"),
+                value: 100.0 + Double(i) * 0.5
+            )
+        }
+        // One mid-series dividend, after shares have been accumulated.
+        let divs = [
+            HistoricalData.DividendPoint(exDate: dateByAddingWeeks(30, from: "2024-01-01"), amount: 1.0)
+        ]
+
+        let hist = HistoricalData(
+            ticker: "TEST", name: "Test Asset", type: "stock",
+            startDate: prices.first!.date, endDate: prices.last!.date,
+            dataPoints: prices.count, prices: prices, dividends: divs
+        )
+
+        var config = BacktestConfig()
+        config.spxlPct = 0; config.vtiPct = 0; config.brgnxPct = 0
+        config.tqqqPct = 0; config.btcPct = 1.0; config.gldPct = 0; config.slvPct = 0
+        config.initialCash = 10000
+        config.weeklyDCA = 100
+        config.targetAPY = 0.25
+        config.accumulate = true
+
+        let result = runBacktest(config: config, historicalData: ["BTC": hist])
+        XCTAssertNotNil(result)
+
+        guard let result else { return }
+        // Positive dividend on accumulated shares produces positive dividend income.
+        XCTAssertGreaterThan(result.sumDividends, 0, "positive dividend should accrue income")
+    }
+
     // MARK: - Harvest-Mode Partial Sell Cost Basis
 
     func testComputeEntryRowsHarvestPartialSell() {
