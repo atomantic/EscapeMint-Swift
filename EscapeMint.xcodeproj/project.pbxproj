@@ -28,6 +28,7 @@
 		14BD6E470FBB3F05EE989E37 /* BacktestConfigPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3668C8C07BAA5888046A22B /* BacktestConfigPanel.swift */; };
 		14DFBBA3032AB6B69AF2C13C /* WidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0F3FAE053123425C3E2E1D /* WidgetSnapshotModels.swift */; };
 		16EA12C051E1C27B3CEF8647 /* EntryFormHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78146FC52E9061B1A1504136 /* EntryFormHelpers.swift */; };
+		16F162FD47C34C07818C9CD2 /* DCANotificationSchedulingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EDB80A7FE63C588D7533369 /* DCANotificationSchedulingTests.swift */; };
 		17FB2541C0CEEC28CD1ABA20 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CF81295D6C93A9C4D22D1CC /* Formatters.swift */; };
 		192442462A6FE331F8E495C3 /* FundCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F80087125ABA29D4B680493 /* FundCardView.swift */; };
 		19B87610332E0908F3CBAE98 /* ChartSeriesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA5A9F7DA84AF88E840673BB /* ChartSeriesTests.swift */; };
@@ -117,6 +118,7 @@
 		7F0795B73CDDA0F1740CC77F /* robinhoodtest-tqqq.json in Resources */ = {isa = PBXBuildFile; fileRef = 28267799E2A77C972DF8DDB9 /* robinhoodtest-tqqq.json */; };
 		800271A5BCD7F0CD15434FED /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0536F00CCC4E2347521E1B56 /* Theme.swift */; };
 		82B10A98F56FB62DE964F54F /* gld-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 2FA36F78945896AA5A44225F /* gld-weekly.json */; };
+		844A58ADA82FB04C008CED53 /* DCANotificationSchedulingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EDB80A7FE63C588D7533369 /* DCANotificationSchedulingTests.swift */; };
 		84A52F16EF27156A386853DE /* BacktestEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E725D16A17E4F0835D06D981 /* BacktestEngine.swift */; };
 		881770F19680895E015AC2CE /* FundDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B5C0157B3A2F0FEB594AA56 /* FundDataStore.swift */; };
 		8B2DE7CE44327991FE480DB3 /* tqqq-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = AA7B587266915BE35EF3BDDF /* tqqq-weekly.json */; };
@@ -268,6 +270,7 @@
 		35E92242D8AFD2A3779102DE /* StoreSideEffects.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreSideEffects.swift; sourceTree = "<group>"; };
 		3A1A407DBC865895E7439F3D /* EntryColumns.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryColumns.swift; sourceTree = "<group>"; };
 		3B0F9CBFA841C5EAF45B1A2F /* GuidedAddEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedAddEntryView.swift; sourceTree = "<group>"; };
+		3EDB80A7FE63C588D7533369 /* DCANotificationSchedulingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DCANotificationSchedulingTests.swift; sourceTree = "<group>"; };
 		3F80087125ABA29D4B680493 /* FundCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundCardView.swift; sourceTree = "<group>"; };
 		4141AFA78E93A2BB544FFD49 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		42D65DB13952E5D475D4A596 /* BacktestTransactions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacktestTransactions.swift; sourceTree = "<group>"; };
@@ -551,6 +554,7 @@
 				6F36012CC7764D32C01C4EED /* BackupRoundTripTests.swift */,
 				9B549A3BFFCFE267E268C335 /* CashSyncTests.swift */,
 				CA5A9F7DA84AF88E840673BB /* ChartSeriesTests.swift */,
+				3EDB80A7FE63C588D7533369 /* DCANotificationSchedulingTests.swift */,
 				9DEB29D5F7AD42857B739CEE /* EngineTests.swift */,
 				BBCB0FDCE94E2404ABEFEA3C /* FormulaParserTests.swift */,
 				CD7045F4A08A28EE158CB394 /* FundMetricsTests.swift */,
@@ -1003,6 +1007,7 @@
 				0CD09438433B0FD28F816B44 /* BackupRoundTripTests.swift in Sources */,
 				08E38C053E193DFFF664ACF6 /* CashSyncTests.swift in Sources */,
 				19B87610332E0908F3CBAE98 /* ChartSeriesTests.swift in Sources */,
+				16F162FD47C34C07818C9CD2 /* DCANotificationSchedulingTests.swift in Sources */,
 				B78CF5602C037D36B8704885 /* EngineTests.swift in Sources */,
 				A8962E758080AB26AF506BD0 /* FormulaParserTests.swift in Sources */,
 				00C69901BFC3ED1EB67B856D /* FundMetricsTests.swift in Sources */,
@@ -1024,6 +1029,7 @@
 				4F86121FBE2542FC06D0803C /* BackupRoundTripTests.swift in Sources */,
 				52CA480B96FC346E915EC772 /* CashSyncTests.swift in Sources */,
 				8B40FDD389FEFF903DBECC5A /* ChartSeriesTests.swift in Sources */,
+				844A58ADA82FB04C008CED53 /* DCANotificationSchedulingTests.swift in Sources */,
 				6699AD40036B9A80E20F5A66 /* EngineTests.swift in Sources */,
 				7E19C1D454FBCCFD747BF786 /* FormulaParserTests.swift in Sources */,
 				1C31C8C48EEF4758BEED3877 /* FundMetricsTests.swift in Sources */,
