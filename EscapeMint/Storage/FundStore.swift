@@ -1,6 +1,99 @@
 import Foundation
 import os
 
+/// Type-safe model of the single-file backup JSON shared with the web app.
+///
+/// The on-disk shape must stay byte-compatible with the web app's `BackupData`
+/// (`packages/storage/src/backup.ts`): `version` ("1.0.0"), `backup_date` (ISO-8601),
+/// `funds`, `platforms` (null), `totals_snapshot` (null), `scrape_archives` ({}).
+/// The web app's `normalizeBackupData` also tolerates the older `{ version: 1, exported }`
+/// shape, but we always write the canonical string-versioned form.
+struct BackupDocument: Codable {
+    var version: String
+    var backup_date: String
+    var funds: [BackupFund]
+    /// Always emitted as JSON `null`/`{}` — the native app does not manage these web-only
+    /// sections, but the keys are written so the on-disk file stays byte-compatible with the
+    /// web app's exports. Encoded explicitly (never omitted) to preserve key presence.
+    var platforms: JSONNull
+    var totals_snapshot: JSONNull
+    var scrape_archives: [String: JSONNull]
+
+    init(funds: [BackupFund], backupDate: String) {
+        self.version = "1.0.0"
+        self.backup_date = backupDate
+        self.funds = funds
+        self.platforms = JSONNull()
+        self.totals_snapshot = JSONNull()
+        self.scrape_archives = [:]
+    }
+
+    // Decoding tolerates the older `{ version: 1, exported }` shape and absent
+    // platforms/totals/archives (mirrors the web app's `normalizeBackupData`).
+    enum CodingKeys: String, CodingKey {
+        case version, backup_date, exported, funds, platforms, totals_snapshot, scrape_archives
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        // version may be a string ("1.0.0") or the legacy numeric 1.
+        if let v = try? c.decode(String.self, forKey: .version) {
+            version = v
+        } else if let n = try? c.decode(Int.self, forKey: .version) {
+            version = n == 1 ? "1.0.0" : String(n)
+        } else {
+            version = "1.0.0"
+        }
+        backup_date = (try? c.decode(String.self, forKey: .backup_date))
+            ?? (try? c.decode(String.self, forKey: .exported))
+            ?? ""
+        funds = try c.decode([BackupFund].self, forKey: .funds)
+        platforms = JSONNull()
+        totals_snapshot = JSONNull()
+        scrape_archives = [:]
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(version, forKey: .version)
+        try c.encode(backup_date, forKey: .backup_date)
+        try c.encode(funds, forKey: .funds)
+        try c.encode(platforms, forKey: .platforms)
+        try c.encode(totals_snapshot, forKey: .totals_snapshot)
+        try c.encode(scrape_archives, forKey: .scrape_archives)
+    }
+}
+
+/// A single fund inside a backup. `config` carries the same `__`-prefixed metadata keys
+/// as the per-fund on-disk JSON (see `FundConfig.CodingKeys`), so it round-trips through
+/// `FundConfig` without a lossy `[String: Any]` detour.
+struct BackupFund: Codable {
+    var id: String
+    var platform: String
+    var ticker: String
+    var config: FundConfig
+    var entries: [FundEntry]
+}
+
+/// Encodes as JSON `null`, decodes from `null` or absent. Lets `BackupDocument` emit the
+/// web-app's `platforms: null` / `totals_snapshot: null` keys without an `Any` payload.
+struct JSONNull: Codable {
+    init() {}
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        guard container.decodeNil() else {
+            throw DecodingError.typeMismatch(
+                JSONNull.self,
+                .init(codingPath: decoder.codingPath, debugDescription: "Expected null")
+            )
+        }
+    }
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encodeNil()
+    }
+}
+
 actor FundStore {
     static let shared = FundStore()
 
@@ -580,11 +673,17 @@ actor FundStore {
 
     func backupJSONFundCount(_ jsonURL: URL) throws -> Int {
         let data = try Data(contentsOf: jsonURL)
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let fundsArray = json["funds"] as? [[String: Any]] else {
+        return try Self.decodeBackup(data).funds.count
+    }
+
+    /// Decode a backup file into the type-safe `BackupDocument`, mapping any decoding
+    /// failure to the legacy `FundStore` error so the UI surfaces a clear message.
+    private static func decodeBackup(_ data: Data) throws -> BackupDocument {
+        do {
+            return try JSONDecoder().decode(BackupDocument.self, from: data)
+        } catch {
             throw NSError(domain: "FundStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid backup format: missing 'funds' array"])
         }
-        return fundsArray.count
     }
 
     func importFromBackupJSON(_ jsonURL: URL) throws -> Int {
@@ -592,21 +691,14 @@ actor FundStore {
         try? fileManager.createDirectory(at: fundsDirectory, withIntermediateDirectories: true)
 
         let data = try Data(contentsOf: jsonURL)
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let fundsArray = json["funds"] as? [[String: Any]] else {
-            throw NSError(domain: "FundStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid backup format: missing 'funds' array"])
-        }
+        let backup = try Self.decodeBackup(data)
 
         let safeFundIdPattern = /^[a-zA-Z0-9._-]+$/
         var imported = 0
-        for fundDict in fundsArray {
-            guard let id = fundDict["id"] as? String,
-                  let platform = fundDict["platform"] as? String,
-                  let ticker = fundDict["ticker"] as? String,
-                  let configDict = fundDict["config"] as? [String: Any],
-                  let entriesArray = fundDict["entries"] as? [[String: Any]] else {
-                continue
-            }
+        for fund in backup.funds {
+            let id = fund.id
+            let platform = fund.platform
+            let ticker = fund.ticker
 
             // Validate fund ID contains only safe characters for file paths
             guard id.wholeMatch(of: safeFundIdPattern) != nil else {
@@ -623,47 +715,20 @@ actor FundStore {
             let tsvURL = fundsDirectory.appendingPathComponent("\(id).tsv")
 
             do {
-                var configWithMeta = configDict
-                configWithMeta["__fund_id"] = id
-                configWithMeta["__platform"] = platform
-                configWithMeta["__ticker"] = ticker
+                // Stamp the on-disk identity metadata (the `__`-prefixed keys) from the
+                // top-level fund fields, which are authoritative for filenames/lookups.
+                var configWithMeta = fund.config
+                configWithMeta.fund_id = id
+                configWithMeta.platform = platform
+                configWithMeta.ticker = ticker
 
-                let configData = try JSONSerialization.data(withJSONObject: configWithMeta, options: [.prettyPrinted, .sortedKeys])
+                let configData = try JSONEncoder.pretty.encode(configWithMeta)
                 try configData.write(to: configURL, options: .atomic)
                 #if os(iOS)
                 try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: configURL.path)
                 #endif
 
-                var lines = [["date", "value", "cash", "action", "amount", "shares", "price", "dividend", "expense", "cash_interest", "fund_size", "margin_available", "margin_borrowed", "margin_expense", "notes", "contracts", "entry_price", "liquidation_price", "unrealized_pnl", "margin_locked", "fee", "margin"].joined(separator: "\t")]
-                for entry in entriesArray {
-                    let cols: [String] = [
-                        entry["date"] as? String ?? "",
-                        formatNum(entry["value"]),
-                        formatNum(entry["cash"]),
-                        entry["action"] as? String ?? "",
-                        formatNum(entry["amount"]),
-                        formatNum(entry["shares"]),
-                        formatNum(entry["price"]),
-                        formatNum(entry["dividend"]),
-                        formatNum(entry["expense"]),
-                        formatNum(entry["cash_interest"]),
-                        formatNum(entry["fund_size"]),
-                        formatNum(entry["margin_available"]),
-                        formatNum(entry["margin_borrowed"]),
-                        formatNum(entry["margin_expense"]),
-                        (entry["notes"] as? String ?? "").replacingOccurrences(of: "\t", with: "\\t").replacingOccurrences(of: "\n", with: "\\n"),
-                        formatNum(entry["contracts"]),
-                        formatNum(entry["entry_price"]),
-                        formatNum(entry["liquidation_price"]),
-                        formatNum(entry["unrealized_pnl"]),
-                        formatNum(entry["margin_locked"]),
-                        formatNum(entry["fee"]),
-                        formatNum(entry["margin"])
-                    ]
-                    lines.append(cols.joined(separator: "\t"))
-                }
-
-                let tsv = lines.joined(separator: "\n") + "\n"
+                let tsv = buildTSV(fund.entries)
                 try tsv.write(to: tsvURL, atomically: true, encoding: .utf8)
                 #if os(iOS)
                 try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: tsvURL.path)
@@ -682,19 +747,6 @@ actor FundStore {
         }
 
         return imported
-    }
-
-    private func formatNum(_ value: Any?) -> String {
-        guard let v = value else { return "" }
-        switch v {
-        case let n as NSNumber:
-            let d = n.doubleValue
-            return d == 0 ? "" : String(d)
-        case let s as String:
-            return s
-        default:
-            return ""
-        }
     }
 
     func exportToDirectory(_ destDir: URL) throws -> Int {
@@ -728,59 +780,29 @@ actor FundStore {
     /// Export all funds to a single backup JSON file, returning its URL.
     func exportToBackupJSON() throws -> URL {
         let funds = readAllFunds()
-        var fundsArray: [[String: Any]] = []
 
-        for fund in funds {
-            var configDict: [String: Any] = [:]
-            let configData = try JSONEncoder.pretty.encode(fund.config)
-            if let parsed = try JSONSerialization.jsonObject(with: configData) as? [String: Any] {
-                configDict = parsed
-            }
-
-            let entriesArray: [[String: Any]] = fund.entries.map { entry in
-                var d: [String: Any] = ["date": entry.date, "value": entry.value]
-                if let v = entry.cash { d["cash"] = v }
-                if let v = entry.action { d["action"] = v.rawValue }
-                if let v = entry.amount { d["amount"] = v }
-                if let v = entry.shares { d["shares"] = v }
-                if let v = entry.price { d["price"] = v }
-                if let v = entry.dividend { d["dividend"] = v }
-                if let v = entry.expense { d["expense"] = v }
-                if let v = entry.cash_interest { d["cash_interest"] = v }
-                if let v = entry.fund_size { d["fund_size"] = v }
-                if let v = entry.margin_available { d["margin_available"] = v }
-                if let v = entry.margin_borrowed { d["margin_borrowed"] = v }
-                if let v = entry.margin_expense { d["margin_expense"] = v }
-                if let v = entry.notes, !v.isEmpty { d["notes"] = v }
-                if let v = entry.contracts { d["contracts"] = v }
-                if let v = entry.entry_price { d["entry_price"] = v }
-                if let v = entry.liquidation_price { d["liquidation_price"] = v }
-                if let v = entry.unrealized_pnl { d["unrealized_pnl"] = v }
-                if let v = entry.margin_locked { d["margin_locked"] = v }
-                if let v = entry.fee { d["fee"] = v }
-                if let v = entry.margin { d["margin"] = v }
-                return d
-            }
-
-            fundsArray.append([
-                "id": fund.id,
-                "platform": fund.platform,
-                "ticker": fund.ticker,
-                "config": configDict,
-                "entries": entriesArray
-            ])
+        let backupFunds: [BackupFund] = funds.map { fund in
+            // Stamp the `__`-prefixed identity keys onto the config so the exported
+            // file mirrors the on-disk per-fund JSON the web app reads.
+            var configWithMeta = fund.config
+            configWithMeta.fund_id = fund.id
+            configWithMeta.platform = fund.platform
+            configWithMeta.ticker = fund.ticker
+            return BackupFund(
+                id: fund.id,
+                platform: fund.platform,
+                ticker: fund.ticker,
+                config: configWithMeta,
+                entries: fund.entries
+            )
         }
 
-        let backup: [String: Any] = [
-            "version": "1.0.0",
-            "backup_date": ISO8601DateFormatter().string(from: Date()),
-            "funds": fundsArray,
-            "platforms": NSNull(),
-            "totals_snapshot": NSNull(),
-            "scrape_archives": [String: Any]()
-        ]
+        let backup = BackupDocument(
+            funds: backupFunds,
+            backupDate: ISO8601DateFormatter().string(from: Date())
+        )
 
-        let data = try JSONSerialization.data(withJSONObject: backup, options: [.prettyPrinted, .sortedKeys])
+        let data = try JSONEncoder.pretty.encode(backup)
 
         let filename = "escapemint-backup-\(Self.backupDateFormatter.string(from: Date())).json"
 
