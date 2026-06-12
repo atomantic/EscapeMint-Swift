@@ -1,4 +1,5 @@
 import XCTest
+import os
 @testable import EscapeMint
 
 final class EngineTests: XCTestCase {
@@ -1240,6 +1241,76 @@ final class EngineTests: XCTestCase {
         let sat = isoDateFormatter.date(from: "2025-03-15")!
         let result = nextTradingDay(from: sat, fundType: .crypto)
         XCTAssertEqual(isoDateFormatter.string(from: result), "2025-03-15")
+    }
+
+    // MARK: - Holiday Cache Concurrency
+
+    /// Stress-test the `OSAllocatedUnfairLock`-backed holiday cache under heavy
+    /// concurrent access. `usMarketHolidays(year:)` is called from the main thread
+    /// (DCANotificationManager) and from detached background tasks (BacktestEngine,
+    /// chart computation), so many simultaneous lookups/populations for the same and
+    /// different years must not race or return a wrong/partial result.
+    ///
+    /// Designed to surface data races when run under Thread Sanitizer, and to validate
+    /// correctness: every concurrent caller must observe the fully-computed set.
+    func testHolidayCacheConcurrentAccess() {
+        // Years spanning the cache's special-case logic (Juneteenth from 2022, etc.).
+        let years = Array(2018...2035)
+
+        // Capture the single-threaded ground truth for each year. This also pre-warms
+        // the cache for some years, so later concurrent callers exercise a mix of
+        // cache-hit and cache-miss paths depending on scheduling.
+        let expected: [Int: Set<String>] = Dictionary(
+            uniqueKeysWithValues: years.map { ($0, usMarketHolidays(year: $0)) }
+        )
+
+        let iterations = 2_000
+        let mismatches = OSAllocatedUnfairLock(initialState: 0)
+
+        // Fan out across all available cores. Each worker hammers every year so the
+        // same cache entries are read (and on a cold cache, populated) simultaneously.
+        DispatchQueue.concurrentPerform(iterations: iterations) { i in
+            // Vary iteration order per worker so populations and lookups interleave.
+            let ordered = (i % 2 == 0) ? years : years.reversed()
+            for year in ordered {
+                let result = usMarketHolidays(year: year)
+                if result != expected[year] {
+                    mismatches.withLock { $0 += 1 }
+                }
+            }
+        }
+
+        XCTAssertEqual(mismatches.withLock { $0 }, 0,
+                       "Concurrent holiday-cache lookups returned wrong/partial results")
+
+        // Cache must still serve correct values after the storm.
+        for year in years {
+            XCTAssertEqual(usMarketHolidays(year: year), expected[year])
+        }
+    }
+
+    /// Cold-start race: spawn many concurrent first-use lookups for the *same* year so
+    /// multiple workers can reach the compute-then-store path before any value is
+    /// cached. All must agree on the same fully-populated set.
+    func testHolidayCacheConcurrentColdStartSameYear() {
+        // A far-future year that no other test in this run will have cached.
+        let year = 2099
+
+        let results = OSAllocatedUnfairLock(initialState: [Set<String>]())
+        DispatchQueue.concurrentPerform(iterations: 512) { _ in
+            let r = usMarketHolidays(year: year)
+            results.withLock { $0.append(r) }
+        }
+
+        let collected = results.withLock { $0 }
+        XCTAssertEqual(collected.count, 512)
+
+        // The cache is now warm; this is the authoritative value for the year.
+        let expected = usMarketHolidays(year: year)
+        XCTAssertFalse(expected.isEmpty)
+        for r in collected {
+            XCTAssertEqual(r, expected, "Cold-start concurrent lookup returned a divergent set")
+        }
     }
 
     // MARK: - Entry Rows
