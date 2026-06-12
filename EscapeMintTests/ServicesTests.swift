@@ -1,5 +1,34 @@
 import XCTest
+import CoreSpotlight
 @testable import EscapeMint
+
+/// Records the items/identifiers handed to Spotlight so tests can assert the
+/// side effects of `SpotlightIndexer` without touching the real system index.
+final class SpySearchableIndex: SearchableIndexing, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _indexedItems: [CSSearchableItem] = []
+    private var _deletedDomains: [String] = []
+    private var _deletedIdentifiers: [String] = []
+
+    var indexedItems: [CSSearchableItem] { lock.withLock { _indexedItems } }
+    var deletedDomains: [String] { lock.withLock { _deletedDomains } }
+    var deletedIdentifiers: [String] { lock.withLock { _deletedIdentifiers } }
+
+    func indexSearchableItems(_ items: [CSSearchableItem], completionHandler: (@Sendable (Error?) -> Void)?) {
+        lock.withLock { _indexedItems.append(contentsOf: items) }
+        completionHandler?(nil)
+    }
+
+    func deleteSearchableItems(withDomainIdentifiers identifiers: [String], completionHandler: (@Sendable (Error?) -> Void)?) {
+        lock.withLock { _deletedDomains.append(contentsOf: identifiers) }
+        completionHandler?(nil)
+    }
+
+    func deleteSearchableItems(withIdentifiers identifiers: [String], completionHandler: (@Sendable (Error?) -> Void)?) {
+        lock.withLock { _deletedIdentifiers.append(contentsOf: identifiers) }
+        completionHandler?(nil)
+    }
+}
 
 final class ServicesTests: XCTestCase {
 
@@ -174,15 +203,13 @@ final class ServicesTests: XCTestCase {
 
     // MARK: - SpotlightIndexer
 
-    /// `indexFunds`/`deindex*` have no observable return — their effect goes to the
-    /// system `CSSearchableIndex`, which a unit test cannot read back. This test pins
-    /// the data contract the indexer depends on: the per-fund `uniqueIdentifier` it
-    /// passes to Spotlight is exactly `FundData.id` ("platform-ticker"). If that
-    /// identity scheme drifts, deindexFund(id:) would target the wrong item — so we
-    /// assert it here as a falsifiable proxy, then exercise the call path for crashes.
-    /// (See report note: indexFunds itself lacks a production seam for direct assertion.)
-    func testSpotlightIndexerUsesFundIdAsSearchIdentifier() {
-        let indexer = SpotlightIndexer.shared
+    /// With the injectable `SearchableIndexing` seam (#63) we can now assert the
+    /// items handed to Spotlight directly rather than only proving the call path
+    /// doesn't trap. The per-fund `uniqueIdentifier` must be exactly `FundData.id`
+    /// ("platform-ticker") — if that drifts, deindexFund(id:) targets the wrong item.
+    func testSpotlightIndexerIndexesItemsWithFundIdAndDomain() {
+        let spy = SpySearchableIndex()
+        let indexer = SpotlightIndexer(index: spy)
         let btc = FundData(
             platform: "coinbase", ticker: "BTC",
             config: FundConfig(fund_type: .crypto, status: .active, category: .sov),
@@ -194,20 +221,45 @@ final class ServicesTests: XCTestCase {
             entries: []
         )
 
-        // Contract: the id used for indexing/deindexing is platform-ticker.
-        XCTAssertEqual(btc.id, "coinbase-BTC")
-        XCTAssertEqual(tqqq.id, "robinhood-TQQQ")
-
-        // Exercise the call path (must not trap on populated or empty-entry funds).
         indexer.indexFunds([btc, tqqq])
-        indexer.deindexFund(id: btc.id)
-        indexer.deindexAll()
+
+        XCTAssertEqual(spy.indexedItems.count, 2, "Both funds should be indexed")
+        let ids = spy.indexedItems.map(\.uniqueIdentifier)
+        XCTAssertEqual(ids, ["coinbase-BTC", "robinhood-TQQQ"],
+                       "uniqueIdentifier must equal FundData.id (platform-ticker)")
+        // All items share the funds domain so deindexAll() can target them.
+        for item in spy.indexedItems {
+            XCTAssertEqual(item.domainIdentifier, "net.shadowpuppet.EscapeMint.funds")
+        }
+        // Title is the human-readable "TICKER — Platform"; description must NOT leak value.
+        let btcItem = try! XCTUnwrap(spy.indexedItems.first { $0.uniqueIdentifier == "coinbase-BTC" })
+        XCTAssertEqual(btcItem.attributeSet.title, "BTC — Coinbase")
+        XCTAssertEqual(btcItem.attributeSet.contentDescription, "Active Crypto on Coinbase")
+        XCTAssertFalse(btcItem.attributeSet.contentDescription?.contains("50000") ?? false,
+                       "Spotlight description must not leak monetary values (PII)")
     }
 
-    func testSpotlightIndexerEmptyFundsDoesNotCrash() {
-        let indexer = SpotlightIndexer.shared
-        // Empty array is a valid no-op; the win is verifying it doesn't trap.
+    /// deindexFund(id:) and deindexAll() route to the right delete API with the
+    /// expected identifiers — now observable through the injected index.
+    func testSpotlightIndexerDeindexRoutesToCorrectIdentifiers() {
+        let spy = SpySearchableIndex()
+        let indexer = SpotlightIndexer(index: spy)
+
+        indexer.deindexFund(id: "coinbase-BTC")
+        indexer.deindexAll()
+
+        XCTAssertEqual(spy.deletedIdentifiers, ["coinbase-BTC"],
+                       "deindexFund deletes by the fund's unique identifier")
+        XCTAssertEqual(spy.deletedDomains, ["net.shadowpuppet.EscapeMint.funds"],
+                       "deindexAll deletes the whole funds domain")
+    }
+
+    func testSpotlightIndexerEmptyFundsIndexesNothing() {
+        let spy = SpySearchableIndex()
+        let indexer = SpotlightIndexer(index: spy)
+        // Empty array is a valid no-op — it still calls the index with zero items.
         indexer.indexFunds([])
+        XCTAssertTrue(spy.indexedItems.isEmpty)
     }
 
     // MARK: - WidgetSnapshot
@@ -410,6 +462,70 @@ final class ServicesTests: XCTestCase {
             // No App Group data on this run — the contract is simply "no crash, nil".
             XCTAssertNil(snap)
         }
+    }
+
+    /// With the directory-injectable `readSnapshot(from:)` seam (#63) we can seed a
+    /// known snapshot in a temp directory and assert the exact decoded result —
+    /// previously untestable because the App Group container URL was resolved internally.
+    @MainActor
+    func testReadSnapshotFromDirectoryDecodesSeededSnapshot() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("widget-seam-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let seeded = WidgetSnapshot(
+            totalValue: 4242.42,
+            totalGainUsd: 424.24,
+            totalGainPct: 11.1,
+            activeFunds: 2,
+            actionableCount: 1,
+            topFunds: [
+                WidgetFundSnapshot(ticker: "BTC", platform: "Coinbase", value: 4000,
+                                   gainPct: 12.0, isDueForAction: true,
+                                   recommendedAction: "BUY", recommendedAmount: 100),
+            ],
+            updatedAt: Date(timeIntervalSince1970: 762_048_000)
+        )
+        let fileURL = dir.appendingPathComponent(WidgetDataProvider.snapshotFileName)
+        try JSONEncoder().encode(seeded).write(to: fileURL)
+
+        let read = try XCTUnwrap(WidgetDataProvider.readSnapshot(from: dir),
+                                 "Seeded snapshot must be read back from the injected directory")
+        XCTAssertEqual(read.totalValue, 4242.42, accuracy: 0.001)
+        XCTAssertEqual(read.actionableCount, 1)
+        XCTAssertEqual(read.topFunds.count, 1)
+        XCTAssertEqual(read.topFunds[0].ticker, "BTC")
+        XCTAssertEqual(read.topFunds[0].recommendedAction, "BUY")
+    }
+
+    /// Missing file in the injected directory returns nil (not a crash) — mirrors a
+    /// first-launch widget read before any snapshot has been written.
+    @MainActor
+    func testReadSnapshotFromDirectoryReturnsNilWhenFileMissing() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("widget-seam-empty-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        XCTAssertNil(WidgetDataProvider.readSnapshot(from: dir),
+                     "No snapshot file → nil, no crash")
+    }
+
+    /// Garbage contents in the injected directory return nil (the production `try?`
+    /// swallows decode failures) rather than crashing the widget timeline refresh.
+    @MainActor
+    func testReadSnapshotFromDirectoryReturnsNilForGarbage() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("widget-seam-garbage-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let fileURL = dir.appendingPathComponent(WidgetDataProvider.snapshotFileName)
+        try Data("{\"not\":\"a snapshot\"}".utf8).write(to: fileURL)
+
+        XCTAssertNil(WidgetDataProvider.readSnapshot(from: dir),
+                     "Undecodable snapshot → nil, no crash")
     }
 
     /// Decoding must reject malformed snapshot data without crashing — the actual

@@ -2,13 +2,32 @@ import Foundation
 import CoreSpotlight
 import os
 
+/// Abstraction over the Spotlight index operations `SpotlightIndexer` performs.
+/// Production wires in `CSSearchableIndex.default()`; tests inject a spy so the
+/// items handed to Spotlight can be asserted (the real index can't be read back
+/// from a unit test). Only the three methods the indexer calls are exposed.
+protocol SearchableIndexing: Sendable {
+    func indexSearchableItems(_ items: [CSSearchableItem], completionHandler: (@Sendable (Error?) -> Void)?)
+    func deleteSearchableItems(withDomainIdentifiers identifiers: [String], completionHandler: (@Sendable (Error?) -> Void)?)
+    func deleteSearchableItems(withIdentifiers identifiers: [String], completionHandler: (@Sendable (Error?) -> Void)?)
+}
+
+// `CSSearchableIndex` already declares these signatures, so conformance is free.
+extension CSSearchableIndex: SearchableIndexing {}
+
 /// Indexes funds in Spotlight so users can search "BTC" or "Coinbase" from the home screen.
 final class SpotlightIndexer: Sendable {
     static let shared = SpotlightIndexer()
     private static let logger = Logger(subsystem: "net.shadowpuppet.EscapeMint", category: "Spotlight")
     private static let domainId = "net.shadowpuppet.EscapeMint.funds"
 
-    private init() {}
+    private let index: SearchableIndexing
+
+    /// Default initializer targets the real system index. Tests pass a spy
+    /// conforming to `SearchableIndexing` to assert the items being indexed.
+    init(index: SearchableIndexing = CSSearchableIndex.default()) {
+        self.index = index
+    }
 
     func indexFunds(_ funds: [FundData]) {
         var items: [CSSearchableItem] = []
@@ -36,7 +55,7 @@ final class SpotlightIndexer: Sendable {
             items.append(item)
         }
 
-        CSSearchableIndex.default().indexSearchableItems(items) { error in
+        index.indexSearchableItems(items) { error in
             if let error {
                 Self.logger.error("Spotlight indexing failed: \(error.localizedDescription)")
             }
@@ -44,7 +63,7 @@ final class SpotlightIndexer: Sendable {
     }
 
     func deindexAll() {
-        CSSearchableIndex.default().deleteSearchableItems(withDomainIdentifiers: [Self.domainId]) { error in
+        index.deleteSearchableItems(withDomainIdentifiers: [Self.domainId]) { error in
             if let error {
                 Self.logger.error("Spotlight deindex failed: \(error.localizedDescription)")
             }
@@ -52,7 +71,7 @@ final class SpotlightIndexer: Sendable {
     }
 
     func deindexFund(id: String) {
-        CSSearchableIndex.default().deleteSearchableItems(withIdentifiers: [id]) { _ in }
+        index.deleteSearchableItems(withIdentifiers: [id]) { _ in }
     }
 
     private func buildDescription(_ fund: FundData) -> String {
