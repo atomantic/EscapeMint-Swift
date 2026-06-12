@@ -1,7 +1,7 @@
 import SwiftUI
 import Charts
 
-struct BacktestView: View {
+struct BacktestView: View, SizeClassAware {
     private var cache: ViewCache { .shared }
     @State private var config: BacktestConfig
     @State private var selectedPreset: BacktestPreset
@@ -12,17 +12,7 @@ struct BacktestView: View {
     @State private var hoverCP: Int?
     @State private var hoverGB: Int?
     @State private var hoverAPY: Int?
-    #if os(iOS)
-    @Environment(\.horizontalSizeClass) private var sizeClass
-    #endif
-
-    private var isWide: Bool {
-        #if os(macOS)
-        true
-        #else
-        computeIsWide(sizeClass: sizeClass)
-        #endif
-    }
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     // First-run detection
     @AppStorage(AppStorageKeys.introCompleted) private var introCompleted = false

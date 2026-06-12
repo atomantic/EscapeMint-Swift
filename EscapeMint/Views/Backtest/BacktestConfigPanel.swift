@@ -1,20 +1,10 @@
 import SwiftUI
 
-struct BacktestConfigPanel: View {
+struct BacktestConfigPanel: View, SizeClassAware {
     @Binding var config: BacktestConfig
     @Binding var selectedPreset: BacktestPreset
     let onConfigChanged: () -> Void
-    #if os(iOS)
-    @Environment(\.horizontalSizeClass) private var sizeClass
-    #endif
-
-    private var isWide: Bool {
-        #if os(macOS)
-        true
-        #else
-        computeIsWide(sizeClass: sizeClass)
-        #endif
-    }
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     var body: some View {
         VStack(spacing: 0) {
