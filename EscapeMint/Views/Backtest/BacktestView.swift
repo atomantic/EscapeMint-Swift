@@ -2,7 +2,7 @@ import SwiftUI
 import Charts
 
 struct BacktestView: View, SizeClassAware {
-    private var cache: ViewCache { .shared }
+    private var cache: BacktestCache { .shared }
     @State private var config: BacktestConfig
     @State private var selectedPreset: BacktestPreset
     @State private var showIntroGuide = false
@@ -28,7 +28,7 @@ struct BacktestView: View, SizeClassAware {
     }
 
     init() {
-        let c = ViewCache.shared
+        let c = BacktestCache.shared
         _config = State(initialValue: c.backtestConfig)
         _selectedPreset = State(initialValue: c.backtestPreset)
         _dateRange = State(initialValue: c.backtestDateRange)

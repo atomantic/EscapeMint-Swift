@@ -102,7 +102,7 @@ final class FundDataStore {
     // MARK: - Recompute Observers
 
     /// Snapshot handed to recompute observers so they react to the latest derived
-    /// state without the store reaching into Services / ViewCache / AppKit itself.
+    /// state without the store reaching into Services / ChartCache / AppKit itself.
     struct RecomputeContext: Sendable {
         let funds: [FundData]
         let actionableCount: Int
@@ -770,7 +770,7 @@ final class FundDataStore {
 
         // Hand the new derived state to registered observers (chart precompute, the
         // debounced services side effects, the macOS dock badge). The store no longer
-        // references ViewCache / Services / AppKit directly. Observers own their own
+        // references ChartCache / Services / AppKit directly. Observers own their own
         // debounce + cancellation.
         let context = RecomputeContext(funds: funds, actionableCount: actionableFunds.count)
         for observer in recomputeObservers { observer(context) }

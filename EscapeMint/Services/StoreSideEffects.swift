@@ -1,7 +1,7 @@
 import Foundation
 
 /// Owns the post-recompute side effects that used to live inside `FundDataStore`:
-/// background chart precompute (ViewCache) and the debounced services fan-out
+/// background chart precompute (ChartCache) and the debounced services fan-out
 /// (DCA notifications, Spotlight, widget snapshot). Keeping these here means the
 /// Storage layer no longer imports Services or the presentation cache, and tests
 /// that drive recompute directly never fire notification/Spotlight/widget effects.
@@ -20,7 +20,7 @@ final class StoreSideEffects {
         let funds = context.funds
 
         // Pre-compute chart data in background so fund detail pages load instantly.
-        ViewCache.shared.precomputeFundCharts(funds)
+        ChartCache.shared.precomputeFundCharts(funds)
 
         // Debounce expensive side effects (notifications, Spotlight, widget) so rapid
         // recomputes during progressive load don't trigger them repeatedly.
@@ -49,7 +49,7 @@ extension FundDataStore {
             StoreSideEffects.shared.onRecompute(context)
         }
         addFundInvalidationObserver { fundId in
-            ViewCache.shared.invalidateFundCache(fundId: fundId)
+            ChartCache.shared.invalidateFundCache(fundId: fundId)
         }
         #if os(macOS)
         addRecomputeObserver { context in

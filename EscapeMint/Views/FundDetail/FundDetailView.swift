@@ -12,7 +12,7 @@ struct FundDetailView: View {
     let fundId: String
     var autoShowAddEntry: Bool = false
     private var store: FundDataStore { .shared }
-    private var cache: ViewCache { .shared }
+    private var cache: ChartCache { .shared }
     @State private var showAddEntry = false
     @State private var showEditFund = false
     @State private var wasDeleted = false

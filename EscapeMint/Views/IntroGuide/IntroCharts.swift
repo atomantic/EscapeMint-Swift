@@ -17,14 +17,14 @@ final class ModeComparisonPreloader {
         runIfDataReady()
     }
 
-    /// Called when ViewCache finishes loading historical data
+    /// Called when BacktestCache finishes loading historical data
     func onHistoricalDataLoaded() {
         guard harvestResult == nil else { return }
         runIfDataReady()
     }
 
     private func runIfDataReady() {
-        let cache = ViewCache.shared
+        let cache = BacktestCache.shared
         guard cache.isHistoricalDataLoaded else { return }
 
         var harvestCfg = BacktestConfig()
@@ -618,13 +618,13 @@ struct LeverageComparisonChart: View {
         }
         .introCardStyle()
         .task {
-            if ViewCache.shared.isHistoricalDataLoaded {
+            if BacktestCache.shared.isHistoricalDataLoaded {
                 computeLeverageData()
                 if reduceMotion { animationProgress = 1.0 }
                 else { withAnimation(.easeInOut(duration: 2.0)) { animationProgress = 1.0 } }
             }
         }
-        .onChange(of: ViewCache.shared.isHistoricalDataLoaded) { _, loaded in
+        .onChange(of: BacktestCache.shared.isHistoricalDataLoaded) { _, loaded in
             if loaded {
                 computeLeverageData()
                 animationProgress = 0
@@ -640,7 +640,7 @@ struct LeverageComparisonChart: View {
     }
 
     private func computeLeverageData() {
-        let hist = ViewCache.shared.historicalData
+        let hist = BacktestCache.shared.historicalData
         guard let brgnx = hist["BRGNX"], let spxl = hist["SPXL"] else { return }
         let spxlByDate = Dictionary(uniqueKeysWithValues: spxl.prices.map { ($0.date, $0.value) })
         let brgnxStart = brgnx.prices.first?.value ?? 1

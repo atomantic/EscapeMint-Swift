@@ -1,11 +1,18 @@
 import Foundation
 import SwiftUI
 
-/// Caches expensive view computations that would otherwise be lost when NavigationSplitView
-/// destroys and recreates detail views. Invalidated only when the underlying data changes.
+/// Caches expensive chart/table computations that would otherwise be lost when
+/// NavigationSplitView destroys and recreates detail views. Covers the dashboard
+/// time series plus the per-fund detail artifacts (entry rows, derivatives points,
+/// and line-chart series). Invalidated only when the underlying data changes.
+///
+/// `@MainActor`-isolated: all storage is read and written on the main actor, which is
+/// what lets the off-actor compute tasks below hand their results back without data
+/// races (see the #42 audit note on the main-actor invariant). Because the cache never
+/// escapes the main actor, the stored value types need no `Sendable` conformance.
 @MainActor @Observable
-final class ViewCache {
-    static let shared = ViewCache()
+final class ChartCache {
+    static let shared = ChartCache()
     static let maxCachedFunds = 10
 
     private init() {
@@ -16,107 +23,11 @@ final class ViewCache {
         #endif
     }
 
-    /// Clear chart and row caches on memory pressure (historical data is kept)
+    /// Clear chart and row caches on memory pressure (historical data is kept by `BacktestCache`)
     func clearNonEssentialCaches() {
         chartPointsCache.removeAll()
         fundRowsCache.removeAll()
         fundDerivCache.removeAll()
-    }
-
-    /// Start loading historical data. Call early at app launch.
-    /// Priority is boosted for first-time users (guide needs backtest data ASAP).
-    func startLoading(prioritizeGuide: Bool = false) {
-        guard _historicalData == nil, !_loadingStarted else { return }
-        _loadingStarted = true
-        let priority: TaskPriority = prioritizeGuide ? .userInitiated : .utility
-        _loadingTask = Task {
-            let data = await Task.detached(priority: priority) {
-                loadHistoricalData()
-            }.value
-            _historicalData = data
-            if prioritizeGuide {
-                ModeComparisonPreloader.shared.onHistoricalDataLoaded()
-            }
-        }
-    }
-
-    private var _loadingStarted = false
-    private var _loadingTask: Task<Void, Never>?
-
-    // MARK: - Historical Data (static bundle data, loaded once)
-
-    private var _historicalData: [String: HistoricalData]?
-    var isHistoricalDataLoaded: Bool { _historicalData != nil }
-    var historicalData: [String: HistoricalData] { _historicalData ?? [:] }
-
-    // MARK: - Backtest
-
-    private var lastBacktestConfig: BacktestConfig?
-    private var lastBacktestDateRange: BacktestDateRange?
-    private(set) var backtestResult: BacktestResult?
-    private(set) var backtestDateRange: BacktestDateRange?
-    private(set) var backtestAvailableRange: BacktestDateRange?
-    private(set) var backtestConfig = BacktestConfig()
-    private(set) var backtestPreset: BacktestPreset = .blend
-    private(set) var backtestSortOrder: BacktestSortOrder = .asc
-    private(set) var isRunningBacktest = false
-    private var backtestTask: Task<Void, Never>?
-
-    enum BacktestSortOrder {
-        case asc, desc
-    }
-
-    func updateBacktestConfig(_ config: BacktestConfig) {
-        backtestConfig = config
-    }
-
-    func updateBacktestPreset(_ preset: BacktestPreset) {
-        backtestPreset = preset
-    }
-
-    func updateBacktestSortOrder(_ order: BacktestSortOrder) {
-        backtestSortOrder = order
-    }
-
-    func updateBacktestDateRange(_ range: BacktestDateRange?) {
-        backtestDateRange = range
-    }
-
-    func updateAvailableRange() {
-        guard isHistoricalDataLoaded else { return }
-        backtestAvailableRange = computeAvailableDateRange(
-            historicalData: historicalData,
-            allocations: backtestConfig.allocations
-        )
-        if backtestDateRange == nil {
-            backtestDateRange = backtestAvailableRange
-        }
-    }
-
-    func runBacktestIfNeeded() {
-        updateAvailableRange()
-        let config = backtestConfig
-        let dr = backtestDateRange
-        // Skip if already computed for identical inputs
-        if config == lastBacktestConfig && dr == lastBacktestDateRange && backtestResult != nil { return }
-        guard isHistoricalDataLoaded else { return }
-
-        if let old = backtestTask {
-            old.cancel()
-            backtestTask = nil
-        }
-        isRunningBacktest = true
-        let hist = historicalData
-        lastBacktestConfig = config
-        lastBacktestDateRange = dr
-        backtestTask = Task {
-            let r = await Task.detached(priority: .userInitiated) {
-                runBacktest(config: config, historicalData: hist, dateRange: dr)
-            }.value
-            guard !Task.isCancelled else { return }
-            backtestResult = r
-            isRunningBacktest = false
-        }
     }
 
     // MARK: - Dashboard Time Series
@@ -190,31 +101,49 @@ final class ViewCache {
         }
     }
 
-    /// Type-erased wrapper for chart point arrays.
-    ///
-    /// `@unchecked Sendable` justification — invariant: every read/write of a
-    /// `ChartCacheEntry` happens through `chartPointsCache`, which is a stored property of
-    /// `@MainActor`-isolated `ViewCache`. The `cacheChartPoints` / `cachedChartPoints`
-    /// accessors are likewise main-actor-isolated, so the wrapped `Any` (which is `[T]`
-    /// for some chart-point type `T`) is never touched off the main actor and never races.
-    /// We use type erasure rather than a typed enum because the cache API is generic over
-    /// the chart-point type `T` (see `FundCharts.swift`); enumerating every point type into
-    /// an enum would break that generic call site for no concurrency-safety gain given the
-    /// main-actor invariant above.
-    private struct ChartCacheEntry: @unchecked Sendable {
-        let value: Any
-        func unwrap<T>(as _: T.Type) -> [T]? { value as? [T] }
+    /// Typed storage for the per-fund line-chart series. Replaces the old `Any`-erased
+    /// wrapper: each case holds the concrete point array for one of the four fund-detail
+    /// charts, so a read can never misinterpret a blob and no `@unchecked Sendable`
+    /// escape hatch is needed. The generic `cacheChartPoints` / `cachedChartPoints`
+    /// accessors below bridge the generic `FundCharts` call site to these cases.
+    private enum CachedChartPoints {
+        case value([ValuePoint])
+        case pl([PLPoint])
+        case apy([APYPoint])
+        case profit([ProfitPoint])
+
+        /// Map a concrete point array to its case, or nil for an unsupported type.
+        static func wrap<T>(_ points: [T]) -> CachedChartPoints? {
+            switch points {
+            case let p as [ValuePoint]: return .value(p)
+            case let p as [PLPoint]: return .pl(p)
+            case let p as [APYPoint]: return .apy(p)
+            case let p as [ProfitPoint]: return .profit(p)
+            default: return nil
+            }
+        }
+
+        /// Extract the stored array as `[T]`, or nil if the requested type differs.
+        func unwrap<T>(as _: T.Type) -> [T]? {
+            switch self {
+            case .value(let p): return p as? [T]
+            case .pl(let p): return p as? [T]
+            case .apy(let p): return p as? [T]
+            case .profit(let p): return p as? [T]
+            }
+        }
     }
 
-    /// Type-safe chart points cache keyed by "\(TypeName)-\(fundId)-\(entryCount)"
-    private var chartPointsCache: [String: ChartCacheEntry] = [:]
+    /// Chart points cache keyed by "\(TypeName)-\(fundId)-\(entryCount)"
+    private var chartPointsCache: [String: CachedChartPoints] = [:]
 
     func cachedChartPoints<T>(type: T.Type, fundId: String, entryCount: Int) -> [T]? {
         chartPointsCache["\(T.self)-\(fundCacheKey(fundId, entryCount: entryCount))"]?.unwrap(as: T.self)
     }
 
     func cacheChartPoints<T>(_ points: [T], type: T.Type, fundId: String, entryCount: Int) {
-        chartPointsCache["\(T.self)-\(fundCacheKey(fundId, entryCount: entryCount))"] = ChartCacheEntry(value: points)
+        guard let entry = CachedChartPoints.wrap(points) else { return }
+        chartPointsCache["\(T.self)-\(fundCacheKey(fundId, entryCount: entryCount))"] = entry
     }
 
     func invalidateFundCache(fundId: String) {
