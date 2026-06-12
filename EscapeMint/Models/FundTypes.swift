@@ -135,7 +135,7 @@ struct ChartBounds: Codable, Equatable {
     var isEmpty: Bool { yMin == nil && yMax == nil }
 }
 
-struct FundEntry: Identifiable {
+struct FundEntry: Identifiable, Codable {
     /// Deterministic identity derived from the entry's content so ForEach can diff stable rows
     /// across reloads (iCloud sync, progressive load). Previously `UUID().uuidString`, which
     /// changed on every deserialization and forced SwiftUI to tear down every visible row.
