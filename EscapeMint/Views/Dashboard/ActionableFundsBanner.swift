@@ -75,8 +75,8 @@ struct ActionableFundCard: View {
         #if os(macOS)
         cardContent
             .onTapGesture {
-                NotificationCenter.default.post(name: .selectFund, object: actionableFund.fund.id)
-                NotificationCenter.default.post(name: .showAddEntry, object: actionableFund.fund.id)
+                NotificationCenter.default.postSelectFund(id: actionableFund.fund.id)
+                NotificationCenter.default.postShowAddEntry(id: actionableFund.fund.id)
             }
             .accessibilityAddTraits(.isButton)
         #else

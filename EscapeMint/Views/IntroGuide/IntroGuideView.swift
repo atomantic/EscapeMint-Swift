@@ -286,7 +286,7 @@ struct IntroGuideView: View {
                     Button {
                         introCompleted = true
                         isPresented = false
-                        NotificationCenter.default.post(name: .selectBacktest, object: nil)
+                        NotificationCenter.default.postSelectBacktest()
                     } label: {
                         Text("Launch Backtest \u{2192}")
                             .font(.callout).fontWeight(.medium)

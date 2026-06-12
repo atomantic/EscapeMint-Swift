@@ -197,7 +197,7 @@ struct PlatformDetailView: View {
                     .background(Color.bgCard)
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        NotificationCenter.default.post(name: .selectFund, object: s.fund.id)
+                        NotificationCenter.default.postSelectFund(id: s.fund.id)
                     }
                     .onHover { hovering in
                         #if os(macOS)

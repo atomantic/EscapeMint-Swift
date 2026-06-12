@@ -14,7 +14,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, Se
     ) {
         let userInfo = response.notification.request.content.userInfo
         if let fundId = userInfo[NotificationUserInfoKey.fundId] as? String {
-            NotificationCenter.default.post(name: .selectFund, object: fundId)
+            NotificationCenter.default.postSelectFund(id: fundId)
         }
         completionHandler()
     }
