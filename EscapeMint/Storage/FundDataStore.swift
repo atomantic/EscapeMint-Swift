@@ -8,6 +8,11 @@ import SwiftUI
 final class FundDataStore {
     static let shared = FundDataStore()
 
+    /// Disk-I/O backend. Defaults to the `FundStore.shared` singleton in production;
+    /// tests inject a fake conforming to `FundStoreProtocol` to drive the load /
+    /// mutation paths without touching the real filesystem (issue #72).
+    private let store: FundStoreProtocol
+
     enum LoadingPhase: Equatable {
         case idle
         case checkingICloud
@@ -97,7 +102,9 @@ final class FundDataStore {
 
     private static let logger = Logger(subsystem: "net.shadowpuppet.EscapeMint", category: "FundDataStore")
 
-    private init() {}
+    init(store: FundStoreProtocol = FundStore.shared) {
+        self.store = store
+    }
 
     // MARK: - Recompute Observers
 
@@ -154,25 +161,26 @@ final class FundDataStore {
 
         // Initialize FundStore on a background thread — url(forUbiquityContainerIdentifier:)
         // can block 10+ seconds on first launch with a new Apple ID and MUST NOT run on main thread
-        let isICloud = await Task.detached(priority: .userInitiated) { FundStore.shared.isICloud }.value
+        let store = store
+        let isICloud = await Task.detached(priority: .userInitiated) { store.isICloud }.value
 
         // If iCloud wasn't available at init (e.g. after reboot), retry before loading
         if !isICloud {
             // Keep launch responsive when iCloud is slow to hand back the ubiquity
             // container. Do a short foreground retry, then keep trying after the UI
             // is usable via `scheduleDeferredICloudRecoveryIfNeeded()`.
-            let recovered = await FundStore.shared.retryICloudIfNeeded(maxAttempts: 2, delay: .milliseconds(300))
+            let recovered = await store.retryICloudIfNeeded(maxAttempts: 2, delay: .milliseconds(300))
             if recovered {
                 Self.logger.info("☁️ iCloud recovered after retry, loading from iCloud")
             }
         }
 
-        await FundStore.shared.migrateToICloudIfNeeded()
+        await store.migrateToICloudIfNeeded()
 
         // Phase 1: Load configs off the main thread (nonisolated does synchronous file I/O)
         loadingPhase = .loadingConfigs
         let configs = await Task.detached(priority: .userInitiated) {
-            FundStore.shared.readAllFundConfigs()
+            store.readAllFundConfigs()
         }.value
         funds = configs
         loadedFundCount = 0
@@ -206,11 +214,12 @@ final class FundDataStore {
         var pending: [(String, [FundEntry])] = []
         pending.reserveCapacity(batchSize)
         var completedCount = 0
+        let store = store
 
         await withTaskGroup(of: (String, [FundEntry]).self) { group in
             for id in fundIds {
                 group.addTask(priority: .userInitiated) {
-                    let entries = FundStore.shared.readFundEntries(id: id)
+                    let entries = store.readFundEntries(id: id)
                     return (id, entries)
                 }
             }
@@ -247,15 +256,15 @@ final class FundDataStore {
     }
 
     private func scheduleDeferredICloudRecoveryIfNeeded() {
-        guard !FundStore.shared.isICloud else { return }
+        guard !store.isICloud else { return }
         guard deferredICloudRecoveryTask == nil else { return }
         deferredICloudRecoveryTask = Task { @MainActor [weak self] in
             guard let self else { return }
             defer { deferredICloudRecoveryTask = nil }
-            guard await FundStore.shared.hasICloudAccount() else { return }
-            let recovered = await FundStore.shared.retryICloudIfNeeded(maxAttempts: 4, delay: .seconds(1))
+            guard await store.hasICloudAccount() else { return }
+            let recovered = await store.retryICloudIfNeeded(maxAttempts: 4, delay: .seconds(1))
             guard recovered else { return }
-            await FundStore.shared.migrateToICloudIfNeeded()
+            await store.migrateToICloudIfNeeded()
             await self.reload()
             ICloudSyncMonitor.shared.startMonitoring()
         }
@@ -265,7 +274,7 @@ final class FundDataStore {
 
     func reload() async {
         loadingPhase = .loadingEntries
-        let loaded = await FundStore.shared.readAllFunds()
+        let loaded = await store.readAllFunds()
         funds = loaded
         loadedFundCount = loaded.count
         // Entries re-read from disk may differ — drop cached per-fund metrics.
@@ -405,7 +414,7 @@ final class FundDataStore {
                 // concurrent updateConfig that landed during `await recompute()` would have
                 // mutated funds[idx], and writing the old captured snapshot would clobber it.
                 let toWrite = funds.first(where: { $0.id == fund.id }) ?? fund
-                try await FundStore.shared.writeFund(toWrite)
+                try await store.writeFund(toWrite)
                 didWrite = true
             } catch {
                 recordDiskError("adding fund", error)
@@ -423,7 +432,7 @@ final class FundDataStore {
             await recompute()
         }
         do {
-            try await FundStore.shared.writeFund(fund)
+            try await store.writeFund(fund)
             ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
             recordDiskError("updating fund", error)
@@ -451,9 +460,9 @@ final class FundDataStore {
         var anyWriteSucceeded = false
         for (oldId, newFund) in preparedEdits {
             do {
-                try await FundStore.shared.writeFund(newFund)
+                try await store.writeFund(newFund)
                 if oldId != newFund.id {
-                    try await FundStore.shared.deleteFund(id: oldId)
+                    try await store.deleteFund(id: oldId)
                 }
                 anyWriteSucceeded = true
             } catch {
@@ -532,7 +541,7 @@ final class FundDataStore {
         forgetFund(id: id)
         await recompute()
         do {
-            try await FundStore.shared.deleteFund(id: id)
+            try await store.deleteFund(id: id)
             ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
             recordDiskError("deleting fund", error)
@@ -555,7 +564,7 @@ final class FundDataStore {
         await recomputeWith(snapshot)
 
         do {
-            let deletedCount = try await FundStore.shared.deletePlatform(named: cleanPlatform)
+            let deletedCount = try await store.deletePlatform(named: cleanPlatform)
             if deletedCount > 0 || !removedIds.isEmpty {
                 ICloudSyncMonitor.shared.markLocalWrite()
             }
@@ -609,7 +618,7 @@ final class FundDataStore {
         var didWrite = false
         for (fundId, entry) in writes {
             do {
-                try await FundStore.shared.appendEntry(fundId: fundId, entry: entry)
+                try await store.appendEntry(fundId: fundId, entry: entry)
                 didWrite = true
             } catch {
                 recordDiskError("saving entry", error)
@@ -631,7 +640,7 @@ final class FundDataStore {
             await recomputeWith(snapshot)
         }
         do {
-            try await FundStore.shared.replaceEntries(fundId: fundId, entries: entries)
+            try await store.replaceEntries(fundId: fundId, entries: entries)
             ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
             recordDiskError("saving entries", error)
@@ -650,11 +659,11 @@ final class FundDataStore {
             // when an updateConfig races ahead of addFund's initial writeFund. Without a
             // fallback the user's edit would be silently lost. Materialize the latest
             // in-memory state directly via writeFund so the edit becomes durable.
-            let wrote = try await FundStore.shared.updateConfig(fundId: fundId, config: config)
+            let wrote = try await store.updateConfig(fundId: fundId, config: config)
             if wrote {
                 ICloudSyncMonitor.shared.markLocalWrite()
             } else if let liveFund = funds.first(where: { $0.id == fundId }) {
-                try await FundStore.shared.writeFund(liveFund)
+                try await store.writeFund(liveFund)
                 ICloudSyncMonitor.shared.markLocalWrite()
             }
         } catch {
@@ -676,7 +685,7 @@ final class FundDataStore {
             return (false, "Fund not found")
         }
         do {
-            _ = try await FundStore.shared.backupFund(id: fundId)
+            _ = try await store.backupFund(id: fundId)
         } catch {
             return (false, "Backup failed: \(error.localizedDescription)")
         }
@@ -879,7 +888,7 @@ final class FundDataStore {
             // `updateHistoryCache` returns false (no throw) if the fund file doesn't exist yet
             // (addFund/recompute can race ahead of the initial writeFund).
             do {
-                let wrote = try await FundStore.shared.updateHistoryCache(fundId: item.id, cache: item.cache)
+                let wrote = try await store.updateHistoryCache(fundId: item.id, cache: item.cache)
                 if wrote {
                     // Track disk writes independently of the in-memory patch: if the fund was
                     // concurrently removed/renamed between awaits, the bytes still hit disk and
