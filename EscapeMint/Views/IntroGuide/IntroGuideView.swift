@@ -304,3 +304,14 @@ struct IntroGuideView: View {
         .background(Color.bgCard.opacity(0.5))
     }
 }
+
+#if DEBUG
+#Preview("IntroGuide") {
+    IntroGuideView(isPresented: .constant(true))
+}
+
+#Preview("IntroGuide — Dark") {
+    IntroGuideView(isPresented: .constant(true))
+        .preferredColorScheme(.dark)
+}
+#endif

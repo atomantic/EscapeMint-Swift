@@ -667,6 +667,33 @@ final class FundDataStore {
         await recomputeWith(funds)
     }
 
+#if DEBUG
+    /// Synchronously populate the store with sample funds and derived state for
+    /// SwiftUI `#Preview` rendering. DEBUG-only — never compiled into Release and
+    /// never used at runtime. Mirrors the derived-state assignment in `recomputeWith`
+    /// but runs inline (no background task) so previews render immediately.
+    func seedForPreview(_ sampleFunds: [FundData], asOfDate: String) {
+        let perFund = sampleFunds.map { computeFundMetricsForFund($0, asOfDate: asOfDate) }
+        let portfolioMetrics = computePortfolioAggregate(sampleFunds, perFundMetrics: perFund)
+        let computedSummaries = computeSummariesFromPortfolio(funds: sampleFunds, portfolio: portfolioMetrics)
+            .sorted { $0.currentValue > $1.currentValue }
+        var map: [String: FundSummary] = [:]
+        for s in computedSummaries { map[s.fund.id] = s }
+
+        funds = sampleFunds
+        portfolio = portfolioMetrics
+        summaries = computedSummaries
+        summaryMap = map
+        actionableFunds = computeActionableFunds(sampleFunds, asOfDate: asOfDate)
+        platforms = Array(Set(sampleFunds.map(\.platform))).sorted()
+        _auditEntries = nil
+        isLoaded = true
+        isConfigLoaded = true
+        loadingPhase = .ready
+        revision += 1
+    }
+#endif
+
     /// Per-fund metrics are cached by `(fundId, version)`. Funds whose version
     /// is unchanged since the last recompute reuse their cached metrics — so
     /// appending one entry to one fund only walks that fund's entries, not the

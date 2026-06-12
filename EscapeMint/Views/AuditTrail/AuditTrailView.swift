@@ -426,3 +426,16 @@ struct AuditTrailView: View {
     }
 
 }
+
+#if DEBUG
+#Preview("AuditTrail") {
+    PreviewData.seedStore()
+    return NavigationStack { AuditTrailView() }
+}
+
+#Preview("AuditTrail — Dark") {
+    PreviewData.seedStore()
+    return NavigationStack { AuditTrailView() }
+        .preferredColorScheme(.dark)
+}
+#endif

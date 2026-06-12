@@ -34,3 +34,25 @@ struct StatBox: View {
         .accessibilityValue("\(value)\(directionSuffix)")
     }
 }
+
+#if DEBUG
+#Preview("StatBox") {
+    HStack {
+        StatBox(label: "Size", value: "$1,510")
+        StatBox(label: "Realized", value: "+18.4%", color: .mint)
+        StatBox(label: "Liquid", value: "-3.1%", color: .red)
+    }
+    .padding()
+    .background(Color.bg)
+}
+
+#Preview("StatBox — Dark") {
+    HStack {
+        StatBox(label: "Size", value: "$1,510")
+        StatBox(label: "Realized", value: "+18.4%", color: .mint)
+    }
+    .padding()
+    .background(Color.bg)
+    .preferredColorScheme(.dark)
+}
+#endif
