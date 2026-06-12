@@ -135,25 +135,35 @@ struct BacktestView: View {
     @ViewBuilder
     private var dateRangePicker: some View {
         if let avail = availableRange {
+            // Bounds of the selectable range, derived from the available data.
+            let lowerBound = isoDateFormatter.date(from: avail.start) ?? Date.distantPast
+            let upperBound = isoDateFormatter.date(from: avail.end) ?? Date.distantFuture
+
             HStack(spacing: 8) {
-                let startBinding = Binding<String>(
-                    get: { dateRange?.start ?? avail.start },
-                    set: { newVal in
-                        dateRange = BacktestDateRange(start: newVal, end: dateRange?.end ?? avail.end)
+                let startBinding = Binding<Date>(
+                    get: { isoDateFormatter.date(from: dateRange?.start ?? avail.start) ?? lowerBound },
+                    set: { newDate in
+                        dateRange = BacktestDateRange(
+                            start: isoDateFormatter.string(from: newDate),
+                            end: dateRange?.end ?? avail.end
+                        )
                         runBacktestAsync()
                     }
                 )
-                let endBinding = Binding<String>(
-                    get: { dateRange?.end ?? avail.end },
-                    set: { newVal in
-                        dateRange = BacktestDateRange(start: dateRange?.start ?? avail.start, end: newVal)
+                let endBinding = Binding<Date>(
+                    get: { isoDateFormatter.date(from: dateRange?.end ?? avail.end) ?? upperBound },
+                    set: { newDate in
+                        dateRange = BacktestDateRange(
+                            start: dateRange?.start ?? avail.start,
+                            end: isoDateFormatter.string(from: newDate)
+                        )
                         runBacktestAsync()
                     }
                 )
 
-                dateInput(value: startBinding)
+                dateInput(selection: startBinding, in: lowerBound...upperBound)
                 Text("to").font(.caption).foregroundColor(.textMuted)
-                dateInput(value: endBinding)
+                dateInput(selection: endBinding, in: lowerBound...upperBound)
 
                 if let dr = dateRange ?? availableRange {
                     Text("\(dr.daysElapsed)d (\(String(format: "%.1f", dr.yearsElapsed))y)")
@@ -178,11 +188,16 @@ struct BacktestView: View {
         }
     }
 
-    private func dateInput(value: Binding<String>) -> some View {
-        TextField("", text: value)
-            .font(.caption).foregroundColor(.textPrimary)
-            .frame(width: 85)
-            .textFieldStyle(.roundedBorder)
+    private func dateInput(selection: Binding<Date>, in range: ClosedRange<Date>) -> some View {
+        DatePicker("", selection: selection, in: range, displayedComponents: .date)
+            .labelsHidden()
+            .font(.caption)
+            .foregroundColor(.textPrimary)
+            #if os(macOS)
+            .datePickerStyle(.field)
+            #else
+            .datePickerStyle(.compact)
+            #endif
     }
 
     private func applyDatePreset(_ preset: String, available: BacktestDateRange) {
