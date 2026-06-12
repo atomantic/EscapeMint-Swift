@@ -326,7 +326,7 @@ struct MarketGrowthChart: View {
                     .transition(.opacity)
             }
         }
-        .padding(12).cardStyle()
+        .introCardStyle()
         .task {
             if reduceMotion { animationProgress = 1.0 }
             else { withAnimation(.easeInOut(duration: 2.0)) { animationProgress = 1.0 } }
@@ -399,7 +399,7 @@ struct VolatilityComparisonChart: View {
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(12).cardStyle()
+        .introCardStyle()
         .task {
             if reduceMotion { animationProgress = 1.0 }
             else { withAnimation(.easeInOut(duration: 2.5)) { animationProgress = 1.0 } }
@@ -467,7 +467,7 @@ struct TraditionalDCAChart: View {
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(12).cardStyle()
+        .introCardStyle()
         .task {
             if reduceMotion { animationProgress = 1.0 }
             else { withAnimation(.easeInOut(duration: 2.5)) { animationProgress = 1.0 } }
@@ -532,7 +532,7 @@ struct BuySellZonesChart: View {
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(12).cardStyle()
+        .introCardStyle()
         .task {
             if reduceMotion { animationProgress = 1.0 }
             else { withAnimation(.easeInOut(duration: 2.5)) { animationProgress = 1.0 } }
@@ -613,7 +613,7 @@ struct LeverageComparisonChart: View {
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(12).cardStyle()
+        .introCardStyle()
         .task {
             if ViewCache.shared.isHistoricalDataLoaded {
                 computeLeverageData()
@@ -687,7 +687,7 @@ struct ModeComparisonChart: View {
                     .frame(height: 180).frame(maxWidth: .infinity)
             }
         }
-        .padding(12).cardStyle()
+        .introCardStyle()
     }
 
     private enum LegendStyle { case line, square, dashed }

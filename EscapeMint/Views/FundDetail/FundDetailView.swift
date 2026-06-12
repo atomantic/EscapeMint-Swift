@@ -89,7 +89,7 @@ struct FundDetailView: View {
             if let fund {
                 EditFundView(fund: fund, onSaved: {}, onDeleted: {
                     wasDeleted = true
-                    NotificationCenter.default.post(name: .selectDashboard, object: nil)
+                    NotificationCenter.default.postSelectDashboard()
                     dismiss()
                 })
             }
@@ -218,21 +218,16 @@ struct FundDetailView: View {
                     .fontWeight(.medium)
                 if let cat = config.category, let catInfo = categoryConfig[cat] {
                     Text(catInfo.shortLabel)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Color.forCategory(cat).opacity(0.2))
-                        .cornerRadius(4)
+                        .tagBadge(background: Color.forCategory(cat).opacity(0.2))
                 }
                 if config.status == .closed {
                     Text("Closed")
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Color.bgInput).cornerRadius(4)
+                        .tagBadge(background: .bgInput)
                 }
                 if config.margin_enabled == true {
                     Text("Margin")
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Color.blue.opacity(0.2))
                         .foregroundColor(.blue)
-                        .cornerRadius(4)
+                        .tagBadge(background: Color.blue.opacity(0.2))
                 }
                 if let acc = config.accumulate {
                     Text(acc ? "Accumulate" : "Harvest")
@@ -427,9 +422,7 @@ struct FundDetailView: View {
             Text(isRecalculating ? "..." : "Recalculate")
                 .font(.caption2).fontWeight(.medium)
                 .foregroundColor(.white)
-                .padding(.horizontal, 8).padding(.vertical, 4)
-                .background(Color.secondary.opacity(0.7))
-                .cornerRadius(6)
+                .actionBadge(background: Color.secondary.opacity(0.7))
         }
         .disabled(isRecalculating)
         #if os(macOS)
@@ -453,9 +446,7 @@ struct FundDetailView: View {
             Text("Interpolate")
                 .font(.caption2).fontWeight(.medium)
                 .foregroundColor(.white)
-                .padding(.horizontal, 8).padding(.vertical, 4)
-                .background(Color.secondary.opacity(0.7))
-                .cornerRadius(6)
+                .actionBadge(background: Color.secondary.opacity(0.7))
         }
         .disabled(isRecalculating)
         #if os(macOS)
@@ -465,55 +456,16 @@ struct FundDetailView: View {
 
     // MARK: - Entries Table
 
-    private static let allEntryColumns: [(id: String, label: String, defaultVisible: Bool, excludeFrom: Set<FundType>)] = [
-        ("date", "Date", true, []),
-        ("action", "Action", true, [.cash]),
-        ("shares", "Shares", false, [.cash, .derivatives]),
-        ("sum_shares", "\u{03A3} Shares", false, [.cash, .derivatives]),
-        ("price", "Price", false, [.cash]),
-        ("amount", "Amount", true, []),
-        ("value", "Equity", true, [.derivatives]),
-        ("cash", "Cash", false, [.cash]),
-        ("invested", "Invested", true, [.cash, .derivatives]),
-        ("dividend", "Dividend", true, [.cash, .crypto, .derivatives]),
-        ("expense", "Expense", false, [.derivatives]),
-        ("fund_size", "Fund Size", false, [.derivatives]),
-        ("extracted", "Extracted", true, [.cash, .derivatives]),
-        ("cash_interest", "Cash Int", false, [.derivatives]),
-        ("unrealized", "Unrealized", true, [.cash]),
-        ("realized", "Realized", true, []),
-        ("liquid_pnl", "Liquid P&L", true, [.cash]),
-        ("realized_apy", "Realized APY", true, []),
-        ("liquid_apy", "Liq APY", true, [.cash]),
-        ("sum_expense", "\u{03A3} Exp", false, [.derivatives]),
-        ("sum_dividends", "\u{03A3} Div", false, [.cash, .crypto, .derivatives]),
-        ("sum_extracted", "\u{03A3} Extracted", false, [.cash, .derivatives]),
-        ("sum_cash_int", "\u{03A3} Int", false, [.derivatives]),
-        ("margin_available", "Margin Avail", false, []),
-        ("margin_borrowed", "Margin Borrowed", false, []),
-        ("notes", "Notes", false, []),
-        // Derivatives-specific (ordered to match web app)
-        ("contracts", "Contracts", false, [.cash, .stock, .crypto]),
-        ("fee", "Fee", false, [.cash, .stock, .crypto]),
-        ("position", "Position", false, [.cash, .stock, .crypto]),
-        ("entry_price", "Avg Entry", false, [.cash, .stock, .crypto]),
-        ("deriv_cash", "Cash", false, [.cash, .stock, .crypto]),
-        ("margin_locked", "Margin Locked", false, [.cash, .stock, .crypto]),
-        ("liquidation_price", "Liq Price", false, [.cash, .stock, .crypto]),
-        ("deriv_equity", "Equity", false, [.cash, .stock, .crypto]),
-        ("unrealized_pnl", "Unrealized", false, [.cash, .stock, .crypto]),
-    ]
-
     private func availableColumns(for fundType: FundType?) -> [(id: String, label: String)] {
         let ft = fundType ?? .stock
-        return Self.allEntryColumns
+        return allEntryColumns
             .filter { !$0.excludeFrom.contains(ft) }
             .map { (id: $0.id, label: $0.label) }
     }
 
     private func defaultVisibleColumns(for fundType: FundType?) -> Set<String> {
         let ft = fundType ?? .stock
-        var cols = Set(Self.allEntryColumns
+        var cols = Set(allEntryColumns
             .filter { $0.defaultVisible && !$0.excludeFrom.contains(ft) }
             .map(\.id))
         if ft == .derivatives {

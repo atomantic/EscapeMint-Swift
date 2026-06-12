@@ -61,12 +61,7 @@ struct BacktestConfigPanel: View {
             }
             #endif
         }
-        .background(Color.bgCard)
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.textMuted.opacity(0.2), lineWidth: 1)
-        )
+        .cardStyle(cornerRadius: 12, borderColor: .textMuted.opacity(0.2))
     }
 
     // MARK: - Allocation Column
