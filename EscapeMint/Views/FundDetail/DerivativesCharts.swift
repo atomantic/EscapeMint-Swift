@@ -202,7 +202,7 @@ struct DerivativesPLChart: View {
                 let hasNeg = points.contains { $0.capturedProfit < 0 || $0.liquidPL < 0 }
                 Chart {
                     ForEach(points) { pt in
-                        let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                        let d = pt.dateValue
                         LineMark(x: .value("Date", d), y: .value("Liquid", pt.liquidPL))
                             .foregroundStyle(by: .value("Series", "Liquid"))
                             .interpolationMethod(.monotone)
@@ -253,7 +253,7 @@ struct DerivativesAPYChart: View {
                 let hasNeg = points.contains { $0.realizedAPY < 0 || $0.liquidAPY < 0 }
                 Chart {
                     ForEach(points) { pt in
-                        let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                        let d = pt.dateValue
                         LineMark(x: .value("Date", d), y: .value("L.APY", pt.liquidAPY))
                             .foregroundStyle(by: .value("Series", "Liquid"))
                             .interpolationMethod(.monotone)
@@ -301,7 +301,7 @@ struct DerivativesValueChart: View {
             if !points.isEmpty {
                 Chart {
                     ForEach(points) { pt in
-                        let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                        let d = pt.dateValue
                         AreaMark(x: .value("Date", d), y: .value("Notional", pt.costBasis))
                             .foregroundStyle(Color.purple.opacity(0.15))
                             .interpolationMethod(.monotone)
@@ -411,7 +411,7 @@ struct DerivativesMarginChart: View {
     private var primaryChart: some View {
         Chart {
             ForEach(points) { pt in
-                let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                let d = pt.dateValue
                 AreaMark(x: .value("Date", d), y: .value("Cash", pt.marginBalance))
                     .foregroundStyle(Color.blue.opacity(0.15))
                     .interpolationMethod(.monotone)
@@ -432,7 +432,7 @@ struct DerivativesMarginChart: View {
     private var leverageChart: some View {
         Chart {
             ForEach(points) { pt in
-                let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                let d = pt.dateValue
                 LineMark(x: .value("Date", d), y: .value("Leverage", pt.leverage))
                     .foregroundStyle(Color.green)
                     .interpolationMethod(.monotone)
@@ -527,7 +527,7 @@ struct DerivativesCapturedProfitChart: View {
                 let hasNeg = points.contains { $0.sumFunding < 0 || $0.sumFees > 0 }
                 Chart {
                     ForEach(points) { pt in
-                        let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                        let d = pt.dateValue
                         LineMark(x: .value("Date", d), y: .value("Realized", pt.sumRealized))
                             .foregroundStyle(by: .value("Series", "Realized"))
                             .interpolationMethod(.monotone)

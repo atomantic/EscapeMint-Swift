@@ -83,7 +83,7 @@ private struct BuySellBadge: Identifiable {
     let isBuy: Bool
 }
 
-private struct LeveragePoint: Identifiable {
+private struct LeveragePoint: DateIdentifiable {
     let id: Int
     let date: String
     let brgnx: Double
@@ -585,7 +585,7 @@ struct LeverageComparisonChart: View {
 
             // Compute fixed x-scale from full data so axis doesn't shift during animation
             let xDomain: ClosedRange<Date> = {
-                let dates = fullData.compactMap { isoDateFormatter.date(from: $0.date) }
+                let dates = fullData.map(\.dateValue)
                 let minDate = dates.min() ?? Date()
                 let maxDate = dates.max() ?? Date()
                 return minDate...maxDate
@@ -593,7 +593,7 @@ struct LeverageComparisonChart: View {
 
             Chart {
                 ForEach(visible) { point in
-                    let date = isoDateFormatter.date(from: point.date) ?? Date()
+                    let date = point.dateValue
                     LineMark(x: .value("Date", date), y: .value("BRGNX", point.brgnx), series: .value("Series", "BRGNX"))
                         .foregroundStyle(Color.blue).lineStyle(StrokeStyle(lineWidth: 2)).interpolationMethod(.monotone)
                     LineMark(x: .value("Date", date), y: .value("SPXL", point.spxl), series: .value("Series", "SPXL"))
@@ -727,7 +727,7 @@ struct ModeComparisonChart: View {
             Chart {
                 ForEach(sampled.indices, id: \.self) { i in
                     let entry = sampled[i]
-                    let date = isoDateFormatter.date(from: entry.date) ?? Date()
+                    let date = entry.dateValue
 
                     // Stacked areas: invested (bottom) + cash (top)
                     AreaMark(x: .value("Date", date), y: .value("Amount", entry.invested), stacking: .standard)
