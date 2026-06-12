@@ -239,6 +239,34 @@ actor FundStore {
             .compactMap { readFundConfig(jsonURL: $0) }
     }
 
+    /// Replace the funds directory with the bundled test-data set.
+    ///
+    /// `nonisolated` and synchronous so it can run from `EscapeMintApp.init()` —
+    /// which is not async — before any view loads. It only touches the
+    /// `nonisolated` `fundsDirectory` and the read-only app bundle, so it does
+    /// not need the actor's mutable state. Mirrors the test/demo data the
+    /// `-loadTestData` launch argument expects.
+    nonisolated func loadTestDataSynchronously() {
+        let fm = FileManager.default
+        let dir = fundsDirectory
+        // Delete all existing funds.
+        if let files = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) {
+            for file in files { try? fm.removeItem(at: file) }
+        }
+        // Copy test data from the bundle.
+        let testFundIds = [
+            "coinbasetest-btc", "coinbasetest-cash",
+            "robinhoodtest-tqqq", "robinhoodtest-spxl", "robinhoodtest-cash"
+        ]
+        for fundId in testFundIds {
+            if let jsonURL = Bundle.main.url(forResource: fundId, withExtension: "json"),
+               let tsvURL = Bundle.main.url(forResource: fundId, withExtension: "tsv") {
+                try? fm.copyItem(at: jsonURL, to: dir.appendingPathComponent("\(fundId).json"))
+                try? fm.copyItem(at: tsvURL, to: dir.appendingPathComponent("\(fundId).tsv"))
+            }
+        }
+    }
+
     /// Read entries for a single fund by its id — nonisolated for true parallel I/O.
     nonisolated func readFundEntries(id: String) -> [FundEntry] {
         let tsvURL = Self.currentFundsDirectory.appendingPathComponent("\(id).tsv")

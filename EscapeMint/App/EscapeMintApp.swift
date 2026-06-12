@@ -47,24 +47,7 @@ struct EscapeMintApp: App {
         if CommandLine.arguments.contains("-loadTestData") {
             UserDefaults.standard.set(true, forKey: AppStorageKeys.introCompleted)
             UserDefaults.standard.set(false, forKey: AppStorageKeys.showIntroOnLaunch)
-            let fm = FileManager.default
-            let dir = FundStore.shared.fundsDirectory
-            // Delete all existing funds
-            if let files = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) {
-                for file in files { try? fm.removeItem(at: file) }
-            }
-            // Copy test data from bundle
-            let testFundIds = [
-                "coinbasetest-btc", "coinbasetest-cash",
-                "robinhoodtest-tqqq", "robinhoodtest-spxl", "robinhoodtest-cash"
-            ]
-            for fundId in testFundIds {
-                if let jsonURL = Bundle.main.url(forResource: fundId, withExtension: "json"),
-                   let tsvURL = Bundle.main.url(forResource: fundId, withExtension: "tsv") {
-                    try? fm.copyItem(at: jsonURL, to: dir.appendingPathComponent("\(fundId).json"))
-                    try? fm.copyItem(at: tsvURL, to: dir.appendingPathComponent("\(fundId).tsv"))
-                }
-            }
+            FundStore.shared.loadTestDataSynchronously()
         }
     }
 
