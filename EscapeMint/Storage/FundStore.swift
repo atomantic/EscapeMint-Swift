@@ -94,6 +94,54 @@ struct JSONNull: Codable {
     }
 }
 
+/// The disk-I/O surface `FundDataStore` depends on, extracted so the in-memory
+/// store can be unit-tested against a fake instead of the real `FundStore.shared`
+/// singleton (issue #72, complements the directory-resolver seam from #47).
+///
+/// Covers exactly the members `FundDataStore` invokes: the iCloud lifecycle, the
+/// load/reload reads, and every mutation it persists. `nonisolated` members mirror
+/// `FundStore`'s nonisolated declarations so they can be called from the detached
+/// load tasks (`isICloud`, `readAllFundConfigs`, `readFundEntries`) without a hop
+/// back onto the actor. The protocol is `Sendable` so `FundDataStore` (a
+/// `@MainActor` type) can hold it and capture it in those detached tasks.
+protocol FundStoreProtocol: Sendable {
+    nonisolated var isICloud: Bool { get }
+
+    func hasICloudAccount() async -> Bool
+    func retryICloudIfNeeded(maxAttempts: Int, delay: Duration) async -> Bool
+    func migrateToICloudIfNeeded() async
+
+    nonisolated func readAllFundConfigs() -> [FundData]
+    nonisolated func readFundEntries(id: String) -> [FundEntry]
+    func readAllFunds() async -> [FundData]
+
+    func writeFund(_ fund: FundData) async throws
+    func appendEntry(fundId: String, entry: FundEntry) async throws
+    func replaceEntries(fundId: String, entries: [FundEntry]) async throws
+    @discardableResult
+    func updateConfig(fundId: String, config: FundConfig) async throws -> Bool
+    @discardableResult
+    func updateHistoryCache(fundId: String, cache: FundHistoryCache?) async throws -> Bool
+    func deleteFund(id: String) async throws
+    func deletePlatform(named platform: String) async throws -> Int
+    func backupFund(id: String) async throws -> URL
+
+    // Bulk import/export and test-data operations the FundDataStore facade
+    // delegates to (views call FundDataStore, which routes through this store).
+    func dataStats() async -> FundStore.DataStats
+    func testFundCount() async -> Int
+    func importFromDirectory(_ sourceDir: URL) async throws -> Int
+    func backupJSONFundCount(_ jsonURL: URL) async throws -> Int
+    func importFromBackupJSON(_ jsonURL: URL) async throws -> Int
+    func exportToBackupJSON() async throws -> URL
+    func exportToDocuments() async throws -> URL
+    func loadTestData() async throws -> Int
+    func deleteTestFunds() async throws -> Int
+    func deleteAllFunds() async throws
+}
+
+extension FundStore: FundStoreProtocol {}
+
 actor FundStore {
     static let shared = FundStore()
 
@@ -854,7 +902,7 @@ actor FundStore {
         return fundBackupDir
     }
 
-    struct DataStats {
+    struct DataStats: Sendable {
         let fundCount: Int
         let totalBytes: Int
         var formattedSize: String {
