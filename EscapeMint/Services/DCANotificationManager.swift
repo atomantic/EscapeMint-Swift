@@ -28,6 +28,35 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, Se
     }
 }
 
+/// Seam over the subset of `UNUserNotificationCenter` that `DCANotificationManager`
+/// touches, so tests can inject a fake center (the system center can't be authorized
+/// or inspected from a unit test). Production uses `SystemNotificationCenter`, a thin
+/// pass-through to `UNUserNotificationCenter.current()`, so behavior is unchanged.
+@MainActor
+protocol NotificationScheduling {
+    func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool
+    func currentAuthorizationStatus() async -> UNAuthorizationStatus
+    func add(_ request: UNNotificationRequest) async throws
+    func removeAllPendingNotificationRequests()
+}
+
+/// Production seam: forwards every call to the real `UNUserNotificationCenter`.
+@MainActor
+struct SystemNotificationCenter: NotificationScheduling {
+    func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool {
+        try await UNUserNotificationCenter.current().requestAuthorization(options: options)
+    }
+    func currentAuthorizationStatus() async -> UNAuthorizationStatus {
+        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+    func add(_ request: UNNotificationRequest) async throws {
+        try await UNUserNotificationCenter.current().add(request)
+    }
+    func removeAllPendingNotificationRequests() {
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+    }
+}
+
 @MainActor @Observable
 final class DCANotificationManager {
     static let shared = DCANotificationManager()
@@ -43,8 +72,27 @@ final class DCANotificationManager {
     private static let logger = Logger(subsystem: "net.shadowpuppet.EscapeMint", category: "DCANotifications")
     private static let categoryId = "DCA_REMINDER"
 
+    /// Injected notification center (defaults to the real system center). Tests pass a
+    /// fake to drive permission grant/denial and inspect scheduled requests.
+    private let center: NotificationScheduling
+    /// Source of funds for `rescheduleAll`. Defaults to the shared store; tests inject a
+    /// fixed list so scheduling assertions don't depend on on-disk data.
+    private let fundsProvider: @MainActor () -> [FundData]
+
     private init() {
+        self.center = SystemNotificationCenter()
+        self.fundsProvider = { FundDataStore.shared.funds }
         self.isEnabled = UserDefaults.standard.bool(forKey: AppStorageKeys.dcaNotifications)
+    }
+
+    /// Test-only initializer: injects a notification-center seam and a fixed funds list.
+    /// Production code always uses `shared`, which wires the real system center + store.
+    init(center: NotificationScheduling,
+         isEnabled: Bool = true,
+         fundsProvider: @escaping @MainActor () -> [FundData] = { [] }) {
+        self.center = center
+        self.fundsProvider = fundsProvider
+        self.isEnabled = isEnabled
     }
 
     func setEnabled(_ enabled: Bool) async {
@@ -69,7 +117,6 @@ final class DCANotificationManager {
     }
 
     func requestPermission() async -> Bool {
-        let center = UNUserNotificationCenter.current()
         do {
             let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
             isAuthorized = granted
@@ -81,8 +128,8 @@ final class DCANotificationManager {
     }
 
     func checkAuthorization() async {
-        let settings = await UNUserNotificationCenter.current().notificationSettings()
-        isAuthorized = settings.authorizationStatus == .authorized
+        let status = await center.currentAuthorizationStatus()
+        isAuthorized = status == .authorized
     }
 
     func cancelAll() {
@@ -91,11 +138,15 @@ final class DCANotificationManager {
         // a prior launch (the `pendingIdentifiers` in-memory array is empty on
         // a fresh launch, so the previous per-id removal would silently leak
         // stale reminders after the user toggles reminders off).
-        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+        center.removeAllPendingNotificationRequests()
         pendingIdentifiers = []
     }
 
     private var pendingIdentifiers: [String] = []
+
+    /// Identifiers of notifications scheduled in the current session. Exposed for tests
+    /// to assert scheduling correctness; production code only mutates it internally.
+    var scheduledIdentifiers: [String] { pendingIdentifiers }
 
     func rescheduleAll() async {
         guard isEnabled else { return }
@@ -104,8 +155,7 @@ final class DCANotificationManager {
 
         cancelAll()
 
-        let store = FundDataStore.shared
-        let funds = store.funds.filter { $0.config.status != .closed }
+        let funds = fundsProvider().filter { $0.config.status != .closed }
         var identifiers: [String] = []
 
         for fund in funds {
@@ -134,7 +184,7 @@ final class DCANotificationManager {
             let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
 
             do {
-                try await UNUserNotificationCenter.current().add(request)
+                try await center.add(request)
                 identifiers.append(identifier)
                 Self.logger.info("Scheduled DCA notification for \(fund.ticker, privacy: .private) on \(fireDate, privacy: .private)")
             } catch {
