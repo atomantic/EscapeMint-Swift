@@ -238,6 +238,7 @@ struct ContentView: View {
                     NavigationStack { SettingsView() }
                 }
             }
+            .liquidGlassTabBar()
             .onReceive(NotificationCenter.default.publisher(for: .selectFund)) { note in
                 if let id = note.object as? String {
                     selectedTab = 0
@@ -279,6 +280,23 @@ struct ContentView: View {
     }
     #endif
 }
+
+#if os(iOS)
+private extension View {
+    /// Adopts the iOS 26 liquid-glass tab bar polish: the floating glass tab
+    /// bar minimizes as the user scrolls down, giving content more room and a
+    /// more native feel on current OS versions. No-op on iOS 17–25, where the
+    /// standard tab bar is retained.
+    @ViewBuilder
+    func liquidGlassTabBar() -> some View {
+        if #available(iOS 26, *) {
+            self.tabBarMinimizeBehavior(.onScrollDown)
+        } else {
+            self
+        }
+    }
+}
+#endif
 
 #if os(macOS)
 struct NewFundCommand: View {
