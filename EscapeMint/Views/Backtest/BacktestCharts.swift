@@ -148,7 +148,7 @@ struct BacktestChartsGrid: View, SizeClassAware {
             Chart(entries) { entry in
                 AreaMark(x: .value("Date", entry.dateValue), y: .value("Extracted", entry.totalExtracted))
                     .foregroundStyle(Color.blue.opacity(0.15))
-                    .interpolationMethod(.monotone)
+                    .interpolationMethod(.linear)
                 LineMark(x: .value("Date", entry.dateValue), y: .value("Extracted", entry.totalExtracted))
                     .foregroundStyle(Color.blue)
                     .interpolationMethod(.monotone)

@@ -304,7 +304,7 @@ struct DerivativesValueChart: View {
                         let d = pt.dateValue
                         AreaMark(x: .value("Date", d), y: .value("Notional", pt.costBasis))
                             .foregroundStyle(Color.purple.opacity(0.15))
-                            .interpolationMethod(.monotone)
+                            .interpolationMethod(.linear)
                         LineMark(x: .value("Date", d), y: .value("Notional", pt.costBasis))
                             .foregroundStyle(by: .value("Series", "Notional"))
                             .interpolationMethod(.monotone)
@@ -414,7 +414,7 @@ struct DerivativesMarginChart: View {
                 let d = pt.dateValue
                 AreaMark(x: .value("Date", d), y: .value("Cash", pt.marginBalance))
                     .foregroundStyle(Color.blue.opacity(0.15))
-                    .interpolationMethod(.monotone)
+                    .interpolationMethod(.linear)
                 LineMark(x: .value("Date", d), y: .value("Cash", pt.marginBalance))
                     .foregroundStyle(by: .value("Series", "Cash"))
                     .interpolationMethod(.monotone)
