@@ -33,11 +33,12 @@ targets:
         DEVELOPMENT_TEAM: TYQ32QCF6K
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        INFOPLIST_KEY_CFBundleDisplayName: EscapeMint
-        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.finance
-        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: false
-        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
-        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        # Custom Info.plist keys (display name, category, encryption flag,
+        # orientations) live in the `info.properties` block below — the single
+        # source of truth for the generated Info.plist. Do NOT duplicate them
+        # here as INFOPLIST_KEY_* build settings (gotcha catalogue #7): Xcode
+        # ignores INFOPLIST_KEY_* whenever INFOPLIST_FILE is set, so keeping
+        # both invites drift (e.g. mismatched iPhone orientation lists).
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: false
         "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": EscapeMint/App/EscapeMint.entitlements
         "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": EscapeMint/App/EscapeMint.entitlements
