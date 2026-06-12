@@ -766,8 +766,7 @@ struct DashboardView: View, SizeClassAware {
             let gotAccess = url.startAccessingSecurityScopedResource()
             defer { if gotAccess { url.stopAccessingSecurityScopedResource() } }
             do {
-                let count = try await FundStore.shared.importFromDirectory(url)
-                if count > 0 { await store.reload() }
+                _ = try await store.importFromDirectory(url)
             } catch {
                 dashboardLogger.error("Import failed: \(error.localizedDescription)")
             }
