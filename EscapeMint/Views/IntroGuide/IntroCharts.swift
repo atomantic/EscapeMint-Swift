@@ -302,7 +302,7 @@ struct MarketGrowthChart: View {
             Chart(visible) { point in
                 AreaMark(x: .value("Year", point.year), y: .value("Value", point.value))
                     .foregroundStyle(Color.mint.opacity(0.15))
-                    .interpolationMethod(.monotone)
+                    .interpolationMethod(.linear)
                 LineMark(x: .value("Year", point.year), y: .value("Value", point.value))
                     .foregroundStyle(Color.mint)
                     .lineStyle(StrokeStyle(lineWidth: 3))
@@ -378,7 +378,7 @@ struct VolatilityComparisonChart: View {
                 ForEach(visible) { point in
                     AreaMark(x: .value("X", point.x), y: .value("RealityFill", point.volatile))
                         .foregroundStyle(Color.mint.opacity(0.1))
-                        .interpolationMethod(.monotone)
+                        .interpolationMethod(.linear)
                     LineMark(x: .value("X", point.x), y: .value("Expected", point.straight), series: .value("Series", "Expected"))
                         .foregroundStyle(Color.textMuted)
                         .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 5]))

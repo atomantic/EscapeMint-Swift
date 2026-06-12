@@ -178,7 +178,7 @@ struct ValueChartView: View {
                                     startPoint: .top, endPoint: .bottom
                                 )
                             )
-                            .interpolationMethod(.monotone)
+                            .interpolationMethod(.linear)
                         LineMark(x: .value("Date", d), y: .value("Value", pt.value))
                             .foregroundStyle(by: .value("Type", "Value"))
                             .interpolationMethod(.monotone)
@@ -247,7 +247,7 @@ struct PLChartView: View {
                             yEnd: .value("Liquid", domain.clamping(pt.liquid))
                         )
                             .foregroundStyle(Color.blue.opacity(0.1))
-                            .interpolationMethod(.monotone)
+                            .interpolationMethod(.linear)
                         LineMark(x: .value("Date", d), y: .value("Realized", domain.clamping(pt.realized)))
                             .foregroundStyle(by: .value("Type", "Realized"))
                             .interpolationMethod(.monotone)
@@ -314,7 +314,7 @@ struct APYChartView: View {
                         let lAPY = domain.clamping(pt.liquidAPY)
                         AreaMark(x: .value("Date", d), y: .value("L.APY", lAPY))
                             .foregroundStyle(Color.blue.opacity(0.1))
-                            .interpolationMethod(.monotone)
+                            .interpolationMethod(.linear)
                         LineMark(x: .value("Date", d), y: .value("R.APY", rAPY))
                             .foregroundStyle(by: .value("Type", "Realized"))
                             .interpolationMethod(.monotone)
@@ -382,7 +382,7 @@ struct CapturedProfitChartView: View {
                     let d = pt.dateValue
                     AreaMark(x: .value("Date", d), y: .value("Total", pt.total))
                         .foregroundStyle(Color.mint.opacity(0.15))
-                        .interpolationMethod(.monotone)
+                        .interpolationMethod(.linear)
                     if hasExtracted {
                         LineMark(x: .value("Date", d), y: .value("Extracted", pt.cumExtracted))
                             .foregroundStyle(by: .value("Type", "Extracted"))
