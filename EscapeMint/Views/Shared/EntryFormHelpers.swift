@@ -58,12 +58,7 @@ func cleanNum(_ val: Double?) -> String { val.map { cleanNum($0) } ?? "" }
 /// Format a quantity (shares/contracts) — up to 8 decimals, trailing zeros stripped.
 func cleanShares(_ val: Double?) -> String {
     guard let v = val, v != 0 else { return "" }
-    if v == v.rounded(.down) { return String(format: "%.0f", v) }
-    let s = String(format: "%.8f", v)
-    var end = s.endIndex
-    while end > s.startIndex && s[s.index(before: end)] == "0" { end = s.index(before: end) }
-    if end > s.startIndex && s[s.index(before: end)] == "." { end = s.index(before: end) }
-    return String(s[s.startIndex..<end])
+    return formatTrimmedDecimal(v)
 }
 
 // MARK: - DCA Form Helpers

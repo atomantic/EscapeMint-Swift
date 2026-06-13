@@ -364,7 +364,7 @@ struct DerivativesPriceChart: View {
             if clampedPoints.count >= 2 {
                 Chart {
                     ForEach(clampedPoints, id: \.id) { pt in
-                        let d = isoDateFormatter.date(from: pt.date) ?? Date()
+                        let d = parseISODate(pt.date)
                         LineMark(x: .value("Date", d), y: .value("Avg Entry", pt.avgEntry))
                             .foregroundStyle(by: .value("Series", "Avg Entry"))
                             .interpolationMethod(.monotone)

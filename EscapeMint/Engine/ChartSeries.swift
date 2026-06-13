@@ -11,7 +11,7 @@ protocol DateIdentifiable: Identifiable {
 
 extension DateIdentifiable {
     var dateValue: Date {
-        isoDateFormatter.date(from: date) ?? .distantPast
+        parseISODate(date, fallback: .distantPast)
     }
 }
 

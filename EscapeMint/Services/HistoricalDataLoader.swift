@@ -11,8 +11,7 @@ func loadHistoricalData() -> [String: HistoricalData] {
     var result: [String: HistoricalData] = [:]
     for ticker in tickers {
         guard let url = Bundle.main.url(forResource: "\(ticker)-weekly", withExtension: "json"),
-              let data = try? Data(contentsOf: url),
-              let hist = try? JSONDecoder().decode(HistoricalData.self, from: data) else {
+              let hist = decodeJSONFile(url, as: HistoricalData.self) else {
             continue
         }
         result[ticker.uppercased()] = hist

@@ -126,12 +126,12 @@ struct BacktestView: View, SizeClassAware {
     private var dateRangePicker: some View {
         if let avail = availableRange {
             // Bounds of the selectable range, derived from the available data.
-            let lowerBound = isoDateFormatter.date(from: avail.start) ?? Date.distantPast
-            let upperBound = isoDateFormatter.date(from: avail.end) ?? Date.distantFuture
+            let lowerBound = parseISODate(avail.start, fallback: .distantPast)
+            let upperBound = parseISODate(avail.end, fallback: .distantFuture)
 
             HStack(spacing: 8) {
                 let startBinding = Binding<Date>(
-                    get: { isoDateFormatter.date(from: dateRange?.start ?? avail.start) ?? lowerBound },
+                    get: { parseISODate(dateRange?.start ?? avail.start, fallback: lowerBound) },
                     set: { newDate in
                         dateRange = BacktestDateRange(
                             start: isoDateFormatter.string(from: newDate),
@@ -141,7 +141,7 @@ struct BacktestView: View, SizeClassAware {
                     }
                 )
                 let endBinding = Binding<Date>(
-                    get: { isoDateFormatter.date(from: dateRange?.end ?? avail.end) ?? upperBound },
+                    get: { parseISODate(dateRange?.end ?? avail.end, fallback: upperBound) },
                     set: { newDate in
                         dateRange = BacktestDateRange(
                             start: dateRange?.start ?? avail.start,

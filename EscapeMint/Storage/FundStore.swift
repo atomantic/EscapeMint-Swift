@@ -417,8 +417,7 @@ actor FundStore {
 
     /// Shared JSON config reader — used by both readAllFundConfigs and readFund
     private nonisolated func readFundConfig(jsonURL: URL) -> FundData? {
-        guard let configData = try? Data(contentsOf: jsonURL),
-              var config = try? JSONDecoder().decode(FundConfig.self, from: configData),
+        guard var config = decodeJSONFile(jsonURL, as: FundConfig.self),
               let platform = config.platform, let ticker = config.ticker else { return nil }
         if config.fund_id?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
             config.fund_id = jsonURL.deletingPathExtension().lastPathComponent
@@ -628,8 +627,7 @@ actor FundStore {
         }
         return Set(files.compactMap { file in
             guard file.pathExtension == "json",
-                  let data = try? Data(contentsOf: file),
-                  let config = try? JSONDecoder().decode(FundConfig.self, from: data),
+                  let config = decodeJSONFile(file, as: FundConfig.self),
                   config.platform?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == platform else {
                 return nil
             }
@@ -1015,15 +1013,7 @@ private func fmtCurrency(_ val: Double?) -> String { val.map { fmtCurrency($0) }
 private func fmtPrice(_ val: Double?) -> String { fmtQuantity(val) }
 private func fmtQuantity(_ val: Double?) -> String {
     guard let v = val else { return "" }
-    let rounded = roundTo(v, decimals: 8)
-    // Strip trailing zeros: use %g-style but cap at 8 decimals
-    if rounded == rounded.rounded(.down) { return String(format: "%.0f", rounded) }
-    let s = String(format: "%.8f", rounded)
-    // Trim trailing zeros after decimal
-    var end = s.endIndex
-    while end > s.startIndex && s[s.index(before: end)] == "0" { end = s.index(before: end) }
-    if end > s.startIndex && s[s.index(before: end)] == "." { end = s.index(before: end) }
-    return String(s[s.startIndex..<end])
+    return formatTrimmedDecimal(roundTo(v, decimals: 8))
 }
 
 func serializeEntry(_ entry: FundEntry) -> String {
