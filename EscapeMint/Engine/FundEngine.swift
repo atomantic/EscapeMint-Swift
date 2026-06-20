@@ -23,12 +23,20 @@ func trackShares(trade: Trade, currentShares: Double) -> Double {
     return currentShares + (trade.type == .sell ? -sharesAbs : sharesAbs)
 }
 
-func isFullLiquidation(shares: Double?, value: Double, amount: Double, sumShares: Double, totalBuys: Double, totalSells: Double) -> Bool {
+/// Share/value-based liquidation test (no dollar-flow condition) used while walking
+/// entries one cycle at a time. A SELL fully closes the position when the remaining
+/// share balance is dust OR the post-sale value is within a cent of the sale amount.
+func isShareOrValueLiquidation(shares: Double?, remainingShares: Double, value: Double, amount: Double) -> Bool {
     let hasShareTracking = shares != nil && (shares ?? 0) != 0
-    let shareBasedLiq = hasShareTracking && abs(sumShares) < FundMath.shareDustThreshold
-    let valueBasedLiq = value > 0 && value <= amount + FundMath.currencyTolerance
-    let dollarBasedLiq = totalSells >= totalBuys
-    return shareBasedLiq || valueBasedLiq || dollarBasedLiq
+    let sharesLiquidated = hasShareTracking && abs(remainingShares) < FundMath.shareDustThreshold
+    let valueLiquidated = value > 0 && value <= amount + FundMath.currencyTolerance
+    return sharesLiquidated || valueLiquidated
+}
+
+/// Full liquidation including the dollar-flow condition: a position is also considered
+/// closed once cumulative sells meet or exceed cumulative buys.
+func isFullLiquidation(shares: Double?, value: Double, amount: Double, sumShares: Double, totalBuys: Double, totalSells: Double) -> Bool {
+    isShareOrValueLiquidation(shares: shares, remainingShares: sumShares, value: value, amount: amount) || totalSells >= totalBuys
 }
 
 func detectFullLiquidation(trade: Trade, sumShares: Double, totalBuys: Double, totalSells: Double) -> Bool {
@@ -562,10 +570,7 @@ func computeFundMetricsForFund(_ fund: FundData, asOfDate: String) -> (metrics: 
                 hadFirstBuy = true
             }
         } else if entry.action == .SELL, let amt = entry.amount {
-            let hasShareTracking = entry.shares != nil && (entry.shares ?? 0) != 0
-            let sharesLiquidated = hasShareTracking && abs(sumShares) < FundMath.shareDustThreshold
-            let valueLiquidated = entry.value > 0 && entry.value <= amt + FundMath.currencyTolerance
-            let isFullLiq = sharesLiquidated || valueLiquidated
+            let isFullLiq = isShareOrValueLiquidation(shares: entry.shares, remainingShares: sumShares, value: entry.value, amount: amt)
 
             var extracted = 0.0
             if isFullLiq {

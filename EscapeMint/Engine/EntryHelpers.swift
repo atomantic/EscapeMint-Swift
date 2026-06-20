@@ -64,10 +64,7 @@ func computeFundSizeForEntry(_ newEntry: FundEntry, existingEntries: [FundEntry]
                 sharesAfter -= abs(shares)
             }
 
-            let hasShareTracking = newEntry.shares != nil && (newEntry.shares ?? 0) != 0
-            let sharesLiquidated = hasShareTracking && abs(sharesAfter) < FundMath.shareDustThreshold
-            let valueLiquidated = newEntry.value > 0 && newEntry.value <= amount + FundMath.currencyTolerance
-            if sharesLiquidated || valueLiquidated {
+            if isShareOrValueLiquidation(shares: newEntry.shares, remainingShares: sharesAfter, value: newEntry.value, amount: amount) {
                 fundSize = 0
             } else if !isAccumulate {
                 fundSize -= amount
@@ -107,12 +104,8 @@ func computeFundSizeForEntry(_ newEntry: FundEntry, existingEntries: [FundEntry]
                 if !isAccumulate {
                     invested -= amt
                 }
-                // Check full liquidation (use OR — either condition triggers)
-                let hasShareTracking = e.shares != nil && (e.shares ?? 0) != 0
-                let sharesLiquidated = hasShareTracking && abs(sumShares) < FundMath.shareDustThreshold
-                let valueLiquidated = e.value > 0 && e.value <= amt + FundMath.currencyTolerance
-                let isLiquidation = sharesLiquidated || valueLiquidated
-                if isLiquidation {
+                // Check full liquidation (share-dust OR value-within-a-cent triggers)
+                if isShareOrValueLiquidation(shares: e.shares, remainingShares: sumShares, value: e.value, amount: amt) {
                     invested = 0
                     sumShares = 0
                 }

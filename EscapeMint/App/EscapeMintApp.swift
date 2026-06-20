@@ -102,10 +102,8 @@ struct ContentView: View {
     @AppStorage(AppStorageKeys.showIntroOnLaunch) private var showIntroOnLaunch = false
     @State private var showIntroGuide = false
     @State private var selectedTab: Int = {
-        if CommandLine.arguments.contains("-startTab"),
-           let idx = CommandLine.arguments.firstIndex(of: "-startTab"),
-           idx + 1 < CommandLine.arguments.count,
-           let tab = Int(CommandLine.arguments[idx + 1]) {
+        if let tabValue = ContentView.launchValue(after: "-startTab", environmentKey: "ESCAPEMINT_START_TAB"),
+           let tab = Int(tabValue) {
             return tab
         }
         return 0
@@ -189,10 +187,9 @@ struct ContentView: View {
         )
     }
 
-    #if os(iOS)
-    @State private var dashboardPath = NavigationPath()
-
-    private func launchValue(after flag: String, environmentKey: String) -> String? {
+    /// Resolves a launch argument (`flag value`) falling back to an environment variable.
+    /// Static so it is usable from `@State` initializers (before `self` exists) and on all platforms.
+    static func launchValue(after flag: String, environmentKey: String) -> String? {
         if let idx = CommandLine.arguments.firstIndex(of: flag),
            idx + 1 < CommandLine.arguments.count {
             return CommandLine.arguments[idx + 1]
@@ -200,13 +197,16 @@ struct ContentView: View {
         return ProcessInfo.processInfo.environment[environmentKey]
     }
 
+    #if os(iOS)
+    @State private var dashboardPath = NavigationPath()
+
     private func applyLaunchNavigationArguments() {
-        if let tabValue = launchValue(after: "-startTab", environmentKey: "ESCAPEMINT_START_TAB"),
+        if let tabValue = Self.launchValue(after: "-startTab", environmentKey: "ESCAPEMINT_START_TAB"),
            let tab = Int(tabValue) {
             selectedTab = tab
         }
 
-        if let fundId = launchValue(after: "-selectFund", environmentKey: "ESCAPEMINT_SELECT_FUND") {
+        if let fundId = Self.launchValue(after: "-selectFund", environmentKey: "ESCAPEMINT_SELECT_FUND") {
             selectedTab = 0
             dashboardPath = NavigationPath()
             dashboardPath.append(fundId)
