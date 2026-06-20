@@ -256,12 +256,12 @@ struct DashboardView: View, SizeClassAware {
         LazyVGrid(columns: columns, spacing: 8) {
             MetricCard(label: "Fund Size", value: formatCurrency(p.totalFundSize), sub: "\(p.funds.count) funds")
             MetricCard(label: "Value", value: formatCurrency(p.totalValue), sub: "\(p.activeFunds) active")
-            MetricCard(label: "Realized", value: formatCurrency(p.totalRealizedGains), color: p.totalRealizedGains > 0 ? .mint : .red)
-            MetricCard(label: "R.APY", value: formatPercent(p.realizedAPY), color: p.realizedAPY > 0 ? .mint : .red)
-            MetricCard(label: "Unrealized", value: formatCurrency(p.totalUnrealizedGains), color: p.totalUnrealizedGains >= 0 ? .mint : .red)
-            MetricCard(label: "Liquid", value: formatCurrency(p.totalGainUsd), color: p.totalGainUsd >= 0 ? .mint : .red)
-            MetricCard(label: "L.APY", value: formatPercent(p.liquidAPY), color: p.liquidAPY > 0 ? .mint : .red)
-            MetricCard(label: "Projected", value: formatCurrency(p.projectedAnnualReturn), color: p.projectedAnnualReturn > 0 ? .mint : .red)
+            MetricCard(label: "Realized", value: formatCurrency(p.totalRealizedGains), color: Color.gain(p.totalRealizedGains, includingZero: false))
+            MetricCard(label: "R.APY", value: formatPercent(p.realizedAPY), color: Color.gain(p.realizedAPY, includingZero: false))
+            MetricCard(label: "Unrealized", value: formatCurrency(p.totalUnrealizedGains), color: Color.gain(p.totalUnrealizedGains))
+            MetricCard(label: "Liquid", value: formatCurrency(p.totalGainUsd), color: Color.gain(p.totalGainUsd))
+            MetricCard(label: "L.APY", value: formatPercent(p.liquidAPY), color: Color.gain(p.liquidAPY, includingZero: false))
+            MetricCard(label: "Projected", value: formatCurrency(p.projectedAnnualReturn), color: Color.gain(p.projectedAnnualReturn, includingZero: false))
             MetricCard(label: "Cash", value: formatCurrency(p.cashBalance), sub: "\(cashFundCount) cash funds")
             MetricCard(label: "Interest", value: formatCurrency(p.totalInterest), sub: "Earned to date")
         }
@@ -412,12 +412,12 @@ struct DashboardView: View, SizeClassAware {
         LazyVGrid(columns: Array(repeating: .init(.flexible(), spacing: 10), count: colCount), spacing: 10) {
             MetricCard(label: "Total Fund Size", value: formatCurrency(p.totalFundSize), sub: "\(fundCount) funds", tooltip: "Total capital allocated across all funds")
             MetricCard(label: "Current Value", value: formatCurrency(p.totalValue), sub: "\(p.activeFunds) active", tooltip: "Current market value of all positions")
-            MetricCard(label: "Realized Gain", value: formatCurrency(p.totalRealizedGains), sub: "Divs + Interest + Sells", color: p.totalRealizedGains > 0 ? .mint : .red, tooltip: "Profits already extracted: dividends, interest, and sell profits minus expenses")
-            MetricCard(label: "Realized APY", value: formatPercentSigned(p.realizedAPY), sub: "\(avgDays) avg days", color: p.realizedAPY > 0 ? .mint : .red, tooltip: "Annualized realized return. Time-Weighted Fund Size: \(formatCurrency(p.totalTimeWeightedFundSize))")
-            MetricCard(label: "Unrealized Gain", value: formatCurrency(p.totalUnrealizedGains), sub: formatPercentSigned(unrealizedPct), color: p.totalUnrealizedGains >= 0 ? .mint : .red, tooltip: "Paper gains: Current Value minus Cost Basis (not yet realized)")
-            MetricCard(label: "Liquid Gain", value: formatCurrency(p.totalGainUsd), sub: formatPercentSigned(liquidPct), color: p.totalGainUsd >= 0 ? .mint : .red, tooltip: "Total lifetime gain: Unrealized + Realized (if liquidated now)")
-            MetricCard(label: "Liquid APY", value: formatPercentSigned(p.liquidAPY), sub: "If liquidated now", color: p.liquidAPY > 0 ? .mint : .red, tooltip: "Annualized return based on total liquid gain")
-            MetricCard(label: "Projected Annual", value: formatCurrency(p.projectedAnnualReturn), sub: "Based on realized APY", color: p.projectedAnnualReturn > 0 ? .mint : .red, tooltip: "Expected annual return if current realized APY continues")
+            MetricCard(label: "Realized Gain", value: formatCurrency(p.totalRealizedGains), sub: "Divs + Interest + Sells", color: Color.gain(p.totalRealizedGains, includingZero: false), tooltip: "Profits already extracted: dividends, interest, and sell profits minus expenses")
+            MetricCard(label: "Realized APY", value: formatPercentSigned(p.realizedAPY), sub: "\(avgDays) avg days", color: Color.gain(p.realizedAPY, includingZero: false), tooltip: "Annualized realized return. Time-Weighted Fund Size: \(formatCurrency(p.totalTimeWeightedFundSize))")
+            MetricCard(label: "Unrealized Gain", value: formatCurrency(p.totalUnrealizedGains), sub: formatPercentSigned(unrealizedPct), color: Color.gain(p.totalUnrealizedGains), tooltip: "Paper gains: Current Value minus Cost Basis (not yet realized)")
+            MetricCard(label: "Liquid Gain", value: formatCurrency(p.totalGainUsd), sub: formatPercentSigned(liquidPct), color: Color.gain(p.totalGainUsd), tooltip: "Total lifetime gain: Unrealized + Realized (if liquidated now)")
+            MetricCard(label: "Liquid APY", value: formatPercentSigned(p.liquidAPY), sub: "If liquidated now", color: Color.gain(p.liquidAPY, includingZero: false), tooltip: "Annualized return based on total liquid gain")
+            MetricCard(label: "Projected Annual", value: formatCurrency(p.projectedAnnualReturn), sub: "Based on realized APY", color: Color.gain(p.projectedAnnualReturn, includingZero: false), tooltip: "Expected annual return if current realized APY continues")
             if hasCash {
                 MetricCard(label: "Cash Balance", value: formatCurrency(p.cashBalance), sub: "Interest: \(formatCurrency(p.totalInterest))", tooltip: "Total cash across \(cashFundCount) platform cash funds")
             }
@@ -625,19 +625,19 @@ struct DashboardView: View, SizeClassAware {
                             Text(formatCurrency(s.currentValue))
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                             Text(formatCurrency(s.metrics.realizedGains))
-                                .foregroundColor(s.metrics.realizedGains > 0 ? .mint : .red)
+                                .foregroundColor(Color.gain(s.metrics.realizedGains, includingZero: false))
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                                 .accessibilityLabel("Realized \(gainLossWord(s.metrics.realizedGains)) \(formatCurrency(s.metrics.realizedGains))")
                             Text(formatPercent(s.realizedAPY))
-                                .foregroundColor(s.realizedAPY > 0 ? .mint : .red)
+                                .foregroundColor(Color.gain(s.realizedAPY, includingZero: false))
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                                 .accessibilityLabel("Realized APY \(gainLossWord(s.realizedAPY)) \(formatPercent(s.realizedAPY))")
                             Text(formatCurrency(s.liquidGain))
-                                .foregroundColor(s.liquidGain >= 0 ? .mint : .red)
+                                .foregroundColor(Color.gain(s.liquidGain))
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                                 .accessibilityLabel("Liquid \(gainLossWord(s.liquidGain)) \(formatCurrency(s.liquidGain))")
                             Text(formatPercent(s.liquidAPY))
-                                .foregroundColor(s.liquidAPY > 0 ? .mint : .red)
+                                .foregroundColor(Color.gain(s.liquidAPY, includingZero: false))
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                                 .accessibilityLabel("Liquid APY \(gainLossWord(s.liquidAPY)) \(formatPercent(s.liquidAPY))")
                             Text("\(s.fund.entries.count)")
@@ -776,12 +776,6 @@ struct DashboardView: View, SizeClassAware {
     private func navigateToFund(_ id: String) {
         #if os(macOS)
         NotificationCenter.default.postSelectFund(id: id)
-        #endif
-    }
-
-    private func navigateToPlatform(_ platform: String) {
-        #if os(macOS)
-        NotificationCenter.default.postSelectPlatform(name: platform)
         #endif
     }
 }

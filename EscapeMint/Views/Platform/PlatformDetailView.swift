@@ -95,9 +95,9 @@ struct PlatformDetailView: View {
                 StatBox(label: "Total Fund Size", value: formatCurrency(totalFundSize))
                 StatBox(label: "Current Value", value: formatCurrency(totalValue), color: .mint)
                 StatBox(label: "Total Invested", value: formatCurrency(totalInvested))
-                StatBox(label: "Unrealized", value: formatCurrency(totalUnrealized), color: totalUnrealized >= 0 ? .mint : .red)
-                StatBox(label: "Realized", value: formatCurrency(totalRealized), color: totalRealized > 0 ? .mint : .red)
-                StatBox(label: "Liquid P&L", value: "\(formatCurrency(liquidPL)) (\(formatPercent(liquidPct)))", color: liquidPL >= 0 ? .mint : .red)
+                StatBox(label: "Unrealized", value: formatCurrency(totalUnrealized), color: Color.gain(totalUnrealized))
+                StatBox(label: "Realized", value: formatCurrency(totalRealized), color: Color.gain(totalRealized, includingZero: false))
+                StatBox(label: "Liquid P&L", value: "\(formatCurrency(liquidPL)) (\(formatPercent(liquidPct)))", color: Color.gain(liquidPL))
             }
         }
         .padding(12)
@@ -176,16 +176,16 @@ struct PlatformDetailView: View {
                             Text(formatCurrency(s.metrics.startInput))
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                             Text(formatCurrency(s.unrealizedGains))
-                                .foregroundColor(s.unrealizedGains >= 0 ? .mint : .red)
+                                .foregroundColor(Color.gain(s.unrealizedGains))
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                             Text(formatCurrency(s.effectiveRealized))
-                                .foregroundColor(s.effectiveRealized > 0 ? .mint : .red)
+                                .foregroundColor(Color.gain(s.effectiveRealized, includingZero: false))
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                             Text(formatPercent(s.effectiveRealizedAPY))
-                                .foregroundColor(s.effectiveRealizedAPY > 0 ? .mint : .red)
+                                .foregroundColor(Color.gain(s.effectiveRealizedAPY, includingZero: false))
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                             Text(formatPercent(s.effectiveLiquidAPY))
-                                .foregroundColor(s.effectiveLiquidAPY > 0 ? .mint : .red)
+                                .foregroundColor(Color.gain(s.effectiveLiquidAPY, includingZero: false))
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                             Text("\(s.fund.entries.count)").foregroundColor(.textMuted)
                                 .frame(maxWidth: .infinity, alignment: .trailing)
@@ -242,8 +242,8 @@ struct PlatformDetailView: View {
 
                         LazyVGrid(columns: [.init(.flexible()), .init(.flexible()), .init(.flexible())], spacing: 4) {
                             fundMiniStat("Value", formatCurrency(s.currentValue))
-                            fundMiniStat("Realized", formatCurrency(s.effectiveRealized), color: s.effectiveRealized > 0 ? .mint : .red)
-                            fundMiniStat("L.APY", formatPercent(s.effectiveLiquidAPY), color: s.effectiveLiquidAPY > 0 ? .mint : .red)
+                            fundMiniStat("Realized", formatCurrency(s.effectiveRealized), color: Color.gain(s.effectiveRealized, includingZero: false))
+                            fundMiniStat("L.APY", formatPercent(s.effectiveLiquidAPY), color: Color.gain(s.effectiveLiquidAPY, includingZero: false))
                         }
                     }
                     .padding(12)

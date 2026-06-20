@@ -191,7 +191,7 @@ private func computeCashAPYPoints(entries: [FundEntry], config: FundConfig) -> [
         let twab = Double(days) > 0 ? twabNumerator / Double(days) : 0
         let basis = twab > 0 ? twab : lastBalance
         let realized = sumInterest - sumExpenses
-        let apy = abs(realized) >= 0.01 && basis > 0
+        let apy = abs(realized) >= FundMath.currencyTolerance && basis > 0
             ? computeCompoundAPY(realized / basis, days)
             : 0.0
         all.append(APYPoint(id: entry.date, date: entry.date, realizedAPY: apy, liquidAPY: apy))

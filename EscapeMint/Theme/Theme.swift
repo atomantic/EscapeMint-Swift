@@ -166,4 +166,12 @@ extension Color {
         default: return .bgInput
         }
     }
+
+    /// Gain/loss tint used throughout the metrics UI: `.mint` for non-negative
+    /// values, `.red` otherwise. Pass `includingZero: false` when exactly zero
+    /// should read as a loss (matches the call sites that used `> 0`).
+    static func gain(_ value: Double, includingZero: Bool = true) -> Color {
+        let isPositive = includingZero ? value >= 0 : value > 0
+        return isPositive ? .mint : .red
+    }
 }

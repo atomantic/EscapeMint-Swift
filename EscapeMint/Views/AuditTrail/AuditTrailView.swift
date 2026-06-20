@@ -136,7 +136,7 @@ struct AuditTrailView: View {
         MetricCard(label: "Entries", value: "\(filteredEntries.count)")
         MetricCard(label: "Buys", value: formatCurrency(s.buys), color: .mint)
         MetricCard(label: "Sells", value: formatCurrency(s.sells), color: .red)
-        MetricCard(label: "Net Flow", value: formatCurrency(s.buys - s.sells), color: s.buys - s.sells >= 0 ? .mint : .red)
+        MetricCard(label: "Net Flow", value: formatCurrency(s.buys - s.sells), color: Color.gain(s.buys - s.sells))
         MetricCard(label: "Dividends", value: formatCurrency(s.dividends), color: .mint)
     }
 
