@@ -724,19 +724,19 @@ struct FundDetailView: View {
             } else { Self.dash }
         case "realized":
             if let c = computed {
-                Text(formatCurrency(c.realized, decimals: d)).foregroundColor(c.realized >= 0 ? .mint : .red)
+                Text(formatCurrency(c.realized, decimals: d)).foregroundColor(Color.gain(c.realized))
             } else { Self.dash }
         case "liquid_pnl":
             if let c = computed {
-                Text(formatCurrency(c.liquidPnl, decimals: d)).foregroundColor(c.liquidPnl >= 0 ? .mint : .red)
+                Text(formatCurrency(c.liquidPnl, decimals: d)).foregroundColor(Color.gain(c.liquidPnl))
             } else { Self.dash }
         case "realized_apy":
             if let c = computed {
-                Text(formatPercentSigned(c.realizedApy)).foregroundColor(c.realizedApy >= 0 ? .mint : .red)
+                Text(formatPercentSigned(c.realizedApy)).foregroundColor(Color.gain(c.realizedApy))
             } else { Self.dash }
         case "liquid_apy":
             if let c = computed {
-                Text(formatPercentSigned(c.liquidApy)).foregroundColor(c.liquidApy >= 0 ? .mint : .red)
+                Text(formatPercentSigned(c.liquidApy)).foregroundColor(Color.gain(c.liquidApy))
             } else { Self.dash }
         case "shares":
             if let s = entry.shares { Text(String(format: "%.4f", s)).foregroundColor(.textSecondary) }
@@ -787,7 +787,7 @@ struct FundDetailView: View {
             if let lp = entry.liquidation_price { Text(formatCurrency(lp, decimals: d)).foregroundColor(.textSecondary) }
             else { Self.dash }
         case "unrealized_pnl":
-            if let up = entry.unrealized_pnl { Text(formatCurrency(up, decimals: d)).foregroundColor(up >= 0 ? .mint : .red) }
+            if let up = entry.unrealized_pnl { Text(formatCurrency(up, decimals: d)).foregroundColor(Color.gain(up)) }
             else { Self.dash }
         case "position":
             if let c = computed { Text(String(format: "%.0f", c.sumShares)).foregroundColor(.textSecondary) }
@@ -806,7 +806,7 @@ struct FundDetailView: View {
             } else { Self.dash }
         case "unrealized":
             if let c = computed {
-                Text(formatCurrency(c.unrealized, decimals: d)).foregroundColor(c.unrealized >= 0 ? .mint : .red)
+                Text(formatCurrency(c.unrealized, decimals: d)).foregroundColor(Color.gain(c.unrealized))
             } else { Self.dash }
         case "sum_shares":
             if let c = computed, c.sumShares != 0 {

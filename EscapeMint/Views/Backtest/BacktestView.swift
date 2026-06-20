@@ -303,27 +303,27 @@ struct BacktestView: View, SizeClassAware {
                 MetricCard(label: "Final Value",
                            value: formatCurrency(result.finalValue),
                            sub: formatPercentSigned(result.liquidGain / max(1, config.initialCash)),
-                           color: result.liquidGain >= 0 ? .mint : .red)
+                           color: Color.gain(result.liquidGain))
                 MetricCard(label: "Liquid APY",
                            value: formatPercent(result.liquidAPY),
                            sub: "annualized",
-                           color: result.liquidAPY >= 0 ? .mint : .red)
+                           color: Color.gain(result.liquidAPY))
                 MetricCard(label: "Realized APY",
                            value: formatPercent(result.realizedAPY),
                            sub: "from extractions",
-                           color: result.realizedAPY >= 0 ? .mint : .red)
+                           color: Color.gain(result.realizedAPY))
                 MetricCard(label: "Unrealized Gain",
                            value: formatCurrency(result.unrealizedGain),
                            sub: "paper gains",
-                           color: result.unrealizedGain >= 0 ? .mint : .red)
+                           color: Color.gain(result.unrealizedGain))
                 MetricCard(label: "Realized Gain",
                            value: formatCurrency(result.realizedGain),
                            sub: "extracted profits",
-                           color: result.realizedGain >= 0 ? .mint : .red)
+                           color: Color.gain(result.realizedGain))
                 MetricCard(label: "Liquid P&L",
                            value: formatCurrency(result.liquidGain),
                            sub: "total gain/loss",
-                           color: result.liquidGain >= 0 ? .mint : .red)
+                           color: Color.gain(result.liquidGain))
                 MetricCard(label: "Total Invested",
                            value: formatCurrency(result.totalInvested),
                            sub: "\(result.totalBuys) buys",

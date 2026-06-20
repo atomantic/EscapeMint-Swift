@@ -192,8 +192,8 @@ struct PlatformsView: View {
             LazyVGrid(columns: platformCardMetricColumns, alignment: .leading, spacing: 14) {
                 platformMetric("Fund Size", formatCurrency(info.totalFundSize))
                 platformMetric("Current Value", formatCurrency(info.totalValue), color: .mint)
-                platformMetric("Realized Gain", formatCurrency(info.totalRealized), color: info.totalRealized >= 0 ? .mint : .red)
-                platformMetric("Unrealized Gain", formatCurrency(info.totalUnrealized), color: info.totalUnrealized >= 0 ? .mint : .red)
+                platformMetric("Realized Gain", formatCurrency(info.totalRealized), color: Color.gain(info.totalRealized))
+                platformMetric("Unrealized Gain", formatCurrency(info.totalUnrealized), color: Color.gain(info.totalUnrealized))
                 platformMetric("Cash", formatCurrency(info.cashBalance))
             }
             #else
@@ -201,9 +201,9 @@ struct PlatformsView: View {
                 StatBox(label: "Fund Size", value: formatCurrency(info.totalFundSize), showCard: false)
                 StatBox(label: "Value", value: formatCurrency(info.totalValue), color: .mint, showCard: false)
                 StatBox(label: "Realized", value: formatCurrency(info.totalRealized),
-                        color: info.totalRealized >= 0 ? .mint : .red, showCard: false)
+                        color: Color.gain(info.totalRealized), showCard: false)
                 StatBox(label: "Unrealized", value: formatCurrency(info.totalUnrealized),
-                        color: info.totalUnrealized >= 0 ? .mint : .red, showCard: false)
+                        color: Color.gain(info.totalUnrealized), showCard: false)
             }
             #endif
         }

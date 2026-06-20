@@ -17,6 +17,21 @@ func getCumulativeShares(entries: [FundEntry], beforeDate: String) -> Double {
 
 // MARK: - Fund Size
 
+/// Parse explicit `Deposit: $X` / `Withdrawal: $Y` amounts embedded in an entry's
+/// notes. Returns zeros when the marker is absent or unparseable.
+private func parseDepositWithdrawal(from notes: String?) -> (deposit: Double, withdrawal: Double) {
+    guard let notes else { return (0, 0) }
+    func amount(after label: String) -> Double {
+        guard let match = notes.range(of: "\(label):\\s*\\$?([\\d.]+)", options: .regularExpression) else { return 0 }
+        let numStr = notes[match]
+            .replacingOccurrences(of: "\(label):", with: "")
+            .trimmingCharacters(in: .whitespaces)
+            .replacingOccurrences(of: "$", with: "")
+        return Double(numStr) ?? 0
+    }
+    return (amount(after: "Deposit"), amount(after: "Withdrawal"))
+}
+
 /// Compute fund_size for an entry based on all entries up to and including it.
 /// For manage_cash=false: fund_size = net invested (BUYs - SELLs), resets on full liquidation.
 /// For manage_cash=true: fund_size = previous fund_size + deposits - withdrawals (carried forward).
@@ -34,20 +49,7 @@ func computeFundSizeForEntry(_ newEntry: FundEntry, existingEntries: [FundEntry]
         var fundSize = previousFundSize
         let amount = newEntry.amount ?? 0
 
-        var depositAmount = 0.0
-        var withdrawalAmount = 0.0
-        if let notes = newEntry.notes {
-            if let match = notes.range(of: #"Deposit:\s*\$?([\d.]+)"#, options: .regularExpression) {
-                let numStr = notes[match].replacingOccurrences(of: "Deposit:", with: "")
-                    .trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "$", with: "")
-                depositAmount = Double(numStr) ?? 0
-            }
-            if let match = notes.range(of: #"Withdrawal:\s*\$?([\d.]+)"#, options: .regularExpression) {
-                let numStr = notes[match].replacingOccurrences(of: "Withdrawal:", with: "")
-                    .trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "$", with: "")
-                withdrawalAmount = Double(numStr) ?? 0
-            }
-        }
+        var (depositAmount, withdrawalAmount) = parseDepositWithdrawal(from: newEntry.notes)
 
         if newEntry.action == .BUY {
             fundSize += amount
@@ -63,8 +65,8 @@ func computeFundSizeForEntry(_ newEntry: FundEntry, existingEntries: [FundEntry]
             }
 
             let hasShareTracking = newEntry.shares != nil && (newEntry.shares ?? 0) != 0
-            let sharesLiquidated = hasShareTracking && abs(sharesAfter) < 0.0001
-            let valueLiquidated = newEntry.value > 0 && newEntry.value <= amount + 0.01
+            let sharesLiquidated = hasShareTracking && abs(sharesAfter) < FundMath.shareDustThreshold
+            let valueLiquidated = newEntry.value > 0 && newEntry.value <= amount + FundMath.currencyTolerance
             if sharesLiquidated || valueLiquidated {
                 fundSize = 0
             } else if !isAccumulate {
@@ -107,8 +109,8 @@ func computeFundSizeForEntry(_ newEntry: FundEntry, existingEntries: [FundEntry]
                 }
                 // Check full liquidation (use OR — either condition triggers)
                 let hasShareTracking = e.shares != nil && (e.shares ?? 0) != 0
-                let sharesLiquidated = hasShareTracking && abs(sumShares) < 0.0001
-                let valueLiquidated = e.value > 0 && e.value <= amt + 0.01
+                let sharesLiquidated = hasShareTracking && abs(sumShares) < FundMath.shareDustThreshold
+                let valueLiquidated = e.value > 0 && e.value <= amt + FundMath.currencyTolerance
                 let isLiquidation = sharesLiquidated || valueLiquidated
                 if isLiquidation {
                     invested = 0
@@ -123,20 +125,7 @@ func computeFundSizeForEntry(_ newEntry: FundEntry, existingEntries: [FundEntry]
         let prevFundSize = entriesBefore.last?.fund_size ?? 0
 
         // Check for deposit/withdrawal in notes
-        var depositAmount = 0.0
-        var withdrawalAmount = 0.0
-        if let notes = newEntry.notes {
-            if let match = notes.range(of: #"Deposit:\s*\$?([\d.]+)"#, options: .regularExpression) {
-                let numStr = notes[match].replacingOccurrences(of: "Deposit:", with: "")
-                    .trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "$", with: "")
-                depositAmount = Double(numStr) ?? 0
-            }
-            if let match = notes.range(of: #"Withdrawal:\s*\$?([\d.]+)"#, options: .regularExpression) {
-                let numStr = notes[match].replacingOccurrences(of: "Withdrawal:", with: "")
-                    .trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "$", with: "")
-                withdrawalAmount = Double(numStr) ?? 0
-            }
-        }
+        var (depositAmount, withdrawalAmount) = parseDepositWithdrawal(from: newEntry.notes)
         if newEntry.action == .DEPOSIT, let amt = newEntry.amount { depositAmount = amt }
         if newEntry.action == .WITHDRAW, let amt = newEntry.amount { withdrawalAmount = amt }
 

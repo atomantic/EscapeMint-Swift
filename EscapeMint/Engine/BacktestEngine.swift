@@ -428,8 +428,8 @@ func runBacktest(config: BacktestConfig, historicalData: [String: HistoricalData
                 }
 
                 // Liquidation detection
-                let sharesLiquidated = shares < 0.0001
-                let valueLiquidated = equity <= sellAmount + 0.01
+                let sharesLiquidated = shares < FundMath.shareDustThreshold
+                let valueLiquidated = equity <= sellAmount + FundMath.currencyTolerance
                 let dollarsLiquidated = totalExtracted >= totalInvested
                 let isFullLiquidation = sharesLiquidated || valueLiquidated || dollarsLiquidated
 

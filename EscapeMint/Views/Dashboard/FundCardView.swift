@@ -44,9 +44,9 @@ struct FundCardView: View {
                 if fund.config.status == .closed {
                     StatBox(label: "Size", value: formatCurrency(summary.metrics.fundSize), showCard: false)
                     StatBox(label: "Realized $", value: formatCurrency(summary.effectiveRealized),
-                            color: summary.effectiveRealized >= 0 ? .mint : .red, showCard: false)
+                            color: Color.gain(summary.effectiveRealized), showCard: false)
                     StatBox(label: "Realized %", value: formatPercent(summary.effectiveRealizedAPY),
-                            color: summary.effectiveRealizedAPY >= 0 ? .mint : .red, showCard: false)
+                            color: Color.gain(summary.effectiveRealizedAPY), showCard: false)
                 } else if summary.isCash {
                     StatBox(label: "Balance", value: formatCurrency(value), showCard: false)
                     StatBox(label: "Interest", value: "+\(formatCurrency(state.cashInterestUsd))",
@@ -57,9 +57,9 @@ struct FundCardView: View {
                     StatBox(label: "Size", value: formatCurrency(summary.metrics.fundSize), showCard: false)
                     StatBox(label: "Value", value: formatCurrency(value), showCard: false)
                     StatBox(label: "Realized", value: formatPercent(realizedAPY),
-                            color: realizedAPY > 0 ? .mint : .red, showCard: false)
+                            color: Color.gain(realizedAPY, includingZero: false), showCard: false)
                     StatBox(label: "Liquid", value: formatPercent(liquidAPY),
-                            color: liquidAPY > 0 ? .mint : .red, showCard: false)
+                            color: Color.gain(liquidAPY, includingZero: false), showCard: false)
                 }
             }
 

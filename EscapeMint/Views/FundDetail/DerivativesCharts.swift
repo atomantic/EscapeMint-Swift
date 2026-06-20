@@ -32,8 +32,8 @@ struct ClosedFundStateCard: View {
                     StatBox(label: "Total Returned", value: formatCurrencyFull(cm.totalReturnedUsd, decimals: d), showCard: false)
                 }
                 GridRow {
-                    StatBox(label: "Net Gain/Loss", value: "\(formatCurrencyFull(cm.netGainUsd, decimals: d)) (\(formatPercent(cm.returnPct)))", color: cm.netGainUsd >= 0 ? .mint : .red, showCard: false)
-                    StatBox(label: "Annualized Return", value: formatPercent(cm.apy), color: cm.apy > 0 ? .mint : .red, showCard: false)
+                    StatBox(label: "Net Gain/Loss", value: "\(formatCurrencyFull(cm.netGainUsd, decimals: d)) (\(formatPercent(cm.returnPct)))", color: Color.gain(cm.netGainUsd), showCard: false)
+                    StatBox(label: "Annualized Return", value: formatPercent(cm.apy), color: Color.gain(cm.apy, includingZero: false), showCard: false)
                 }
                 GridRow {
                     StatBox(label: "Dividends", value: formatCurrencyFull(cm.totalDividendsUsd, decimals: d), showCard: false)
@@ -65,18 +65,18 @@ struct ActiveFundStateCard: View {
                     StatBox(label: "Asset Value", value: formatCurrencyFull(summary.currentValue, decimals: d), showCard: false)
                 }
                 GridRow {
-                    StatBox(label: "Unrealized", value: "\(summary.unrealizedGains >= 0 ? "+" : "")\(formatCurrencyFull(summary.unrealizedGains, decimals: d))", color: summary.unrealizedGains >= 0 ? .mint : .red, showCard: false)
+                    StatBox(label: "Unrealized", value: "\(summary.unrealizedGains >= 0 ? "+" : "")\(formatCurrencyFull(summary.unrealizedGains, decimals: d))", color: Color.gain(summary.unrealizedGains), showCard: false)
                     if manageCash {
                         StatBox(label: "Cash", value: formatCurrencyFull(summary.metrics.cash, decimals: d), showCard: false)
                     }
                 }
                 GridRow {
                     StatBox(label: "Realized", value: formatCurrencyFull(state.realizedGainsUsd, decimals: d), color: state.realizedGainsUsd > 0 ? .mint : .textPrimary, showCard: false)
-                    StatBox(label: "Realized APY", value: formatPercent(summary.realizedAPY), color: summary.realizedAPY > 0 ? .mint : .red, showCard: false)
+                    StatBox(label: "Realized APY", value: formatPercent(summary.realizedAPY), color: Color.gain(summary.realizedAPY, includingZero: false), showCard: false)
                 }
                 GridRow {
-                    StatBox(label: "Liquid P&L", value: formatCurrencyFull(summary.liquidGain, decimals: d), color: summary.liquidGain >= 0 ? .mint : .red, showCard: false)
-                    StatBox(label: "Liquid APY", value: formatPercent(summary.liquidAPY), color: summary.liquidAPY > 0 ? .mint : .red, showCard: false)
+                    StatBox(label: "Liquid P&L", value: formatCurrencyFull(summary.liquidGain, decimals: d), color: Color.gain(summary.liquidGain), showCard: false)
+                    StatBox(label: "Liquid APY", value: formatPercent(summary.liquidAPY), color: Color.gain(summary.liquidAPY, includingZero: false), showCard: false)
                 }
             }
         }

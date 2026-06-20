@@ -445,6 +445,16 @@ actor FundStore {
 
     // MARK: - Write
 
+    /// Re-apply complete file protection to a fund file on iOS. Atomic writes create a
+    /// new file via rename (and older iOS in-place overwrites can strip the attribute),
+    /// so every write path re-applies it. No-op on macOS. Failures are intentionally
+    /// ignored — protection is best-effort hardening, not a correctness requirement.
+    private func applyCompleteProtection(to url: URL) {
+        #if os(iOS)
+        try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
+        #endif
+    }
+
     func writeFund(_ fund: FundData) throws {
         let tsvURL = fundsDirectory.appendingPathComponent("\(fund.id).tsv")
         let configURL = fundsDirectory.appendingPathComponent("\(fund.id).json")
@@ -461,10 +471,8 @@ actor FundStore {
         let tsv = buildTSV(fund.entries)
         try tsv.write(to: tsvURL, atomically: true, encoding: .utf8)
 
-        #if os(iOS)
-        try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: configURL.path)
-        try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: tsvURL.path)
-        #endif
+        applyCompleteProtection(to: configURL)
+        applyCompleteProtection(to: tsvURL)
     }
 
     func appendEntry(fundId: String, entry: FundEntry) throws {
@@ -487,12 +495,10 @@ actor FundStore {
         // written first), and `parseEntryRow` defensively drops any row whose `date`
         // column is empty — so a partial line cannot poison APY/gain math as a zeroed
         // entry. Worst case is the silent loss of the single in-flight append.
-        #if os(iOS)
         // Re-apply complete file protection like the sibling atomic write paths
         // (writeFund/replaceEntries). An in-place append does not create a new file,
         // but re-applying keeps the attribute consistent across all TSV write paths.
-        try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: tsvURL.path)
-        #endif
+        applyCompleteProtection(to: tsvURL)
     }
 
     func replaceEntries(fundId: String, entries: [FundEntry]) throws {
@@ -501,9 +507,7 @@ actor FundStore {
         let tsv = buildTSV(entries)
         try tsv.write(to: tsvURL, atomically: true, encoding: .utf8)
         // Re-apply file protection after atomic write (atomic creates a new file via rename)
-        #if os(iOS)
-        try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: tsvURL.path)
-        #endif
+        applyCompleteProtection(to: tsvURL)
     }
 
     /// Updates a fund's config JSON. Returns `false` (without throwing) when the fund's
@@ -529,9 +533,7 @@ actor FundStore {
         try data.write(to: configURL, options: .atomic)
         // Re-apply file protection after atomic write — non-atomic in-place overwrites
         // on older iOS can strip the protection attribute.
-        #if os(iOS)
-        try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: configURL.path)
-        #endif
+        applyCompleteProtection(to: configURL)
         return true
     }
 
@@ -551,9 +553,7 @@ actor FundStore {
         existingConfig.history_cache = cache
         let data = try JSONEncoder.pretty.encode(existingConfig)
         try data.write(to: configURL, options: .atomic)
-        #if os(iOS)
-        try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: configURL.path)
-        #endif
+        applyCompleteProtection(to: configURL)
         return true
     }
 
@@ -772,15 +772,11 @@ actor FundStore {
 
                 let configData = try JSONEncoder.pretty.encode(configWithMeta)
                 try configData.write(to: configURL, options: .atomic)
-                #if os(iOS)
-                try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: configURL.path)
-                #endif
+                applyCompleteProtection(to: configURL)
 
                 let tsv = buildTSV(fund.entries)
                 try tsv.write(to: tsvURL, atomically: true, encoding: .utf8)
-                #if os(iOS)
-                try? fileManager.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: tsvURL.path)
-                #endif
+                applyCompleteProtection(to: tsvURL)
                 imported += 1
             } catch {
                 // Roll back partial state: if the config write succeeded but the TSV
