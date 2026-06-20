@@ -129,10 +129,7 @@ private struct FundMetricsCursor {
                 hadFirstBuy = true
             }
         } else if entry.action == .SELL, let amt = entry.amount {
-            let hasShareTracking = entry.shares != nil && (entry.shares ?? 0) != 0
-            let sharesLiquidated = hasShareTracking && abs(sumShares) < FundMath.shareDustThreshold
-            let valueLiquidated = entry.value > 0 && entry.value <= amt + FundMath.currencyTolerance
-            let isFullLiq = sharesLiquidated || valueLiquidated
+            let isFullLiq = isShareOrValueLiquidation(shares: entry.shares, remainingShares: sumShares, value: entry.value, amount: amt)
 
             var extracted = 0.0
             if isFullLiq {

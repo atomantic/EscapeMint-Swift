@@ -64,10 +64,7 @@ func recalculateFundSize(entries: [FundEntry], config: FundConfig) -> [FundEntry
         }
 
         // Check for full liquidation
-        let hasShareTracking = entry.shares != nil && (entry.shares ?? 0) != 0
-        let sharesLiquidated = hasShareTracking && abs(sumShares) < FundMath.shareDustThreshold
-        let valueLiquidated = indexed[i].entry.value > 0 && indexed[i].entry.value <= (entry.amount ?? 0) + FundMath.currencyTolerance
-        let isFullLiq = entry.action == .SELL && (sharesLiquidated || valueLiquidated)
+        let isFullLiq = entry.action == .SELL && isShareOrValueLiquidation(shares: entry.shares, remainingShares: sumShares, value: indexed[i].entry.value, amount: entry.amount ?? 0)
 
         // Track action amounts
         if entry.action == .BUY, let amt = entry.amount {
