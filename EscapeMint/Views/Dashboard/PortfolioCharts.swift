@@ -566,6 +566,7 @@ struct DashboardCashVsAssetChart: View {
                 .chartForegroundStyleScale(["Cash": Color.mint.opacity(0.6), "Asset": Color.purple.opacity(0.6)])
                 .chartXAxis { emDateAxisTemporal() }
                 .chartYAxis { emPercentAxis() }
+                .chartYScale(domain: 0.0...1.0)
                 .chartLegend(.hidden)
                 .chartOverlay { proxy in
                     chartHoverOverlay(proxy: proxy, entries: data, hoverIndex: $hoverIndex) { pt in
