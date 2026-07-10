@@ -293,18 +293,15 @@ if $BUILD_IOS; then
 
     inter_upload_delay
 
-    # --transport DAV forces WebDAV transport, which is more reliable than
-    # the default iTMSTransporter in our experience (fewer multipart retries,
-    # less CDN contention when uploads from the same API key overlap).
+    # Xcode 26's supported uploader is --upload-package. The older
+    # --upload-app command can fail to resolve an otherwise valid Apple ID.
     echo "🚀 Uploading iOS to TestFlight..."
     IOS_UPLOAD_LOG="$BUILD_DIR/ios_upload.log"
     set +e
-    xcrun altool --upload-app \
+    xcrun altool --upload-package \
         --file "$IPA_PATH" \
-        --type ios \
         --apiKey "$APPSTORE_API_KEY_ID" \
-        --apiIssuer "$APPSTORE_ISSUER_ID" \
-        --transport DAV 2>&1 | tee "$IOS_UPLOAD_LOG"
+        --apiIssuer "$APPSTORE_ISSUER_ID" 2>&1 | tee "$IOS_UPLOAD_LOG"
     IOS_UPLOAD_STATUS=${PIPESTATUS[0]}
     set -e
     if [ "$IOS_UPLOAD_STATUS" -ne 0 ] || grep -qE "$FAIL_MARKERS" "$IOS_UPLOAD_LOG"; then
@@ -359,9 +356,8 @@ if $BUILD_MACOS; then
     echo "🚀 Uploading macOS to TestFlight..."
     MACOS_UPLOAD_LOG="$BUILD_DIR/macos_upload.log"
     set +e
-    xcrun altool --upload-app \
+    xcrun altool --upload-package \
         --file "$PKG_PATH" \
-        --type macos \
         --apiKey "$APPSTORE_API_KEY_ID" \
         --apiIssuer "$APPSTORE_ISSUER_ID" 2>&1 | tee "$MACOS_UPLOAD_LOG"
     MACOS_UPLOAD_STATUS=${PIPESTATUS[0]}
@@ -419,14 +415,11 @@ if $BUILD_WATCH; then
     echo "🚀 Uploading watchOS to TestFlight..."
     WATCH_UPLOAD_LOG="$BUILD_DIR/watch_upload.log"
     set +e
-    # altool --type for standalone watchOS apps is still "ios" (Apple's app
-    # types are {ios, macos, appletvos, visionos} — watchOS rides under ios).
-    xcrun altool --upload-app \
+    # Standalone watchOS apps are exported as an IPA and uploaded as a package.
+    xcrun altool --upload-package \
         --file "$WATCH_IPA" \
-        --type ios \
         --apiKey "$APPSTORE_API_KEY_ID" \
-        --apiIssuer "$APPSTORE_ISSUER_ID" \
-        --transport DAV 2>&1 | tee "$WATCH_UPLOAD_LOG"
+        --apiIssuer "$APPSTORE_ISSUER_ID" 2>&1 | tee "$WATCH_UPLOAD_LOG"
     WATCH_UPLOAD_STATUS=${PIPESTATUS[0]}
     set -e
     if [ "$WATCH_UPLOAD_STATUS" -ne 0 ] || grep -qE "$FAIL_MARKERS" "$WATCH_UPLOAD_LOG"; then
