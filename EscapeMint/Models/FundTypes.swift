@@ -242,7 +242,7 @@ struct FundSummary {
         if fund.config.manage_cash == false, let allFunds {
             let cashFundId = resolveCashFundId(config: fund.config, platform: fund.platform)
             if let cashFund = allFunds.first(where: { $0.id == cashFundId }),
-               let latest = cashFund.entries.max(by: { $0.date < $1.date }) {
+               let latest = cashFund.entries.latestByDate {
                 state.cashAvailableUsd = latest.cash ?? latest.value
             } else {
                 state.cashAvailableUsd = 0

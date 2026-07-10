@@ -806,7 +806,7 @@ func computeActionableFunds(_ funds: [FundData], asOfDate: String? = nil) -> [Ac
     var latestEntryByFundId: [String: FundEntry] = [:]
     latestEntryByFundId.reserveCapacity(funds.count)
     for fund in funds {
-        if let latest = fund.entries.max(by: { $0.date < $1.date }) {
+        if let latest = fund.entries.latestByDate {
             latestEntryByFundId[fund.id] = latest
         }
     }

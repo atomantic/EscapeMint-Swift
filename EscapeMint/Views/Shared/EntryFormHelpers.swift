@@ -13,7 +13,7 @@ func recommendationForLiveEquity(fund: FundData, currentEquity: Double) -> Recom
     if fund.config.manage_cash == false {
         let cashFundId = resolveCashFundId(config: fund.config, platform: fund.platform)
         if let cashFund = FundDataStore.shared.funds.first(where: { $0.id == cashFundId }),
-           let latest = cashFund.entries.max(by: { $0.date < $1.date }) {
+           let latest = cashFund.entries.latestByDate {
             externalCash = latest.cash ?? latest.value
         } else {
             externalCash = 0

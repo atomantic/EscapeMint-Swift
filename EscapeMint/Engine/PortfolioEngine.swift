@@ -37,7 +37,7 @@ func computePortfolioAggregate(
         if fund.config.manage_cash == false {
             let cashFundId = resolveCashFundId(config: fund.config, platform: fund.platform)
             if let cashFund = fundById[cashFundId],
-               let latest = cashFund.entries.max(by: { $0.date < $1.date }) {
+               let latest = cashFund.entries.latestByDate {
                 computed[i].1.cashAvailableUsd = latest.cash ?? latest.value
             } else {
                 computed[i].1.cashAvailableUsd = 0

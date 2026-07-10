@@ -1,5 +1,20 @@
 import Foundation
 
+// MARK: - Latest Entry
+
+extension Array where Element == FundEntry {
+    /// Latest entry by date, with same-date ties resolving to the last-appended
+    /// entry (matching `entries.last` semantics used when writing). `max(by:)`
+    /// keeps the FIRST same-date entry, which masks a later intraday deposit
+    /// behind an earlier same-day withdrawal.
+    var latestByDate: FundEntry? {
+        reduce(nil) { best, entry in
+            guard let best else { return entry }
+            return entry.date >= best.date ? entry : best
+        }
+    }
+}
+
 // MARK: - Cumulative Shares
 
 /// Compute cumulative shares from entries before a given date

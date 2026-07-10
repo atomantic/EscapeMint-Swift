@@ -619,6 +619,29 @@ final class FundMetricsTests: XCTestCase {
         XCTAssertTrue(actionable.contains { $0.needsCashDeposit && $0.fund.id == cashFund.id })
     }
 
+    /// Regression: a same-day deposit recorded AFTER a withdrawal that zeroed the
+    /// cash fund must clear the "Deposit cash to start DCA" alert. `max(by:)` keeps
+    /// the first same-date entry (the $0 withdrawal), masking the later deposit.
+    func testActionableFundsClearsCashDepositAfterSameDayDeposit() {
+        var trading = makeConfig(manageCash: false)
+        trading.margin_enabled = false
+        let tradingFund = FundData(platform: "m1", ticker: "SAVE", config: trading,
+                                   entries: [FundEntry(date: "2025-02-01", value: 1000, action: .BUY, amount: 100)])
+
+        var cash = makeConfig(fundType: .cash)
+        cash.manage_cash = true
+        let cashEntries = [
+            FundEntry(date: "2025-03-14", value: 0, cash: 0, action: .WITHDRAW, amount: 100),
+            FundEntry(date: "2025-03-14", value: 10000, cash: 10000, action: .DEPOSIT, amount: 10000),
+        ]
+        let cashFund = FundData(platform: "m1", ticker: "cash", config: cash, entries: cashEntries)
+
+        let actionable = computeActionableFunds([tradingFund, cashFund], asOfDate: "2025-03-14")
+        XCTAssertTrue(actionable.contains { $0.fund.id == tradingFund.id })
+        XCTAssertFalse(actionable.contains { $0.needsCashDeposit },
+                       "Same-day deposit after a zeroing withdrawal must clear the cash-deposit alert")
+    }
+
     // MARK: - Recommendation Edge Cases
 
     func testRecommendationNoFundType() {
