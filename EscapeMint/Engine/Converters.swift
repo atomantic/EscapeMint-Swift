@@ -1,6 +1,17 @@
 import Foundation
 import os
 
+/// Read and JSON-decode a file at `url`, returning `nil` if the file is missing,
+/// unreadable, or fails to decode as `T`. Collapses the repeated
+/// `try? Data(contentsOf:)` + `try? JSONDecoder().decode(...)` guard pattern.
+func decodeJSONFile<T: Decodable>(_ url: URL, as type: T.Type = T.self) -> T? {
+    guard let data = try? Data(contentsOf: url),
+          let decoded = try? JSONDecoder().decode(T.self, from: data) else {
+        return nil
+    }
+    return decoded
+}
+
 func entriesToTrades(_ entries: [FundEntry]) -> [Trade] {
     entries.compactMap { e in
         guard let amount = e.amount, amount != 0, e.action == .BUY || e.action == .SELL else { return nil }
@@ -64,6 +75,26 @@ let isoDateFormatter: DateFormatter = {
     f.locale = Locale(identifier: "en_US_POSIX")
     return f
 }()
+
+/// Parse an ISO `yyyy-MM-dd` date string, returning `fallback` when the string is
+/// missing or malformed. Centralizes the `isoDateFormatter.date(from:) ?? fallback`
+/// pattern used across views, charts, and the backtest range pickers.
+func parseISODate(_ dateStr: String, fallback: Date = Date()) -> Date {
+    isoDateFormatter.date(from: dateStr) ?? fallback
+}
+
+/// Format a Double with up to `maxDecimals` fractional digits, stripping trailing
+/// zeros and any dangling decimal point. Whole numbers render with no decimals.
+/// e.g. 245.5500 → "245.55", 3.0 → "3", 0.09424000 → "0.09424". Shared by the
+/// entry-form quantity field (`cleanShares`) and TSV serialization (`fmtQuantity`).
+func formatTrimmedDecimal(_ val: Double, maxDecimals: Int = 8) -> String {
+    if val == val.rounded(.down) { return String(format: "%.0f", val) }
+    let s = String(format: "%.\(maxDecimals)f", val)
+    var end = s.endIndex
+    while end > s.startIndex && s[s.index(before: end)] == "0" { end = s.index(before: end) }
+    if end > s.startIndex && s[s.index(before: end)] == "." { end = s.index(before: end) }
+    return String(s[s.startIndex..<end])
+}
 
 let shortDateFormatter: DateFormatter = {
     let f = DateFormatter()

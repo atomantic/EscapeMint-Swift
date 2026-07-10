@@ -97,8 +97,7 @@ final class WidgetDataProvider {
     /// behavior is unchanged because `readSnapshot()` passes the real container.
     nonisolated static func readSnapshot(from containerURL: URL) -> WidgetSnapshot? {
         let fileURL = containerURL.appendingPathComponent(snapshotFileName)
-        guard let data = try? Data(contentsOf: fileURL) else { return nil }
-        return try? JSONDecoder().decode(WidgetSnapshot.self, from: data)
+        return decodeJSONFile(fileURL, as: WidgetSnapshot.self)
     }
 }
 

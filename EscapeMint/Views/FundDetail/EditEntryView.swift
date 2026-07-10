@@ -38,7 +38,7 @@ struct EditEntryView: View {
         self.fundConfig = fundConfig
         self.existingEntries = existingEntries
         self.onSaved = onSaved
-        _date = State(initialValue: isoDateFormatter.date(from: entry.date) ?? Date())
+        _date = State(initialValue: parseISODate(entry.date))
         _action = State(initialValue: entry.action ?? .HOLD)
         // For cash funds, show the cash balance (cash ?? fund_size ?? value)
         let cashDisplay = fundType == .cash

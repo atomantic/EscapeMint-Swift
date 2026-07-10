@@ -326,7 +326,7 @@ func computePortfolioTimeSeries(_ funds: [FundData]) -> [PortfolioTimeSeriesPoin
 
         return PortfolioTimeSeriesPoint(
             id: date, date: date,
-            parsedDate: isoDateFormatter.date(from: date) ?? Date(),
+            parsedDate: parseISODate(date),
             realizedAPY: realizedAPY, liquidAPY: liquidAPY,
             realized: totalRealizedGains, unrealized: totalUnrealizedGains,
             liquid: totalGainUsd,
