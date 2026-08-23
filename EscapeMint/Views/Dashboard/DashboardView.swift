@@ -22,6 +22,7 @@ struct DashboardView: View, SizeClassAware {
     @State private var viewMode: ViewMode = .grid
     @State private var dismissedAlertIds: Set<String> = []
     @State private var collapsedDashPlatforms: Set<String> = []
+    @State private var importErrorMessage: String?
     // Cached groupings, refreshed only on revision/platformFilter changes so
     // unrelated view invalidations (e.g. scrolling, nav) don't re-filter/re-group.
     @State private var activeSummaries: [FundSummary] = []
@@ -107,6 +108,14 @@ struct DashboardView: View, SizeClassAware {
             loadDashCollapsedState()
             refreshGroupings()
             if showCharts && store.isLoaded { recomputeChartsIfNeeded() }
+        }
+        .alert("Import failed", isPresented: Binding(
+            get: { importErrorMessage != nil },
+            set: { if !$0 { importErrorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { importErrorMessage = nil }
+        } message: {
+            Text("\(importErrorMessage ?? "")\n\nChoose the folder containing the EscapeMint .tsv and .json fund files, then try again.")
         }
     }
 
@@ -222,24 +231,35 @@ struct DashboardView: View, SizeClassAware {
                     .font(.caption).foregroundColor(.textSecondary)
                 Spacer()
                 if hasEntryData {
-                    Toggle(isOn: $showCharts) {
-                        EmptyView()
-                    }
+                    Toggle("Show charts", isOn: $showCharts)
                     .toggleStyle(.switch)
                     .tint(.mint)
                     .labelsHidden()
+                    .accessibilityLabel("Show charts")
                     Text("Charts")
                         .font(.caption).foregroundColor(.textSecondary)
                 }
             }
             if platforms.count > 1 {
-                Picker("Platform", selection: $platformFilter) {
-                    Text("All").tag(nil as String?)
-                    ForEach(platforms, id: \.self) { p in
-                        Text(p.capitalized).tag(p as String?)
+                ViewThatFits(in: .horizontal) {
+                    Picker("Platform", selection: $platformFilter) {
+                        Text("All").tag(nil as String?)
+                        ForEach(platforms, id: \.self) { p in
+                            Text(p.capitalized).tag(p as String?)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .fixedSize(horizontal: true, vertical: false)
+
+                    Picker("Platform", selection: $platformFilter) {
+                        Text("All Platforms").tag(nil as String?)
+                        ForEach(platforms, id: \.self) { p in
+                            Text(p.capitalized).tag(p as String?)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .pickerStyle(.segmented)
             }
         }
         .padding(.horizontal)
@@ -354,6 +374,7 @@ struct DashboardView: View, SizeClassAware {
                 .tint(.mint)
                 .frame(width: compact ? nil : 110)
                 .help("Show charts")
+                .accessibilityLabel("Show charts")
             }
 
             // Platform filter
@@ -769,6 +790,10 @@ struct DashboardView: View, SizeClassAware {
                 _ = try await store.importFromDirectory(url)
             } catch {
                 dashboardLogger.error("Import failed: \(error.localizedDescription)")
+                let message = error.localizedDescription
+                await MainActor.run {
+                    importErrorMessage = message
+                }
             }
         }
     }

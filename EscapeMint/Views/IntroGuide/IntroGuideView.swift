@@ -82,6 +82,22 @@ struct IntroGuideView: View {
 
     @ViewBuilder
     private var progressIndicator: some View {
+        ViewThatFits(in: .horizontal) {
+            progressButtons
+                .fixedSize(horizontal: true, vertical: false)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                progressButtons
+                    .padding(.horizontal, 8)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(Color.bgCard.opacity(0.3))
+    }
+
+    @ViewBuilder
+    private var progressButtons: some View {
         HStack(spacing: 4) {
             ForEach(1...totalSteps, id: \.self) { step in
                 Button {
@@ -96,14 +112,18 @@ struct IntroGuideView: View {
                     Capsule()
                         .fill(step == currentStep ? Color.mint : step < currentStep ? Color.mint.opacity(0.5) : Color.textMuted.opacity(0.3))
                         .frame(width: step == currentStep ? 20 : 8, height: 8)
+                        .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
+                .contentShape(Rectangle())
                 .accessibilityLabel("Step \(step) of \(totalSteps)")
+                .accessibilityValue(step == currentStep ? "Current step" : "")
+                .accessibilityAddTraits(step == currentStep ? .isSelected : [])
+                #if os(macOS)
+                .focusable()
+                #endif
             }
         }
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity)
-        .background(Color.bgCard.opacity(0.3))
     }
 
     // MARK: - Content Rendering

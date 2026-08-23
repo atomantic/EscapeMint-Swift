@@ -14,8 +14,12 @@ struct InfoTipLabel: View {
                 Image(systemName: "info.circle")
                     .font(.caption2)
                     .foregroundColor(.textMuted)
+                    .frame(width: 44, height: 44)
             }
             .buttonStyle(.plain)
+            .contentShape(Rectangle())
+            .accessibilityLabel("More information about \(label)")
+            .accessibilityHint("Shows help for \(label)")
             #if os(iOS)
             .popover(isPresented: $showTip) {
                 Text(tip)

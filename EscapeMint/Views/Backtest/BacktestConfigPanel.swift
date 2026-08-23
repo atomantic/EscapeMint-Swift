@@ -370,7 +370,9 @@ private struct CompactSlider: View {
                     .frame(width: thumbD, height: thumbD)
                     .offset(x: max(0, min(geo.size.width - thumbD, geo.size.width * frac - thumbD / 2)))
             }
-            .frame(height: thumbD)
+            // Keep the compact visual track while reserving a standard control-sized
+            // target for touch, pointer, and switch-control interaction.
+            .frame(height: 44)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -383,6 +385,12 @@ private struct CompactSlider: View {
                     .onEnded { _ in onDragEnd() }
             )
         }
-        .frame(height: 14)
+        .frame(height: 44)
+        .contentShape(Rectangle())
+        .accessibilityAdjustableAction { direction in
+            let delta = direction == .increment ? step : -step
+            value = min(range.upperBound, max(range.lowerBound, value + delta))
+            onDragEnd()
+        }
     }
 }
