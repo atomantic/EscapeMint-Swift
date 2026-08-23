@@ -26,13 +26,20 @@ jobs:
 
       - name: Run iOS tests
         run: |
-          if xcrun simctl list devices available | grep -q "iPhone 16"; then
-            DESTINATION="platform=iOS Simulator,name=iPhone 16"
-          elif xcrun simctl list devices available | grep -q "iPhone 15"; then
-            DESTINATION="platform=iOS Simulator,name=iPhone 15"
-          else
-            DESTINATION="platform=iOS Simulator,name=iPhone 14"
+          DEVICE_ID=""
+          while IFS= read -r device; do
+            if [[ "$device" =~ iPhone.*\(([0-9A-Fa-f-]{36})\).*\((Booted|Shutdown)\) ]]; then
+              DEVICE_ID="${BASH_REMATCH[1]}"
+              break
+            fi
+          done < <(xcrun simctl list devices available)
+
+          if [[ -z "$DEVICE_ID" ]]; then
+            echo "No available iPhone simulator found" >&2
+            exit 1
           fi
+
+          DESTINATION="platform=iOS Simulator,id=$DEVICE_ID"
 
           xcodebuild test \
             -project EscapeMint.xcodeproj \
