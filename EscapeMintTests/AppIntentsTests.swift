@@ -48,6 +48,13 @@ final class AppIntentsTests: XCTestCase {
 
     // MARK: - Portfolio Value
 
+    func testLockedExternalPortfolioResponseDoesNotExposeSnapshotValues() {
+        let response = portfolioResponse(isExternalPortfolioLocked: true, PortfolioVoiceSummary.portfolioValue)
+        XCTAssertEqual(response, lockedPortfolioMessage)
+        XCTAssertFalse(response.contains("10,000"))
+        XCTAssertTrue(response.localizedCaseInsensitiveContains("locked"))
+    }
+
     func testPortfolioValueGain() {
         let phrase = PortfolioVoiceSummary.portfolioValue(snapshot())
         XCTAssertTrue(phrase.contains("up"))
