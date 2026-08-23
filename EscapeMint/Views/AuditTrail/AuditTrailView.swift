@@ -255,35 +255,36 @@ struct AuditTrailView: View {
                 }
             }
 
-            HStack(spacing: 12) {
-                HStack(spacing: 4) {
-                    Text("From").font(.caption).foregroundColor(.textMuted)
-                    DatePicker("", selection: Binding(
-                        get: { dateFrom ?? Date() },
-                        set: { dateFrom = $0 }
-                    ), displayedComponents: .date)
-                    .labelsHidden()
-                    if dateFrom != nil {
-                        Button { dateFrom = nil } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.caption2).foregroundColor(.textMuted)
-                        }
-                    }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    iosDateFilter("From", selection: $dateFrom)
+                    iosDateFilter("To", selection: $dateTo)
                 }
-                HStack(spacing: 4) {
-                    Text("To").font(.caption).foregroundColor(.textMuted)
-                    DatePicker("", selection: Binding(
-                        get: { dateTo ?? Date() },
-                        set: { dateTo = $0 }
-                    ), displayedComponents: .date)
-                    .labelsHidden()
-                    if dateTo != nil {
-                        Button { dateTo = nil } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.caption2).foregroundColor(.textMuted)
-                        }
-                    }
+                .fixedSize(horizontal: true, vertical: false)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    iosDateFilter("From", selection: $dateFrom)
+                    iosDateFilter("To", selection: $dateTo)
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func iosDateFilter(_ label: String, selection: Binding<Date?>) -> some View {
+        HStack(spacing: 4) {
+            Text(label).font(.caption).foregroundColor(.textMuted)
+            DatePicker("", selection: Binding(
+                get: { selection.wrappedValue ?? Date() },
+                set: { selection.wrappedValue = $0 }
+            ), displayedComponents: .date)
+            .labelsHidden()
+            if selection.wrappedValue != nil {
+                Button { selection.wrappedValue = nil } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.caption2).foregroundColor(.textMuted)
+                }
+                .accessibilityLabel("Clear \(label.lowercased()) date")
             }
         }
     }
