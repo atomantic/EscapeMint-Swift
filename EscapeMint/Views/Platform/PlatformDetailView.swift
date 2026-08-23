@@ -86,7 +86,7 @@ struct PlatformDetailView: View {
         let liquidPL = totalUnrealized + totalRealized
         let liquidPct = totalInvested > 0 ? liquidPL / totalInvested : 0
 
-        let cols = platformAdaptiveColumns(mac: 3, ios: 2)
+        let cols = platformAdaptiveColumns()
         VStack(alignment: .leading, spacing: 8) {
             Text("P&L Summary")
                 .font(.headline).foregroundColor(.textPrimary)
@@ -116,7 +116,7 @@ struct PlatformDetailView: View {
         let totalExpenses = platformSummaries.reduce(0.0) { $0 + $1.metrics.totalExpenses }
         let totalInterest = platformSummaries.reduce(0.0) { $0 + $1.metrics.totalCashInterest }
 
-        let cols = platformAdaptiveColumns(mac: 5, ios: 3)
+        let cols = platformAdaptiveColumns()
         LazyVGrid(columns: cols, spacing: 10) {
             StatBox(label: "Cash", value: formatCurrency(totalCash))
             StatBox(label: "Dividends", value: formatCurrency(totalDividends), color: totalDividends > 0 ? .mint : .textMuted)
@@ -134,6 +134,7 @@ struct PlatformDetailView: View {
             Text("Funds")
                 .font(.headline).foregroundColor(.textPrimary)
 
+            ScrollView(.horizontal, showsIndicators: true) {
             VStack(spacing: 0) {
                 Grid(horizontalSpacing: 8) {
                     GridRow {
@@ -208,6 +209,8 @@ struct PlatformDetailView: View {
                     Divider().background(Color.bgInput)
                 }
             }
+            .frame(minWidth: 960, alignment: .leading)
+            }
             .cornerRadius(8)
         }
     }
@@ -240,7 +243,7 @@ struct PlatformDetailView: View {
                                 .font(.caption2).foregroundColor(.textMuted)
                         }
 
-                        LazyVGrid(columns: [.init(.flexible()), .init(.flexible()), .init(.flexible())], spacing: 4) {
+                        LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 4) {
                             fundMiniStat("Value", formatCurrency(s.currentValue))
                             fundMiniStat("Realized", formatCurrency(s.effectiveRealized), color: Color.gain(s.effectiveRealized, includingZero: false))
                             fundMiniStat("L.APY", formatPercent(s.effectiveLiquidAPY), color: Color.gain(s.effectiveLiquidAPY, includingZero: false))
@@ -263,11 +266,11 @@ struct PlatformDetailView: View {
         }
     }
 
-    private func platformAdaptiveColumns(mac: Int, ios: Int) -> [GridItem] {
+    private func platformAdaptiveColumns() -> [GridItem] {
         #if os(macOS)
-        Array(repeating: .init(.flexible()), count: mac)
+        [GridItem(.adaptive(minimum: 140), spacing: 10)]
         #else
-        Array(repeating: .init(.flexible()), count: ios)
+        [GridItem(.adaptive(minimum: 130), spacing: 10)]
         #endif
     }
 
