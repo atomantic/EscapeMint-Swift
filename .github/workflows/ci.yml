@@ -19,22 +19,27 @@ jobs:
           xcode-version: 'latest-stable'
 
       - name: Install dependencies
-        run: brew install xcodegen xcbeautify
+        run: brew install xcodegen
 
       - name: Generate Xcode project
         run: xcodegen generate
 
       - name: Run iOS tests
         run: |
-          # pipefail so a failing xcodebuild is not masked by xcbeautify's exit 0.
-          set -o pipefail
-          if xcrun simctl list devices available | grep -q "iPhone 16"; then
-            DESTINATION="platform=iOS Simulator,name=iPhone 16"
-          elif xcrun simctl list devices available | grep -q "iPhone 15"; then
-            DESTINATION="platform=iOS Simulator,name=iPhone 15"
-          else
-            DESTINATION="platform=iOS Simulator,name=iPhone 14"
+          DEVICE_ID=""
+          while IFS= read -r device; do
+            if [[ "$device" =~ iPhone.*\(([0-9A-Fa-f-]{36})\).*\((Booted|Shutdown)\) ]]; then
+              DEVICE_ID="${BASH_REMATCH[1]}"
+              break
+            fi
+          done < <(xcrun simctl list devices available)
+
+          if [[ -z "$DEVICE_ID" ]]; then
+            echo "No available iPhone simulator found" >&2
+            exit 1
           fi
+
+          DESTINATION="platform=iOS Simulator,id=$DEVICE_ID"
 
           xcodebuild test \
             -project EscapeMint.xcodeproj \
@@ -46,14 +51,12 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             -skipPackagePluginValidation \
-            -skipMacroValidation \
-            | xcbeautify
+            -skipMacroValidation
 
       - name: Run macOS tests
         run: |
           # macOS is a shipping platform; build + test it so macOS-only
           # regressions are caught in CI rather than at deploy time.
-          set -o pipefail
           xcodebuild test \
             -project EscapeMint.xcodeproj \
             -scheme EscapeMint_macOS \
@@ -64,5 +67,4 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             -skipPackagePluginValidation \
-            -skipMacroValidation \
-            | xcbeautify
+            -skipMacroValidation

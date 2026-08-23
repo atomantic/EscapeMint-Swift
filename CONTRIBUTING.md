@@ -10,7 +10,7 @@ Thanks for your interest in EscapeMint. This is a small, personal-finance-focuse
 ## Setup
 
 ```bash
-brew install xcodegen xcbeautify
+brew install xcodegen
 git clone https://github.com/atomantic/EscapeMint-Swift.git
 cd EscapeMint-Swift
 xcodegen generate
