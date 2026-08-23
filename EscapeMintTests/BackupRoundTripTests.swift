@@ -134,6 +134,39 @@ final class BackupRoundTripTests: XCTestCase {
         XCTAssertNil(e.margin)
     }
 
+    /// Replace All must preflight semantic usability before touching existing funds.
+    /// This forces the former "syntactically valid but every record skipped" failure
+    /// mode with an unsafe ID and proves the original pair remains readable.
+    func testReplaceBackupRejectsZeroUsableFundsWithoutDeletingExistingFund() async throws {
+        let fund = FundData(
+            platform: platform,
+            ticker: "preserve",
+            config: FundConfig(fund_type: .stock, status: .active),
+            entries: [FundEntry(date: "2025-01-01", value: 321)]
+        )
+        let fundId = fund.id
+        try await store.writeFund(fund)
+        addTeardownBlock { [store, fundId] in
+            try? await store?.deleteFund(id: fundId)
+        }
+
+        let invalidBackup = FileManager.default.temporaryDirectory
+            .appendingPathComponent("invalid-replace-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: invalidBackup) }
+        let json = #"{"version":"1.0.0","funds":[{"id":"../escape","platform":"real","ticker":"btc","config":{},"entries":[]}]}"#
+        try Data(json.utf8).write(to: invalidBackup)
+
+        do {
+            _ = try await store.replaceAllFundsFromBackupJSON(invalidBackup)
+            XCTFail("A replacement with no usable funds must fail before deletion")
+        } catch {
+            // expected
+        }
+        let retainedFund = await store.readFundById(fundId)
+        let retained = try XCTUnwrap(retainedFund)
+        XCTAssertEqual(retained.entries.last?.value, 321)
+    }
+
     /// Multiple entries across multiple actions must all survive in order.
     func testMultiEntryOrderAndActionsRoundTrip() async throws {
         let fundId = "\(platform!)-tqqq"
