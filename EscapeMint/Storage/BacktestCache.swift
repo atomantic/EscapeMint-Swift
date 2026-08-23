@@ -53,6 +53,7 @@ final class BacktestCache {
     private(set) var backtestSortOrder: BacktestSortOrder = .asc
     private(set) var isRunningBacktest = false
     private var backtestTask: Task<Void, Never>?
+    private var activeBacktestRequest: UUID?
 
     enum BacktestSortOrder {
         case asc, desc
@@ -93,21 +94,29 @@ final class BacktestCache {
         if config == lastBacktestConfig && dr == lastBacktestDateRange && backtestResult != nil { return }
         guard isHistoricalDataLoaded else { return }
 
-        if let old = backtestTask {
-            old.cancel()
-            backtestTask = nil
-        }
+        backtestTask?.cancel()
         isRunningBacktest = true
         let hist = historicalData
         lastBacktestConfig = config
         lastBacktestDateRange = dr
-        backtestTask = Task {
+        let request = UUID()
+        activeBacktestRequest = request
+        backtestTask = Task { [weak self] in
+            defer {
+                // A cancelled older request must not clear the spinner belonging to
+                // the newer request. The active request clears it on every exit,
+                // including cancellation before/after the detached calculation.
+                if let self, self.activeBacktestRequest == request {
+                    self.isRunningBacktest = false
+                    self.backtestTask = nil
+                    self.activeBacktestRequest = nil
+                }
+            }
             let r = await Task.detached(priority: .userInitiated) {
                 runBacktest(config: config, historicalData: hist, dateRange: dr)
             }.value
-            guard !Task.isCancelled else { return }
-            backtestResult = r
-            isRunningBacktest = false
+            guard !Task.isCancelled, let self, self.activeBacktestRequest == request else { return }
+            self.backtestResult = r
         }
     }
 }

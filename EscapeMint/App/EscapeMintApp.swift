@@ -43,12 +43,19 @@ struct EscapeMintApp: App {
         // Set notification delegate before any pending responses are delivered
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
 
-        // Handle -loadTestData synchronously before any views load
+        // `-loadTestData` is a DEBUG-only fixture hook. Never ship a production
+        // launch path that can erase a user's portfolio for test seeding.
+        #if DEBUG
         if CommandLine.arguments.contains("-loadTestData") {
             UserDefaults.standard.set(true, forKey: AppStorageKeys.introCompleted)
             UserDefaults.standard.set(false, forKey: AppStorageKeys.showIntroOnLaunch)
-            FundStore.shared.loadTestDataSynchronously()
+            do {
+                try FundStore.shared.loadTestDataSynchronously()
+            } catch {
+                fatalError("Failed to load required test fixtures: \(error.localizedDescription)")
+            }
         }
+        #endif
     }
 
     var body: some Scene {
