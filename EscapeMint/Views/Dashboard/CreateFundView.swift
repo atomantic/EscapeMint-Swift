@@ -28,7 +28,9 @@ struct CreateFundView: View {
     }
 
     private var canCreate: Bool {
-        !platform.isEmpty && !ticker.isEmpty
+        let cleanPlatform = platform.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanTicker = ticker.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        return !cleanPlatform.isEmpty && !cleanTicker.isEmpty && FundStore.isSafeFundID("\(cleanPlatform)-\(cleanTicker)")
     }
 
     private var isTradingFund: Bool {
@@ -418,8 +420,8 @@ struct CreateFundView: View {
         config.margin_enabled = marginEnabled
 
         let fund = FundData(
-            platform: platform.lowercased().trimmingCharacters(in: .whitespaces),
-            ticker: ticker.lowercased().trimmingCharacters(in: .whitespaces),
+            platform: platform.lowercased().trimmingCharacters(in: .whitespacesAndNewlines),
+            ticker: ticker.lowercased().trimmingCharacters(in: .whitespacesAndNewlines),
             config: config,
             entries: []
         )

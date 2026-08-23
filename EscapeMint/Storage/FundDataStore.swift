@@ -12,6 +12,9 @@ final class FundDataStore {
     /// tests inject a fake conforming to `FundStoreProtocol` to drive the load /
     /// mutation paths without touching the real filesystem (issue #72).
     private let store: FundStoreProtocol
+    /// Test seam used to force the suspension window between detached computation
+    /// and main-actor application. Production passes `nil`.
+    private let beforeApplyingRecompute: (@MainActor () async -> Void)?
 
     enum LoadingPhase: Equatable {
         case idle
@@ -56,6 +59,28 @@ final class FundDataStore {
 
     /// Incremented on every recompute — views can observe this to invalidate caches
     private(set) var revision: Int = 0
+
+    /// Every in-memory mutation receives a generation before it starts detached
+    /// derived-state work. A later mutation wins; an older detached recompute is
+    /// never allowed to install its captured snapshot over that newer committed state.
+    private var mutationGeneration = 0
+    private var activeReloadGeneration: Int?
+
+    private func beginMutation() -> Int {
+        mutationGeneration += 1
+        return mutationGeneration
+    }
+
+    private func isCurrentMutation(_ generation: Int) -> Bool {
+        mutationGeneration == generation
+    }
+
+    /// Derived work is allowed to observe only the aggregate already committed
+    /// to `funds`. A later mutation simply owns the next recompute.
+    private func recomputeCommittedState(generation: Int) async {
+        guard isCurrentMutation(generation) else { return }
+        await recomputeWith(funds, generation: generation)
+    }
 
     /// Set whenever a mutation's disk write fails. The root view observes this
     /// and shows a toast so the user knows their change didn't persist, instead
@@ -102,8 +127,12 @@ final class FundDataStore {
 
     private static let logger = Logger(subsystem: "net.shadowpuppet.EscapeMint", category: "FundDataStore")
 
-    init(store: FundStoreProtocol = FundStore.shared) {
+    init(
+        store: FundStoreProtocol = FundStore.shared,
+        beforeApplyingRecompute: (@MainActor () async -> Void)? = nil
+    ) {
         self.store = store
+        self.beforeApplyingRecompute = beforeApplyingRecompute
     }
 
     // MARK: - Recompute Observers
@@ -175,7 +204,11 @@ final class FundDataStore {
             }
         }
 
-        await store.migrateToICloudIfNeeded()
+        do {
+            try await store.migrateToICloudIfNeeded()
+        } catch {
+            recordDiskError("migrating local funds to iCloud", error)
+        }
 
         // Phase 1: Load configs off the main thread (nonisolated does synchronous file I/O)
         loadingPhase = .loadingConfigs
@@ -264,7 +297,11 @@ final class FundDataStore {
             guard await store.hasICloudAccount() else { return }
             let recovered = await store.retryICloudIfNeeded(maxAttempts: 4, delay: .seconds(1))
             guard recovered else { return }
-            await store.migrateToICloudIfNeeded()
+            do {
+                try await store.migrateToICloudIfNeeded()
+            } catch {
+                recordDiskError("migrating local funds to iCloud", error)
+            }
             await self.reload()
             ICloudSyncMonitor.shared.startMonitoring()
         }
@@ -273,8 +310,21 @@ final class FundDataStore {
     // MARK: - Reload from Disk
 
     func reload() async {
+        let generation = beginMutation()
+        activeReloadGeneration = generation
         loadingPhase = .loadingEntries
         let loaded = await store.readAllFunds()
+
+        // A user mutation or newer reload committed while the actor read was in
+        // flight. Never replace that newer authoritative aggregate with this disk
+        // snapshot. Only this reload may clear its own loading indicator.
+        guard isCurrentMutation(generation) else {
+            if activeReloadGeneration == generation {
+                activeReloadGeneration = nil
+                loadingPhase = .ready
+            }
+            return
+        }
         funds = loaded
         loadedFundCount = loaded.count
         // Entries re-read from disk may differ — drop cached per-fund metrics.
@@ -282,8 +332,11 @@ final class FundDataStore {
         for fund in loaded { bumpFundVersion(fund.id) }
         isConfigLoaded = true
         isLoaded = true
-        await recompute()
-        loadingPhase = .ready
+        await recomputeWith(loaded, generation: generation)
+        if activeReloadGeneration == generation {
+            activeReloadGeneration = nil
+            loadingPhase = .ready
+        }
     }
 
     // MARK: - Accessors
@@ -343,15 +396,17 @@ final class FundDataStore {
         try await store.backupJSONFundCount(url)
     }
 
-    /// Import funds from a backup JSON. When `replacingExisting` is true, all existing funds are
-    /// deleted first. Marks the write for the iCloud monitor and reloads in-memory state.
+    /// Import funds from a backup JSON. Replacement is performed inside the storage
+    /// actor as one staged transaction, so a malformed/empty backup cannot erase the
+    /// current portfolio before its usable records are known.
     /// Returns the imported fund count.
     func importFromBackupJSON(_ url: URL, replacingExisting: Bool) async throws -> Int {
-        _ = try await store.backupJSONFundCount(url)
+        let count: Int
         if replacingExisting {
-            try await store.deleteAllFunds()
+            count = try await store.replaceAllFundsFromBackupJSON(url)
+        } else {
+            count = try await store.importFromBackupJSON(url)
         }
-        let count = try await store.importFromBackupJSON(url)
         ICloudSyncMonitor.shared.markLocalWrite()
         await reload()
         return count
@@ -400,20 +455,19 @@ final class FundDataStore {
     /// recompute twice from one button tap.
     func addFunds(_ newFunds: [FundData]) async {
         guard !newFunds.isEmpty else { return }
+        let generation = beginMutation()
         funds.append(contentsOf: newFunds)
         loadedFundCount = funds.count
         for fund in newFunds {
             bumpFundVersion(fund.id)
         }
-        await recompute()
-
         var didWrite = false
         for fund in newFunds {
             do {
                 // Write the latest in-memory state, NOT the captured `fund` parameter — a
                 // concurrent updateConfig that landed during `await recompute()` would have
                 // mutated funds[idx], and writing the old captured snapshot would clobber it.
-                let toWrite = funds.first(where: { $0.id == fund.id }) ?? fund
+                guard let toWrite = funds.first(where: { $0.id == fund.id }) else { continue }
                 try await store.writeFund(toWrite)
                 didWrite = true
             } catch {
@@ -423,20 +477,21 @@ final class FundDataStore {
         if didWrite {
             ICloudSyncMonitor.shared.markLocalWrite()
         }
+        await recomputeCommittedState(generation: generation)
     }
 
     func updateFund(_ fund: FundData) async {
-        if let idx = funds.firstIndex(where: { $0.id == fund.id }) {
-            funds[idx] = fund
-            bumpFundVersion(fund.id)
-            await recompute()
-        }
+        guard let idx = funds.firstIndex(where: { $0.id == fund.id }) else { return }
+        let generation = beginMutation()
+        funds[idx] = fund
+        bumpFundVersion(fund.id)
         do {
             try await store.writeFund(fund)
             ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
             recordDiskError("updating fund", error)
         }
+        await recomputeCommittedState(generation: generation)
     }
 
     /// Atomic fund rename: single recompute + disk swap. Convenience wrapper
@@ -450,28 +505,22 @@ final class FundDataStore {
     /// triggering 20 recomputes, notification reschedules, widget refreshes.
     func renameFunds(_ edits: [(oldId: String, newFund: FundData)]) async {
         guard !edits.isEmpty else { return }
+        let generation = beginMutation()
         let preparedEdits = Self.prepareRenameEdits(edits)
         let snapshot = Self.applyRenames(to: funds, edits: preparedEdits)
         for (oldId, newFund) in preparedEdits {
             forgetFund(id: oldId)
             bumpFundVersion(newFund.id)
         }
-        await recomputeWith(snapshot)
-        var anyWriteSucceeded = false
-        for (oldId, newFund) in preparedEdits {
-            do {
-                try await store.writeFund(newFund)
-                if oldId != newFund.id {
-                    try await store.deleteFund(id: oldId)
-                }
-                anyWriteSucceeded = true
-            } catch {
-                recordDiskError("renaming fund \(oldId)", error)
-            }
-        }
-        if anyWriteSucceeded {
+        funds = snapshot
+        loadedFundCount = funds.count
+        do {
+            try await store.renameFunds(preparedEdits)
             ICloudSyncMonitor.shared.markLocalWrite()
+        } catch {
+            recordDiskError("renaming funds", error)
         }
+        await recomputeCommittedState(generation: generation)
     }
 
     private func forgetFund(id: String) {
@@ -536,21 +585,23 @@ final class FundDataStore {
     }
 
     func deleteFund(id: String) async {
+        let generation = beginMutation()
         funds.removeAll { $0.id == id }
         loadedFundCount = funds.count
         forgetFund(id: id)
-        await recompute()
         do {
             try await store.deleteFund(id: id)
             ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
             recordDiskError("deleting fund", error)
         }
+        await recomputeCommittedState(generation: generation)
     }
 
     func deletePlatform(named platform: String) async {
         let cleanPlatform = platform.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !cleanPlatform.isEmpty else { return }
+        let generation = beginMutation()
 
         let removedIds = funds
             .filter { $0.platform == cleanPlatform }
@@ -560,8 +611,8 @@ final class FundDataStore {
         for id in removedIds {
             forgetFund(id: id)
         }
+        funds = snapshot
         loadedFundCount = min(loadedFundCount, snapshot.count)
-        await recomputeWith(snapshot)
 
         do {
             let deletedCount = try await store.deletePlatform(named: cleanPlatform)
@@ -571,6 +622,7 @@ final class FundDataStore {
         } catch {
             recordDiskError("deleting platform \(cleanPlatform)", error)
         }
+        await recomputeCommittedState(generation: generation)
     }
 
     nonisolated static func applyPlatformDeletion(to funds: [FundData], platform: String) -> [FundData] {
@@ -587,6 +639,7 @@ final class FundDataStore {
     /// same frame (no intermediate stale-summary render).
     func appendEntries(writes: [(fundId: String, entry: FundEntry)]) async {
         guard !writes.isEmpty else { return }
+        let generation = beginMutation()
         var snapshot = funds
         var touched: [String] = []
         for (fundId, entry) in writes {
@@ -613,47 +666,38 @@ final class FundDataStore {
         }
         revision += 1
 
-        await recomputeWith(snapshot)
-
-        var didWrite = false
-        for (fundId, entry) in writes {
-            do {
-                try await store.appendEntry(fundId: fundId, entry: entry)
-                didWrite = true
-            } catch {
-                recordDiskError("saving entry", error)
-            }
-        }
-        if didWrite {
+        do {
+            // One store call is the ordering boundary for the complete logical
+            // transaction. A primary+cash pair must not admit a replacement or
+            // deletion between its two disk appends.
+            try await store.appendEntries(writes)
             ICloudSyncMonitor.shared.markLocalWrite()
+        } catch {
+            recordDiskError("saving entries", error)
         }
+        await recomputeCommittedState(generation: generation)
     }
 
     func replaceEntries(fundId: String, entries: [FundEntry]) async {
-        if let idx = funds.firstIndex(where: { $0.id == fundId }) {
-            // Compute with updated entries BEFORE mutating funds,
-            // so the view never sees new entries with stale summaries
-            var snapshot = funds
-            snapshot[idx].entries = entries
-            bumpFundVersion(fundId)
-            notifyFundInvalidated(fundId)
-            await recomputeWith(snapshot)
-        }
+        guard let idx = funds.firstIndex(where: { $0.id == fundId }) else { return }
+        let generation = beginMutation()
+        funds[idx].entries = entries
+        bumpFundVersion(fundId)
+        notifyFundInvalidated(fundId)
         do {
             try await store.replaceEntries(fundId: fundId, entries: entries)
             ICloudSyncMonitor.shared.markLocalWrite()
         } catch {
             recordDiskError("saving entries", error)
         }
+        await recomputeCommittedState(generation: generation)
     }
 
     func updateConfig(fundId: String, config: FundConfig) async {
-        if let idx = funds.firstIndex(where: { $0.id == fundId }) {
-            var snapshot = funds
-            snapshot[idx].config = config
-            bumpFundVersion(fundId)
-            await recomputeWith(snapshot)
-        }
+        guard let idx = funds.firstIndex(where: { $0.id == fundId }) else { return }
+        let generation = beginMutation()
+        funds[idx].config = config
+        bumpFundVersion(fundId)
         do {
             // updateConfig returns false when the fund file doesn't exist yet — this happens
             // when an updateConfig races ahead of addFund's initial writeFund. Without a
@@ -662,13 +706,20 @@ final class FundDataStore {
             let wrote = try await store.updateConfig(fundId: fundId, config: config)
             if wrote {
                 ICloudSyncMonitor.shared.markLocalWrite()
-            } else if let liveFund = funds.first(where: { $0.id == fundId }) {
-                try await store.writeFund(liveFund)
-                ICloudSyncMonitor.shared.markLocalWrite()
+                notifyFundInvalidated(fundId)
+            } else {
+                // Re-read after the suspension: a concurrent delete must not be
+                // recreated, while a concurrent edit should be materialized whole.
+                if let committedFund = funds.first(where: { $0.id == fundId }) {
+                    try await store.writeFund(committedFund)
+                    ICloudSyncMonitor.shared.markLocalWrite()
+                    notifyFundInvalidated(fundId)
+                }
             }
         } catch {
             recordDiskError("updating config", error)
         }
+        await recomputeCommittedState(generation: generation)
     }
 
     // MARK: - Advanced Tools (Recalculate / Interpolate)
@@ -750,7 +801,7 @@ final class FundDataStore {
     }
 
     private func recompute() async {
-        await recomputeWith(funds)
+        await recomputeWith(funds, generation: mutationGeneration)
     }
 
 #if DEBUG
@@ -784,7 +835,8 @@ final class FundDataStore {
     /// is unchanged since the last recompute reuse their cached metrics — so
     /// appending one entry to one fund only walks that fund's entries, not the
     /// entire portfolio's.
-    private func recomputeWith(_ snapshot: [FundData]) async {
+    private func recomputeWith(_ snapshot: [FundData], generation: Int? = nil) async {
+        let expectedGeneration = generation ?? mutationGeneration
         let today = todayString()
         var cachedPerFund: [(FundMetrics, FundState)?] = Array(repeating: nil, count: snapshot.count)
         var stale: [(index: Int, fundId: String, version: Int)] = []
@@ -826,6 +878,15 @@ final class FundDataStore {
             )
         }.value
 
+        if let beforeApplyingRecompute {
+            await beforeApplyingRecompute()
+        }
+
+        // A later mutation committed while detached work was running. Its recompute
+        // owns the live state, so discard this stale result rather than restoring the
+        // older snapshot (and never schedule persistence from it).
+        guard isCurrentMutation(expectedGeneration) else { return }
+
         // Update per-fund cache with fresh metrics, drop entries for vanished funds.
         for (j, entry) in stale.enumerated() {
             let (m, s) = result.freshMetrics[j]
@@ -834,9 +895,9 @@ final class FundDataStore {
         let liveIds = Set(snapshot.map(\.id))
         fundMetricsCache = fundMetricsCache.filter { liveIds.contains($0.key) }
 
-        // Apply funds + derived state atomically so the view never sees
-        // new entries with stale summaries
-        funds = snapshot
+        // `funds` was committed synchronously before detached work began. Only
+        // install derived state here; assigning the captured snapshot would make
+        // recompute another authoritative mutation path.
         portfolio = result.portfolio
         summaries = result.summaries
         summaryMap = result.summaryMap

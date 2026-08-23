@@ -96,7 +96,7 @@ struct SettingsView: View {
                     confirmBackupImport(mode: .replace)
                 }
             } message: {
-                Text("Merge adds the backup into your current funds and overwrites matching fund IDs. Replace All clears current funds before restoring this backup.")
+                Text("Merge adds the backup into your current funds and overwrites matching fund IDs. Replace All validates and stages the backup before replacing current data.")
             }
             .fileImporter(isPresented: $showImportJSON, allowedContentTypes: [.json]) { result in
                 if case .success(let url) = result {
@@ -400,7 +400,7 @@ struct SettingsView: View {
                 let action = mode == .replace ? "Replaced data with" : "Merged"
                 showToast("\(action) \(count) fund(s) from backup")
             } catch {
-                showToast("Import failed. Please check the file format.")
+                showToast("Import failed: \(error.localizedDescription)")
             }
             await refreshStats()
         }

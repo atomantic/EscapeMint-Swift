@@ -361,103 +361,135 @@ final class StorageTests: XCTestCase {
 
     // MARK: - Directory Import/Export
 
-    func testDirectoryImportExport() {
-        // Create source directory with a fund's TSV and JSON
-        let sourceDir = tempDir.appendingPathComponent("source")
-        try! FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
-
-        let config = FundConfig(
-            platform: "testplatform", ticker: "ABC",
-            fund_type: .stock, status: .active,
-            target_apy: 0.10, interval_days: 7
+    func testDirectoryImportExportReplacesBothFundFiles() async throws {
+        let store = FundStore.shared
+        let platform = "dirio-\(UUID().uuidString.prefix(8).lowercased())"
+        let original = FundData(
+            platform: platform,
+            ticker: "asset",
+            config: FundConfig(fund_type: .stock, status: .active, target_apy: 0.10, interval_days: 7),
+            entries: [
+                FundEntry(date: "2025-01-01", value: 1000, action: .BUY, amount: 500),
+                FundEntry(date: "2025-01-08", value: 1050, action: .HOLD),
+            ]
         )
-        let configData = try! JSONEncoder.pretty.encode(config)
-        try! configData.write(to: sourceDir.appendingPathComponent("testplatform-ABC.json"))
-
-        let entries = [
-            FundEntry(date: "2025-01-01", value: 1000, action: .BUY, amount: 500),
-            FundEntry(date: "2025-01-08", value: 1050, action: .HOLD),
-        ]
-        let tsv = buildTSV(entries)
-        try! tsv.write(to: sourceDir.appendingPathComponent("testplatform-ABC.tsv"),
-                       atomically: true, encoding: .utf8)
-
-        // Create dest directory
-        let destDir = tempDir.appendingPathComponent("dest")
-        try! FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
-
-        // Copy manually (simulating import)
-        let fm = FileManager.default
-        let tsvFiles = try! fm.contentsOfDirectory(at: sourceDir, includingPropertiesForKeys: nil)
-            .filter { $0.pathExtension == "tsv" }
-
-        var imported = 0
-        for tsvFile in tsvFiles {
-            let baseName = tsvFile.deletingPathExtension().lastPathComponent
-            let jsonFile = sourceDir.appendingPathComponent("\(baseName).json")
-            guard fm.fileExists(atPath: jsonFile.path) else { continue }
-            try! fm.copyItem(at: tsvFile, to: destDir.appendingPathComponent(tsvFile.lastPathComponent))
-            try! fm.copyItem(at: jsonFile, to: destDir.appendingPathComponent(jsonFile.lastPathComponent))
-            imported += 1
+        let fundId = original.id
+        addTeardownBlock { [store, fundId] in
+            try? await store.deleteFund(id: fundId)
         }
+        try await store.writeFund(original)
 
+        // Use the production export boundary, then keep only this test's pair so the
+        // production importer receives an unambiguous one-fund directory.
+        let sourceDir = tempDir.appendingPathComponent("exported")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        _ = try await store.exportToDirectory(sourceDir)
+        for file in try FileManager.default.contentsOfDirectory(at: sourceDir, includingPropertiesForKeys: nil)
+        where file.deletingPathExtension().lastPathComponent != fundId {
+            try FileManager.default.removeItem(at: file)
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sourceDir.appendingPathComponent("\(fundId).json").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sourceDir.appendingPathComponent("\(fundId).tsv").path))
+
+        // Make both destination halves observably stale. Import must replace both,
+        // rather than merely copying a TSV or leaving an existing JSON config behind.
+        let replacement = FundData(
+            platform: platform,
+            ticker: "asset",
+            config: FundConfig(fund_type: .stock, status: .closed, target_apy: 0.91, interval_days: 30),
+            entries: [FundEntry(date: "2025-02-01", value: 1, action: .SELL, amount: 1)]
+        )
+        try await store.writeFund(replacement)
+
+        let imported = try await store.importFromDirectory(sourceDir)
         XCTAssertEqual(imported, 1)
+        let maybeRestored = await store.readFundById(fundId)
+        let restored = try XCTUnwrap(maybeRestored)
+        XCTAssertEqual(restored.config.status, .active)
+        XCTAssertEqual(restored.config.target_apy, 0.10)
+        XCTAssertEqual(restored.entries.count, original.entries.count)
+        XCTAssertEqual(restored.entries.map(\.date), original.entries.map(\.date))
+        XCTAssertEqual(restored.entries.map(\.value), original.entries.map(\.value))
+        XCTAssertEqual(restored.entries.map(\.action), original.entries.map(\.action))
+    }
 
-        // Verify the imported files
-        let importedTSV = try! String(contentsOf: destDir.appendingPathComponent("testplatform-ABC.tsv"), encoding: .utf8)
-        let importedEntries = parseTSV(importedTSV)
-        XCTAssertEqual(importedEntries.count, 2)
-        XCTAssertEqual(importedEntries[0].action, .BUY)
-        XCTAssertEqual(importedEntries[0].amount, 500)
+    func testDirectoryImportRejectsConfigWhosePersistedIdDoesNotMatchFilename() async throws {
+        let store = FundStore.shared
+        let platform = "dirmismatch-\(UUID().uuidString.prefix(8).lowercased())"
+        let original = FundData(
+            platform: platform,
+            ticker: "asset",
+            config: FundConfig(fund_type: .stock, status: .active),
+            entries: [FundEntry(date: "2025-01-01", value: 100)]
+        )
+        addTeardownBlock { [store, id = original.id] in
+            try? await store.deleteFund(id: id)
+        }
+        try await store.writeFund(original)
 
-        let importedJSON = try! Data(contentsOf: destDir.appendingPathComponent("testplatform-ABC.json"))
-        let importedConfig = try! JSONDecoder().decode(FundConfig.self, from: importedJSON)
-        XCTAssertEqual(importedConfig.fund_type, .stock)
-        XCTAssertEqual(importedConfig.target_apy, 0.10)
+        let sourceDir = tempDir.appendingPathComponent("mismatched-export")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        _ = try await store.exportToDirectory(sourceDir)
+        for file in try FileManager.default.contentsOfDirectory(at: sourceDir, includingPropertiesForKeys: nil)
+        where file.deletingPathExtension().lastPathComponent != original.id {
+            try FileManager.default.removeItem(at: file)
+        }
+        let configURL = sourceDir.appendingPathComponent("\(original.id).json")
+        var mismatchedConfig = try JSONDecoder().decode(FundConfig.self, from: Data(contentsOf: configURL))
+        mismatchedConfig.fund_id = "\(original.id)-other"
+        try JSONEncoder.pretty.encode(mismatchedConfig).write(to: configURL, options: .atomic)
+
+        do {
+            _ = try await store.importFromDirectory(sourceDir)
+            XCTFail("directory import must reject a config whose persisted id redirects its filename")
+        } catch {
+            // expected: no pair was accepted from this source directory
+        }
+        let maybeLive = await store.readFundById(original.id)
+        let live = try XCTUnwrap(maybeLive)
+        XCTAssertEqual(live.entries.first?.value, 100,
+                       "rejected input must not replace the existing live pair")
     }
 
     // MARK: - Backup JSON Import Parsing
 
-    func testBackupJSONImportParsing() {
-        // Create a backup JSON and verify it can be parsed
-        let backupJSON: [String: Any] = [
-            "version": "1.0.0",
-            "backup_date": "2025-01-15T00:00:00Z",
-            "funds": [
-                [
-                    "id": "myplatform-btc",
-                    "platform": "myplatform",
-                    "ticker": "btc",
-                    "config": [
-                        "fund_type": "crypto",
-                        "status": "active",
-                        "target_apy": 0.15,
-                        "interval_days": 7,
-                        "input_min_usd": 100,
-                        "accumulate": true
-                    ] as [String: Any],
-                    "entries": [
-                        ["date": "2025-01-01", "value": 1000, "action": "BUY", "amount": 500, "shares": 10.0] as [String: Any],
-                        ["date": "2025-01-08", "value": 1100, "action": "HOLD"] as [String: Any],
-                        ["date": "2025-01-15", "value": 1200, "action": "SELL", "amount": 200, "shares": 4.0] as [String: Any]
-                    ]
-                ] as [String: Any]
+    func testBackupJSONImportParsingUsesFundStoreBoundary() async throws {
+        let store = FundStore.shared
+        let platform = "backupio-\(UUID().uuidString.prefix(8).lowercased())"
+        let fund = BackupFund(
+            id: "\(platform)-btc",
+            platform: platform,
+            ticker: "btc",
+            config: FundConfig(fund_type: .crypto, status: .active, target_apy: 0.15, interval_days: 7,
+                               input_min_usd: 100, accumulate: true),
+            entries: [
+                FundEntry(date: "2025-01-01", value: 1000, action: .BUY, amount: 500, shares: 10),
+                FundEntry(date: "2025-01-08", value: 1100, action: .HOLD),
+                FundEntry(date: "2025-01-15", value: 1200, action: .SELL, amount: 200, shares: 4),
             ]
-        ]
+        )
+        let backupURL = tempDir.appendingPathComponent("backup.json")
+        let document = BackupDocument(funds: [fund], backupDate: "2025-01-15T00:00:00Z")
+        try JSONEncoder.pretty.encode(document).write(to: backupURL)
+        addTeardownBlock { [store, id = fund.id] in
+            try? await store.deleteFund(id: id)
+        }
 
-        let data = try! JSONSerialization.data(withJSONObject: backupJSON)
-        let parsed = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
-        let funds = parsed["funds"] as! [[String: Any]]
+        let preflightCount = try await store.backupJSONFundCount(backupURL)
+        XCTAssertEqual(preflightCount, 1)
+        let imported = try await store.importFromBackupJSON(backupURL)
+        XCTAssertEqual(imported, 1)
 
-        XCTAssertEqual(funds.count, 1)
-        let fund = funds[0]
-        XCTAssertEqual(fund["id"] as? String, "myplatform-btc")
-        XCTAssertEqual(fund["platform"] as? String, "myplatform")
-
-        let entries = fund["entries"] as! [[String: Any]]
-        XCTAssertEqual(entries.count, 3)
-        XCTAssertEqual(entries[0]["action"] as? String, "BUY")
-        XCTAssertEqual(entries[2]["action"] as? String, "SELL")
+        let maybeRestored = await store.readFundById(fund.id)
+        let restored = try XCTUnwrap(maybeRestored)
+        XCTAssertEqual(restored.platform, platform)
+        XCTAssertEqual(restored.ticker, "btc")
+        XCTAssertEqual(restored.config.target_apy, 0.15)
+        XCTAssertEqual(restored.entries.count, fund.entries.count)
+        XCTAssertEqual(restored.entries.map(\.date), fund.entries.map(\.date))
+        XCTAssertEqual(restored.entries.map(\.action), fund.entries.map(\.action))
+        XCTAssertEqual(restored.entries.map(\.amount), fund.entries.map(\.amount))
+        XCTAssertEqual(restored.entries.map(\.shares), fund.entries.map(\.shares))
     }
 
     func testBackupJSONSkipsTestFunds() {
@@ -490,13 +522,19 @@ final class StorageTests: XCTestCase {
             // expected
         }
 
-        // Present but empty funds array → should return 0 imported, no throw
+        // Present but empty funds array is syntactically valid but has no usable
+        // restore set. It must throw so a Replace All caller cannot erase existing
+        // data and then report a successful zero-fund import.
         let zeroFundsURL = tempDir.appendingPathComponent("zero.json")
         try #"{"version":"1.0.0","funds":[]}"#.data(using: .utf8)!.write(to: zeroFundsURL)
         let zeroPreflightCount = try await store.backupJSONFundCount(zeroFundsURL)
         XCTAssertEqual(zeroPreflightCount, 0)
-        let zeroCount = try await store.importFromBackupJSON(zeroFundsURL)
-        XCTAssertEqual(zeroCount, 0)
+        do {
+            _ = try await store.importFromBackupJSON(zeroFundsURL)
+            XCTFail("Expected importFromBackupJSON to reject an empty usable set")
+        } catch {
+            // expected
+        }
     }
 
     // MARK: - TSV Column Building
@@ -545,6 +583,13 @@ final class StorageTests: XCTestCase {
             config: FundConfig(fund_id: "robinhood-tqqq"), entries: []
         )
         XCTAssertEqual(fund.id, "robinhood-tqqq")
+    }
+
+    func testSafeFundIDBoundaryRejectsPathComponents() {
+        XCTAssertTrue(FundStore.isSafeFundID("coinbase-btc_1.0"))
+        for unsafe in ["", ".", "..", "../escape", "a/b", "a\\b", "name space"] {
+            XCTAssertFalse(FundStore.isSafeFundID(unsafe), "\(unsafe) must not be usable as a file name")
+        }
     }
 
     // MARK: - Backup JSON Entry Serialization
@@ -599,16 +644,87 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(entry.notes, "test note with\ttab")
     }
 
-    // MARK: - Safe Fund ID Validation
+    // MARK: - Backup before replacement / safe backup paths
 
-    func testSafeFundIdPattern() {
-        let pattern = /^[a-zA-Z0-9._-]+$/
-        XCTAssertNotNil("coinbase-btc".wholeMatch(of: pattern))
-        XCTAssertNotNil("robinhood_AAPL".wholeMatch(of: pattern))
-        XCTAssertNotNil("platform.ticker".wholeMatch(of: pattern))
-        XCTAssertNil("../etc/passwd".wholeMatch(of: pattern))
-        XCTAssertNil("fund id with spaces".wholeMatch(of: pattern))
-        XCTAssertNil("fund/path".wholeMatch(of: pattern))
+    func testBackupFundPreservesOriginalPairBeforeReplacement() async throws {
+        let store = FundStore.shared
+        let platform = "backupreplace-\(UUID().uuidString.prefix(8).lowercased())"
+        let original = FundData(
+            platform: platform,
+            ticker: "asset",
+            config: FundConfig(fund_type: .stock, status: .active, target_apy: 0.12),
+            entries: [FundEntry(date: "2025-01-01", value: 100, action: .BUY, amount: 100)]
+        )
+        addTeardownBlock { [store, id = original.id] in
+            try? await store.deleteFund(id: id)
+        }
+        try await store.writeFund(original)
+
+        let backupDir = try await store.backupFund(id: original.id)
+        defer { try? FileManager.default.removeItem(at: backupDir) }
+
+        let replacement = [FundEntry(date: "2025-02-01", value: 250, action: .HOLD)]
+        try await store.replaceEntries(fundId: original.id, entries: replacement)
+
+        let maybeLive = await store.readFundById(original.id)
+        let live = try XCTUnwrap(maybeLive)
+        XCTAssertEqual(live.entries.count, 1)
+        XCTAssertEqual(live.entries.first?.date, replacement[0].date)
+        XCTAssertEqual(live.entries.first?.value, replacement[0].value)
+        let backedUpEntries = try String(
+            contentsOf: backupDir.appendingPathComponent("\(original.id).tsv"), encoding: .utf8
+        )
+        let parsedBackup = parseTSV(backedUpEntries)
+        XCTAssertEqual(parsedBackup.count, 1)
+        XCTAssertEqual(parsedBackup.first?.date, original.entries[0].date)
+        XCTAssertEqual(parsedBackup.first?.value, original.entries[0].value)
+        XCTAssertEqual(parsedBackup.first?.action, original.entries[0].action)
+        let backedUpConfig = try JSONDecoder().decode(
+            FundConfig.self,
+            from: Data(contentsOf: backupDir.appendingPathComponent("\(original.id).json"))
+        )
+        XCTAssertEqual(backedUpConfig.target_apy, original.config.target_apy)
+    }
+
+    func testBackupImportRejectsUnsafeFundIdWithoutEscapingFundsDirectory() async throws {
+        let store = FundStore.shared
+        let suffix = UUID().uuidString.prefix(8).lowercased()
+        let platform = "safeid-\(suffix)"
+        let safeId = "\(platform)-btc"
+        let unsafeId = "../escaped-backup-\(suffix)"
+        let escapedJSON = store.fundsDirectory
+            .appendingPathComponent("\(unsafeId).json").standardizedFileURL
+        let escapedTSV = store.fundsDirectory
+            .appendingPathComponent("\(unsafeId).tsv").standardizedFileURL
+        // If a future regression writes through `..`, remove only this uniquely-named
+        // sentinel after asserting the failure so the test never leaves Documents dirty.
+        defer {
+            try? FileManager.default.removeItem(at: escapedJSON)
+            try? FileManager.default.removeItem(at: escapedTSV)
+        }
+        addTeardownBlock { [store, safeId] in
+            try? await store.deleteFund(id: safeId)
+        }
+
+        let config = FundConfig(fund_type: .crypto, status: .active)
+        let backup = BackupDocument(
+            funds: [
+                BackupFund(id: safeId, platform: platform, ticker: "btc", config: config,
+                           entries: [FundEntry(date: "2025-01-01", value: 100)]),
+                BackupFund(id: unsafeId, platform: platform, ticker: "escape", config: config,
+                           entries: [FundEntry(date: "2025-01-01", value: 999)]),
+            ],
+            backupDate: "2025-01-15T00:00:00Z"
+        )
+        let backupURL = tempDir.appendingPathComponent("unsafe-id.json")
+        try JSONEncoder.pretty.encode(backup).write(to: backupURL)
+
+        let imported = try await store.importFromBackupJSON(backupURL)
+        XCTAssertEqual(imported, 1)
+        let safeFund = await store.readFundById(safeId)
+        XCTAssertNotNil(safeFund)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: escapedJSON.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: escapedTSV.path))
     }
 
     // MARK: - FundDataStore.applyRenames

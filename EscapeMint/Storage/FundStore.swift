@@ -109,14 +109,17 @@ protocol FundStoreProtocol: Sendable {
 
     func hasICloudAccount() async -> Bool
     func retryICloudIfNeeded(maxAttempts: Int, delay: Duration) async -> Bool
-    func migrateToICloudIfNeeded() async
+    func migrateToICloudIfNeeded() async throws
 
     nonisolated func readAllFundConfigs() -> [FundData]
     nonisolated func readFundEntries(id: String) -> [FundEntry]
     func readAllFunds() async -> [FundData]
 
     func writeFund(_ fund: FundData) async throws
+    func renameFund(from oldId: String, to newFund: FundData) async throws
+    func renameFunds(_ edits: [(oldId: String, newFund: FundData)]) async throws
     func appendEntry(fundId: String, entry: FundEntry) async throws
+    func appendEntries(_ writes: [(fundId: String, entry: FundEntry)]) async throws
     func replaceEntries(fundId: String, entries: [FundEntry]) async throws
     @discardableResult
     func updateConfig(fundId: String, config: FundConfig) async throws -> Bool
@@ -133,11 +136,37 @@ protocol FundStoreProtocol: Sendable {
     func importFromDirectory(_ sourceDir: URL) async throws -> Int
     func backupJSONFundCount(_ jsonURL: URL) async throws -> Int
     func importFromBackupJSON(_ jsonURL: URL) async throws -> Int
+    func replaceAllFundsFromBackupJSON(_ jsonURL: URL) async throws -> Int
     func exportToBackupJSON() async throws -> URL
     func exportToDocuments() async throws -> URL
     func loadTestData() async throws -> Int
     func deleteTestFunds() async throws -> Int
     func deleteAllFunds() async throws
+}
+
+extension FundStoreProtocol {
+    /// Default composition keeps test/injected stores source-compatible. The
+    /// production actor overrides this with one non-suspending actor operation.
+    func renameFund(from oldId: String, to newFund: FundData) async throws {
+        try await writeFund(newFund)
+        if oldId != newFund.id {
+            try await deleteFund(id: oldId)
+        }
+    }
+
+    func renameFunds(_ edits: [(oldId: String, newFund: FundData)]) async throws {
+        for edit in edits {
+            try await renameFund(from: edit.oldId, to: edit.newFund)
+        }
+    }
+
+    /// Default composition keeps injected stores source-compatible. FundStore
+    /// overrides this so the complete logical batch occupies one actor turn.
+    func appendEntries(_ writes: [(fundId: String, entry: FundEntry)]) async throws {
+        for write in writes {
+            try await appendEntry(fundId: write.fundId, entry: write.entry)
+        }
+    }
 }
 
 extension FundStore: FundStoreProtocol {}
@@ -186,6 +215,20 @@ actor FundStore {
     }
     fileprivate static var currentFundsDirectory: URL {
         stateLock.withLock { $0! }.fundsDirectory
+    }
+
+    /// Fund identifiers become file names, so keep the acceptance rule in one place.
+    /// In particular, `.` and `..` match the character set but are path components,
+    /// not fund IDs.
+    nonisolated static func isSafeFundID(_ id: String) -> Bool {
+        guard !id.isEmpty, id != ".", id != ".." else { return false }
+        return id.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "." || $0 == "_" || $0 == "-") }
+    }
+
+    private func requireSafeFundID(_ id: String) throws {
+        guard Self.isSafeFundID(id) else {
+            throw NSError(domain: "FundStore", code: 3, userInfo: [NSLocalizedDescriptionKey: "Invalid fund identifier"])
+        }
     }
 
     /// Create a directory, logging a warning on failure instead of silently swallowing it.
@@ -332,28 +375,33 @@ actor FundStore {
     /// few hundred ms for large portfolios is acceptable versus the added complexity /
     /// changed semantics of chunking it across suspension points. Revisit only if a
     /// portfolio large enough to noticeably stall the actor appears.
-    func migrateToICloudIfNeeded() {
+    func migrateToICloudIfNeeded() throws {
         guard isICloud else { return }
         let fm = fileManager
         guard let localDocs = fm.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
         let localFunds = localDocs.appendingPathComponent("funds")
         guard fm.fileExists(atPath: localFunds.path) else { return }
 
-        guard let files = try? fm.contentsOfDirectory(at: localFunds, includingPropertiesForKeys: nil) else { return }
+        let files = try fm.contentsOfDirectory(at: localFunds, includingPropertiesForKeys: nil)
         let tsvFiles = files.filter { $0.pathExtension == "tsv" }
         guard !tsvFiles.isEmpty else { return }
 
         for tsvFile in tsvFiles {
-            let name = tsvFile.lastPathComponent
-            let destTSV = fundsDirectory.appendingPathComponent(name)
-            if !fm.fileExists(atPath: destTSV.path) {
-                try? fm.copyItem(at: tsvFile, to: destTSV)
+            let id = tsvFile.deletingPathExtension().lastPathComponent
+            guard Self.isSafeFundID(id) else {
+                Self.logger.warning("skipping unsafe local migration id: \(id, privacy: .private)")
+                continue
             }
             let jsonFile = tsvFile.deletingPathExtension().appendingPathExtension("json")
-            let destJSON = fundsDirectory.appendingPathComponent(jsonFile.lastPathComponent)
-            if fm.fileExists(atPath: jsonFile.path) && !fm.fileExists(atPath: destJSON.path) {
-                try? fm.copyItem(at: jsonFile, to: destJSON)
-            }
+            guard fm.fileExists(atPath: jsonFile.path) else { continue }
+            let destTSV = fundsDirectory.appendingPathComponent("\(id).tsv")
+            let destJSON = fundsDirectory.appendingPathComponent("\(id).json")
+            guard !fm.fileExists(atPath: destTSV.path) || !fm.fileExists(atPath: destJSON.path) else { continue }
+            try replaceFundPair(
+                id: id,
+                configData: Data(contentsOf: jsonFile),
+                tsvData: Data(contentsOf: tsvFile)
+            )
         }
     }
 
@@ -387,29 +435,41 @@ actor FundStore {
     /// `nonisolated` `fundsDirectory` and the read-only app bundle, so it does
     /// not need the actor's mutable state. Mirrors the test/demo data the
     /// `-loadTestData` launch argument expects.
-    nonisolated func loadTestDataSynchronously() {
+    #if DEBUG
+    nonisolated func loadTestDataSynchronously() throws {
         let fm = FileManager.default
         let dir = fundsDirectory
-        // Delete all existing funds.
-        if let files = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) {
-            for file in files { try? fm.removeItem(at: file) }
-        }
-        // Copy test data from the bundle.
         let testFundIds = [
             "coinbasetest-btc", "coinbasetest-cash",
             "robinhoodtest-tqqq", "robinhoodtest-spxl", "robinhoodtest-cash"
         ]
-        for fundId in testFundIds {
-            if let jsonURL = Bundle.main.url(forResource: fundId, withExtension: "json"),
-               let tsvURL = Bundle.main.url(forResource: fundId, withExtension: "tsv") {
-                try? fm.copyItem(at: jsonURL, to: dir.appendingPathComponent("\(fundId).json"))
-                try? fm.copyItem(at: tsvURL, to: dir.appendingPathComponent("\(fundId).tsv"))
+        // Resolve every fixture before deleting anything. A broken test bundle must
+        // fail loudly instead of silently launching with a partial data set.
+        let fixtures = try testFundIds.map { fundId -> (URL, URL) in
+            guard let jsonURL = Bundle.main.url(forResource: fundId, withExtension: "json"),
+                  let tsvURL = Bundle.main.url(forResource: fundId, withExtension: "tsv") else {
+                throw NSError(domain: "FundStore", code: 5, userInfo: [NSLocalizedDescriptionKey: "Missing test fixture \(fundId)"])
+            }
+            return (jsonURL, tsvURL)
+        }
+        // Delete all existing funds.
+        if fm.fileExists(atPath: dir.path) {
+            for file in try fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) {
+                try fm.removeItem(at: file)
             }
         }
+        // Copy test data from the bundle.
+        for (index, fixture) in fixtures.enumerated() {
+            let fundId = testFundIds[index]
+            try fm.copyItem(at: fixture.0, to: dir.appendingPathComponent("\(fundId).json"))
+            try fm.copyItem(at: fixture.1, to: dir.appendingPathComponent("\(fundId).tsv"))
+        }
     }
+    #endif
 
     /// Read entries for a single fund by its id — nonisolated for true parallel I/O.
     nonisolated func readFundEntries(id: String) -> [FundEntry] {
+        guard Self.isSafeFundID(id) else { return [] }
         let tsvURL = Self.currentFundsDirectory.appendingPathComponent("\(id).tsv")
         guard let content = try? String(contentsOf: tsvURL, encoding: .utf8) else { return [] }
         return parseTSV(content)
@@ -419,9 +479,17 @@ actor FundStore {
     private nonisolated func readFundConfig(jsonURL: URL) -> FundData? {
         guard var config = decodeJSONFile(jsonURL, as: FundConfig.self),
               let platform = config.platform, let ticker = config.ticker else { return nil }
+        let filenameID = jsonURL.deletingPathExtension().lastPathComponent
+        guard Self.isSafeFundID(filenameID) else { return nil }
         if config.fund_id?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
-            config.fund_id = jsonURL.deletingPathExtension().lastPathComponent
+            config.fund_id = filenameID
         }
+        // File stems are the authoritative storage identity. Accepting a safe but
+        // different __fund_id would make this JSON describe one fund while readFund
+        // attaches the TSV selected by another fund's filename.
+        guard let persistedID = config.fund_id,
+              Self.isSafeFundID(persistedID),
+              persistedID == filenameID else { return nil }
         config.platform = nil
         config.ticker = nil
         return FundData(platform: platform, ticker: ticker, config: config, entries: [])
@@ -438,6 +506,7 @@ actor FundStore {
     }
 
     func readFundById(_ id: String) -> FundData? {
+        guard Self.isSafeFundID(id) else { return nil }
         let tsvURL = fundsDirectory.appendingPathComponent("\(id).tsv")
         return readFund(tsvURL: tsvURL)
     }
@@ -454,27 +523,95 @@ actor FundStore {
         #endif
     }
 
-    func writeFund(_ fund: FundData) throws {
-        let tsvURL = fundsDirectory.appendingPathComponent("\(fund.id).tsv")
-        let configURL = fundsDirectory.appendingPathComponent("\(fund.id).json")
+    /// Stage both members of a fund pair before replacing either live file. If the
+    /// second replacement fails, restore the exact prior bytes (or remove files that
+    /// did not exist before), so a failed update cannot turn a readable pair into an
+    /// orphan config/TSV.
+    private func replaceFundPair(id: String, configData: Data, tsvData: Data) throws {
+        try requireSafeFundID(id)
+        let configURL = fundsDirectory.appendingPathComponent("\(id).json")
+        let tsvURL = fundsDirectory.appendingPathComponent("\(id).tsv")
+        let transactionID = UUID().uuidString
+        let stagedConfig = fundsDirectory.appendingPathComponent(".\(id).\(transactionID).json.stage")
+        let stagedTSV = fundsDirectory.appendingPathComponent(".\(id).\(transactionID).tsv.stage")
+        // Absence is a valid "new pair" state; unreadable existing data is not.
+        // Capture both prior files before staging or touching either live member.
+        let oldConfig: Data? = if fileManager.fileExists(atPath: configURL.path) {
+            try Data(contentsOf: configURL)
+        } else {
+            nil
+        }
+        let oldTSV: Data? = if fileManager.fileExists(atPath: tsvURL.path) {
+            try Data(contentsOf: tsvURL)
+        } else {
+            nil
+        }
 
-        // Write config with metadata
+        defer {
+            try? fileManager.removeItem(at: stagedConfig)
+            try? fileManager.removeItem(at: stagedTSV)
+        }
+
+        // Validate staged content before touching the committed pair.
+        try configData.write(to: stagedConfig, options: .atomic)
+        try tsvData.write(to: stagedTSV, options: .atomic)
+        _ = try JSONDecoder().decode(FundConfig.self, from: Data(contentsOf: stagedConfig))
+        _ = parseTSV(try String(contentsOf: stagedTSV, encoding: .utf8))
+
+        do {
+            try configData.write(to: configURL, options: .atomic)
+            try tsvData.write(to: tsvURL, options: .atomic)
+        } catch {
+            // Best-effort rollback is still preferable to leaving a known partial
+            // update. If rollback itself fails, report that explicitly rather than
+            // pretending the prior pair survived.
+            do {
+                if let oldConfig { try oldConfig.write(to: configURL, options: .atomic) }
+                else if fileManager.fileExists(atPath: configURL.path) { try fileManager.removeItem(at: configURL) }
+                if let oldTSV { try oldTSV.write(to: tsvURL, options: .atomic) }
+                else if fileManager.fileExists(atPath: tsvURL.path) { try fileManager.removeItem(at: tsvURL) }
+            } catch {
+                throw NSError(domain: "FundStore", code: 4, userInfo: [NSLocalizedDescriptionKey: "Fund update failed and rollback could not be completed: \(error.localizedDescription)"])
+            }
+            throw error
+        }
+        applyCompleteProtection(to: configURL)
+        applyCompleteProtection(to: tsvURL)
+    }
+
+    func writeFund(_ fund: FundData) throws {
+        try requireSafeFundID(fund.id)
+
+        // Write config with metadata.
         var configWithMeta = fund.config
         configWithMeta.fund_id = fund.id
         configWithMeta.platform = fund.platform
         configWithMeta.ticker = fund.ticker
         let configData = try JSONEncoder.pretty.encode(configWithMeta)
-        try configData.write(to: configURL)
+        let tsvData = Data(buildTSV(fund.entries).utf8)
+        try replaceFundPair(id: fund.id, configData: configData, tsvData: tsvData)
+    }
 
-        // Write entries
-        let tsv = buildTSV(fund.entries)
-        try tsv.write(to: tsvURL, atomically: true, encoding: .utf8)
+    /// Persist a renamed pair without an actor re-entrancy gap between creating
+    /// the new identity and removing the old one.
+    func renameFund(from oldId: String, to newFund: FundData) throws {
+        try requireSafeFundID(oldId)
+        try writeFund(newFund)
+        if oldId != newFund.id {
+            try deleteFund(id: oldId)
+        }
+    }
 
-        applyCompleteProtection(to: configURL)
-        applyCompleteProtection(to: tsvURL)
+    /// Keep an entire platform rename on the storage actor without suspension
+    /// between pairs. Every write uses the caller's already-committed aggregate.
+    func renameFunds(_ edits: [(oldId: String, newFund: FundData)]) throws {
+        for edit in edits {
+            try renameFund(from: edit.oldId, to: edit.newFund)
+        }
     }
 
     func appendEntry(fundId: String, entry: FundEntry) throws {
+        try requireSafeFundID(fundId)
         let tsvURL = fundsDirectory.appendingPathComponent("\(fundId).tsv")
         guard fileManager.fileExists(atPath: tsvURL.path) else { return }
         let line = serializeEntry(entry) + "\n"
@@ -500,7 +637,21 @@ actor FundStore {
         applyCompleteProtection(to: tsvURL)
     }
 
+    /// Append a logical multi-fund transaction (for example, a primary entry and
+    /// its cash-fund counterpart) in one non-suspending actor operation. Validate
+    /// every destination before writing the first row so another mutation cannot
+    /// interleave between members of the batch.
+    func appendEntries(_ writes: [(fundId: String, entry: FundEntry)]) throws {
+        for write in writes {
+            try requireSafeFundID(write.fundId)
+        }
+        for write in writes {
+            try appendEntry(fundId: write.fundId, entry: write.entry)
+        }
+    }
+
     func replaceEntries(fundId: String, entries: [FundEntry]) throws {
+        try requireSafeFundID(fundId)
         let tsvURL = fundsDirectory.appendingPathComponent("\(fundId).tsv")
         guard fileManager.fileExists(atPath: tsvURL.path) else { return }
         let tsv = buildTSV(entries)
@@ -515,6 +666,7 @@ actor FundStore {
     /// to gate any in-memory state that "shadows" the on-disk config.
     @discardableResult
     func updateConfig(fundId: String, config: FundConfig) throws -> Bool {
+        try requireSafeFundID(fundId)
         let configURL = fundsDirectory.appendingPathComponent("\(fundId).json")
         guard fileManager.fileExists(atPath: configURL.path) else { return false }
 
@@ -544,6 +696,7 @@ actor FundStore {
     /// recompute can race writeFund).
     @discardableResult
     func updateHistoryCache(fundId: String, cache: FundHistoryCache?) throws -> Bool {
+        try requireSafeFundID(fundId)
         let configURL = fundsDirectory.appendingPathComponent("\(fundId).json")
         guard fileManager.fileExists(atPath: configURL.path) else { return false }
 
@@ -557,6 +710,7 @@ actor FundStore {
     }
 
     func deleteFund(id: String) throws {
+        try requireSafeFundID(id)
         try deleteFundFiles(id: id, in: fundsDirectory)
         if isICloud, let localFunds = localFundsDirectory(), localFunds != fundsDirectory {
             try deleteFundFiles(id: id, in: localFunds)
@@ -590,6 +744,7 @@ actor FundStore {
     }
 
     private func deleteFundFiles(id: String, in directory: URL) throws {
+        try requireSafeFundID(id)
         let tsvURL = directory.appendingPathComponent("\(id).tsv")
         let configURL = directory.appendingPathComponent("\(id).json")
         if fileManager.fileExists(atPath: tsvURL.path) {
@@ -697,21 +852,30 @@ actor FundStore {
 
         for tsvFile in tsvFiles {
             let baseName = tsvFile.deletingPathExtension().lastPathComponent
+            guard Self.isSafeFundID(baseName) else {
+                Self.logger.warning("skipping directory import with unsafe id: \(baseName, privacy: .private)")
+                continue
+            }
             let jsonFile = sourceDir.appendingPathComponent("\(baseName).json")
             guard fm.fileExists(atPath: jsonFile.path) else { continue }
-
-            let destTSV = fundsDirectory.appendingPathComponent("\(baseName).tsv")
-            let destJSON = fundsDirectory.appendingPathComponent("\(baseName).json")
-
-            // Remove existing if present
-            try? fm.removeItem(at: destTSV)
-            try? fm.removeItem(at: destJSON)
-
-            try fm.copyItem(at: tsvFile, to: destTSV)
-            try fm.copyItem(at: jsonFile, to: destJSON)
-            imported += 1
+            do {
+                let configData = try Data(contentsOf: jsonFile)
+                let tsvData = try Data(contentsOf: tsvFile)
+                // Do not let a mismatched persisted identifier redirect this pair.
+                let config = try JSONDecoder().decode(FundConfig.self, from: configData)
+                if let persistedID = config.fund_id, !persistedID.isEmpty,
+                   persistedID != baseName || !Self.isSafeFundID(persistedID) {
+                    throw NSError(domain: "FundStore", code: 6, userInfo: [NSLocalizedDescriptionKey: "Directory import ID does not match file name"])
+                }
+                try replaceFundPair(id: baseName, configData: configData, tsvData: tsvData)
+                imported += 1
+            } catch {
+                Self.logger.warning("skipping directory fund '\(baseName, privacy: .private)': \(error.localizedDescription, privacy: .public)")
+            }
         }
-
+        guard imported > 0 else {
+            throw NSError(domain: "FundStore", code: 7, userInfo: [NSLocalizedDescriptionKey: "No usable fund pairs found in import directory"])
+        }
         return imported
     }
 
@@ -732,63 +896,116 @@ actor FundStore {
         }
     }
 
-    func importFromBackupJSON(_ jsonURL: URL) throws -> Int {
-        // Ensure funds directory exists
-        try? fileManager.createDirectory(at: fundsDirectory, withIntermediateDirectories: true)
+    private struct StagedBackupFund {
+        let id: String
+        let configData: Data
+        let tsvData: Data
+    }
 
-        let data = try Data(contentsOf: jsonURL)
-        let backup = try Self.decodeBackup(data)
-
-        let safeFundIdPattern = /^[a-zA-Z0-9._-]+$/
-        var imported = 0
+    /// Decode and semantically validate the complete import set before writing a
+    /// single live file. A syntactically valid backup containing only demo/unsafe
+    /// funds is not a usable restore and must never trigger a destructive replace.
+    private func stageBackupFunds(from jsonURL: URL) throws -> [StagedBackupFund] {
+        let backup = try Self.decodeBackup(Data(contentsOf: jsonURL))
+        var staged: [StagedBackupFund] = []
+        var seen = Set<String>()
         for fund in backup.funds {
-            let id = fund.id
-            let platform = fund.platform
-            let ticker = fund.ticker
+            guard Self.isSafeFundID(fund.id), !isTestPlatform(fund.platform) else { continue }
+            guard !fund.platform.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  !fund.ticker.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  seen.insert(fund.id).inserted else { continue }
+            var config = fund.config
+            config.fund_id = fund.id
+            config.platform = fund.platform
+            config.ticker = fund.ticker
+            let configData = try JSONEncoder.pretty.encode(config)
+            let tsvData = Data(buildTSV(fund.entries).utf8)
+            // Decode and parse now, while no live data has been touched.
+            _ = try JSONDecoder().decode(FundConfig.self, from: configData)
+            _ = parseTSV(String(decoding: tsvData, as: UTF8.self))
+            staged.append(StagedBackupFund(id: fund.id, configData: configData, tsvData: tsvData))
+        }
+        guard !staged.isEmpty else {
+            throw NSError(domain: "FundStore", code: 8, userInfo: [NSLocalizedDescriptionKey: "Backup contains no usable funds"])
+        }
+        return staged
+    }
 
-            // Validate fund ID contains only safe characters for file paths
-            guard id.wholeMatch(of: safeFundIdPattern) != nil else {
-                Self.logger.warning("skipping fund with unsafe id: \(id, privacy: .private)")
-                continue
-            }
+    func importFromBackupJSON(_ jsonURL: URL) throws -> Int {
+        try fileManager.createDirectory(at: fundsDirectory, withIntermediateDirectories: true)
+        let staged = try stageBackupFunds(from: jsonURL)
+        for fund in staged {
+            try replaceFundPair(id: fund.id, configData: fund.configData, tsvData: fund.tsvData)
+        }
+        return staged.count
+    }
 
-            // Skip test/demo funds
-            if isTestPlatform(platform) {
-                continue
-            }
-
-            let configURL = fundsDirectory.appendingPathComponent("\(id).json")
-            let tsvURL = fundsDirectory.appendingPathComponent("\(id).tsv")
-
-            do {
-                // Stamp the on-disk identity metadata (the `__`-prefixed keys) from the
-                // top-level fund fields, which are authoritative for filenames/lookups.
-                var configWithMeta = fund.config
-                configWithMeta.fund_id = id
-                configWithMeta.platform = platform
-                configWithMeta.ticker = ticker
-
-                let configData = try JSONEncoder.pretty.encode(configWithMeta)
-                try configData.write(to: configURL, options: .atomic)
-                applyCompleteProtection(to: configURL)
-
-                let tsv = buildTSV(fund.entries)
-                try tsv.write(to: tsvURL, atomically: true, encoding: .utf8)
-                applyCompleteProtection(to: tsvURL)
-                imported += 1
-            } catch {
-                // Roll back partial state: if the config write succeeded but the TSV
-                // write (or any later step) failed, an orphan .json would be left on
-                // disk, presenting as a ghost fund with no entries. Remove both files
-                // so the user sees a clean "N of M imported" count.
-                try? fileManager.removeItem(at: configURL)
-                try? fileManager.removeItem(at: tsvURL)
-                Self.logger.warning("skipping fund '\(id, privacy: .private)' during backup import: \(error.localizedDescription, privacy: .public)")
-                continue
-            }
+    /// Replace all current funds only after the full backup has been decoded and
+    /// staged. The old directory is retained until every staged pair has moved into
+    /// place, and is restored on any error.
+    func replaceAllFundsFromBackupJSON(_ jsonURL: URL) throws -> Int {
+        let staged = try stageBackupFunds(from: jsonURL)
+        let parent = fundsDirectory.deletingLastPathComponent()
+        let transactionID = UUID().uuidString
+        let stagingDirectory = parent.appendingPathComponent(".fund-import-\(transactionID)")
+        let rollbackDirectory = parent.appendingPathComponent(".fund-rollback-\(transactionID)")
+        try fileManager.createDirectory(at: stagingDirectory, withIntermediateDirectories: true)
+        defer {
+            try? fileManager.removeItem(at: stagingDirectory)
+        }
+        for fund in staged {
+            let configURL = stagingDirectory.appendingPathComponent("\(fund.id).json")
+            let tsvURL = stagingDirectory.appendingPathComponent("\(fund.id).tsv")
+            try fund.configData.write(to: configURL, options: .atomic)
+            try fund.tsvData.write(to: tsvURL, options: .atomic)
+            _ = try JSONDecoder().decode(FundConfig.self, from: Data(contentsOf: configURL))
+            _ = parseTSV(try String(contentsOf: tsvURL, encoding: .utf8))
         }
 
-        return imported
+        let hadLiveDirectory = fileManager.fileExists(atPath: fundsDirectory.path)
+        var movedLiveToRollback = false
+        do {
+            if hadLiveDirectory {
+                try fileManager.moveItem(at: fundsDirectory, to: rollbackDirectory)
+                movedLiveToRollback = true
+            }
+            try fileManager.moveItem(at: stagingDirectory, to: fundsDirectory)
+        } catch let commitError {
+            guard movedLiveToRollback else { throw commitError }
+            do {
+                guard !fileManager.fileExists(atPath: fundsDirectory.path) else {
+                    throw NSError(
+                        domain: "FundStore",
+                        code: 9,
+                        userInfo: [NSLocalizedDescriptionKey: "Replacement path unexpectedly exists"]
+                    )
+                }
+                try fileManager.moveItem(at: rollbackDirectory, to: fundsDirectory)
+            } catch let restoreError {
+                // Never clean up rollback here: it may be the only intact copy.
+                throw NSError(
+                    domain: "FundStore",
+                    code: 9,
+                    userInfo: [NSLocalizedDescriptionKey:
+                        "Fund replacement failed (\(commitError.localizedDescription)) and restoration failed (\(restoreError.localizedDescription)). Recovery data remains at \(rollbackDirectory.path)"
+                    ]
+                )
+            }
+            throw commitError
+        }
+        for fund in staged {
+            applyCompleteProtection(to: fundsDirectory.appendingPathComponent("\(fund.id).json"))
+            applyCompleteProtection(to: fundsDirectory.appendingPathComponent("\(fund.id).tsv"))
+        }
+        // The new directory is fully committed. Only now is the rollback copy obsolete.
+        if fileManager.fileExists(atPath: rollbackDirectory.path) {
+            do {
+                try fileManager.removeItem(at: rollbackDirectory)
+            } catch {
+                Self.logger.warning("committed fund rollback cleanup failed at \(rollbackDirectory.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        return staged.count
     }
 
     func exportToDirectory(_ destDir: URL) throws -> Int {
@@ -876,6 +1093,7 @@ actor FundStore {
     /// Create a timestamped backup of a single fund before a destructive operation.
     /// Returns the backup directory URL for the toast message.
     func backupFund(id: String) throws -> URL {
+        try requireSafeFundID(id)
         let fm = fileManager
         let backupDir = fundsDirectory.deletingLastPathComponent().appendingPathComponent("backups")
         try fm.createDirectory(at: backupDir, withIntermediateDirectories: true)
