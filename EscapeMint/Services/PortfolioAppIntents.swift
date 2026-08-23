@@ -18,6 +18,18 @@ private func loadSnapshot() -> WidgetSnapshot? {
     WidgetDataProvider.readSnapshot()
 }
 
+let lockedPortfolioMessage = "EscapeMint is locked. Open the app and authenticate to view your portfolio."
+
+func portfolioResponse(
+    isExternalPortfolioLocked: Bool = WidgetDataProvider.externalPortfolioAccessIsLocked,
+    _ summary: (WidgetSnapshot?) -> String
+) -> String {
+    guard !isExternalPortfolioLocked else {
+        return lockedPortfolioMessage
+    }
+    return summary(loadSnapshot())
+}
+
 /// "What's my portfolio value?"
 struct PortfolioValueIntent: AppIntent {
     static let title: LocalizedStringResource = "Portfolio Value"
@@ -28,7 +40,7 @@ struct PortfolioValueIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
-        let phrase = PortfolioVoiceSummary.portfolioValue(loadSnapshot())
+        let phrase = portfolioResponse(PortfolioVoiceSummary.portfolioValue)
         return .result(
             dialog: IntentDialog(stringLiteral: phrase),
             view: IntentSnippetView(headline: "Portfolio Value", message: phrase)
@@ -46,7 +58,7 @@ struct TopPerformerIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
-        let phrase = PortfolioVoiceSummary.topPerformer(loadSnapshot())
+        let phrase = portfolioResponse(PortfolioVoiceSummary.topPerformer)
         return .result(
             dialog: IntentDialog(stringLiteral: phrase),
             view: IntentSnippetView(headline: "Top Performer", message: phrase)
@@ -64,7 +76,7 @@ struct MorningSummaryIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
-        let phrase = PortfolioVoiceSummary.morningSummary(loadSnapshot())
+        let phrase = portfolioResponse(PortfolioVoiceSummary.morningSummary)
         return .result(
             dialog: IntentDialog(stringLiteral: phrase),
             view: IntentSnippetView(headline: "Morning Summary", message: phrase)

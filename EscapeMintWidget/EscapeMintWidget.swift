@@ -23,13 +23,18 @@ struct EscapeMintTimelineProvider: TimelineProvider {
         return PortfolioEntry(snapshot: snapshot)
     }
 
-    // Must match WidgetDataProvider.appGroupId and .snapshotFileName in main app
-    private static let appGroupId = "group.net.shadowpuppet.EscapeMint"
-    private static let snapshotFileName = "widget-snapshot.json"
-
     private func readSnapshot() -> WidgetSnapshot? {
-        guard let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupId) else { return nil }
-        guard let data = try? Data(contentsOf: url.appendingPathComponent(Self.snapshotFileName)) else { return nil }
+        guard let defaults = UserDefaults(suiteName: WidgetSharedStorage.appGroupId),
+              let locked = defaults.object(forKey: WidgetSharedStorage.externalPortfolioLockedKey) as? Bool,
+              !locked else {
+            // Missing App Group state fails closed: a legacy snapshot must never
+            // become readable merely because the authorization flag disappeared.
+            return nil
+        }
+        guard let url = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: WidgetSharedStorage.appGroupId
+        ) else { return nil }
+        guard let data = try? Data(contentsOf: url.appendingPathComponent(WidgetSharedStorage.snapshotFileName)) else { return nil }
         return try? JSONDecoder().decode(WidgetSnapshot.self, from: data)
     }
 }

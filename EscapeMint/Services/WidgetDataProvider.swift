@@ -9,13 +9,47 @@ import WidgetKit
 final class WidgetDataProvider {
     static let shared = WidgetDataProvider()
     private static let logger = Logger(subsystem: "net.shadowpuppet.EscapeMint", category: "WidgetData")
-    nonisolated static let appGroupId = "group.net.shadowpuppet.EscapeMint"
-    nonisolated static let snapshotFileName = "widget-snapshot.json"
+    nonisolated static let appGroupId = WidgetSharedStorage.appGroupId
+    nonisolated static let snapshotFileName = WidgetSharedStorage.snapshotFileName
 
     private init() {}
 
+    /// The App Group is a cross-process boundary: a standard `UserDefaults`
+    /// value (and the Keychain-backed biometric setting) cannot be relied upon
+    /// by the widget or an App Intent. Missing state therefore fails closed so
+    /// an older sensitive snapshot is never treated as authorized.
+    nonisolated static var externalPortfolioAccessIsLocked: Bool {
+        guard let defaults = UserDefaults(suiteName: appGroupId),
+              let locked = defaults.object(forKey: WidgetSharedStorage.externalPortfolioLockedKey) as? Bool else {
+            return true
+        }
+        return locked
+    }
+
+    /// Revokes or grants extension access. When access is revoked the existing
+    /// snapshot is removed immediately, rather than waiting for a recompute, so
+    /// a widget cannot continue rendering stale portfolio values after lock.
+    func setExternalPortfolioAccessLocked(_ locked: Bool) {
+        guard let defaults = UserDefaults(suiteName: Self.appGroupId) else {
+            Self.logger.error("App Group defaults unavailable — leaving external portfolio access locked")
+            return
+        }
+        defaults.set(locked, forKey: WidgetSharedStorage.externalPortfolioLockedKey)
+
+        if locked {
+            removeSnapshot()
+        }
+    }
+
     /// Write current portfolio state to the shared container
     func updateSnapshot() {
+        guard !Self.externalPortfolioAccessIsLocked else {
+            // Never leave an old value-bearing file behind while a biometric
+            // lock is active. This also reloads widgets to their empty state.
+            removeSnapshot()
+            return
+        }
+
         guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupId) else {
             Self.logger.error("⚠️ App Group container unavailable — widget data cannot be shared")
             return
@@ -78,6 +112,33 @@ final class WidgetDataProvider {
         }
     }
 
+    private func removeSnapshot() {
+        guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupId) else {
+            return
+        }
+
+        let fileURL = containerURL.appendingPathComponent(Self.snapshotFileName)
+        do {
+            if FileManager.default.fileExists(atPath: fileURL.path) {
+                try FileManager.default.removeItem(at: fileURL)
+            }
+        } catch {
+            Self.logger.error("Failed to remove protected widget snapshot: \(error.localizedDescription)")
+            // If removal was rejected, replace the file with an intentionally
+            // undecodable payload. The widget then enters its no-data state
+            // instead of rendering the prior value-bearing snapshot.
+            do {
+                try Data().write(to: fileURL, options: .atomic)
+            } catch {
+                Self.logger.error("Failed to redact protected widget snapshot: \(error.localizedDescription)")
+            }
+        }
+
+        #if canImport(WidgetKit)
+        WidgetCenter.shared.reloadAllTimelines()
+        #endif
+    }
+
     /// Read snapshot from the shared container (called by the widget and by the
     /// App Intents). Resolves the real App Group container URL, then delegates to
     /// the directory-injectable overload below so tests can seed and assert a read.
@@ -85,17 +146,28 @@ final class WidgetDataProvider {
     /// filesystem — no MainActor state — so intents running off the main actor
     /// (and in a separate process) can read it without a hop.
     nonisolated static func readSnapshot() -> WidgetSnapshot? {
+        guard !externalPortfolioAccessIsLocked else { return nil }
         guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) else {
             return nil
         }
-        return readSnapshot(from: containerURL)
+        return readSnapshot(from: containerURL, externalAccessIsLocked: false)
     }
 
     /// Decode the snapshot stored in `containerURL` (the App Group container in
     /// production). Factored out so tests can point at a temp directory, seed a
     /// known `widget-snapshot.json`, and assert the decoded result — production
-    /// behavior is unchanged because `readSnapshot()` passes the real container.
+    /// behavior uses the App Group access state before decoding the real container.
     nonisolated static func readSnapshot(from containerURL: URL) -> WidgetSnapshot? {
+        readSnapshot(from: containerURL, externalAccessIsLocked: externalPortfolioAccessIsLocked)
+    }
+
+    /// Directory- and access-state-injectable variant used to prove that a
+    /// locked extension never decodes a previously written sensitive file.
+    nonisolated static func readSnapshot(
+        from containerURL: URL,
+        externalAccessIsLocked: Bool
+    ) -> WidgetSnapshot? {
+        guard !externalAccessIsLocked else { return nil }
         let fileURL = containerURL.appendingPathComponent(snapshotFileName)
         return decodeJSONFile(fileURL, as: WidgetSnapshot.self)
     }
