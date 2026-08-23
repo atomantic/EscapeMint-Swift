@@ -71,7 +71,11 @@ final class SpotlightIndexer: Sendable {
     }
 
     func deindexFund(id: String) {
-        index.deleteSearchableItems(withIdentifiers: [id]) { _ in }
+        index.deleteSearchableItems(withIdentifiers: [id]) { error in
+            if let error {
+                Self.logger.error("Spotlight deindex failed: \(error.localizedDescription)")
+            }
+        }
     }
 
     private func buildDescription(_ fund: FundData) -> String {
