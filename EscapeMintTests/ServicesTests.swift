@@ -1,5 +1,6 @@
 import XCTest
 import CoreSpotlight
+import LocalAuthentication
 @testable import EscapeMint
 
 /// Records the items/identifiers handed to Spotlight so tests can assert the
@@ -27,6 +28,39 @@ final class SpySearchableIndex: SearchableIndexing, @unchecked Sendable {
     func deleteSearchableItems(withIdentifiers identifiers: [String], completionHandler: (@Sendable (Error?) -> Void)?) {
         lock.withLock { _deletedIdentifiers.append(contentsOf: identifiers) }
         completionHandler?(nil)
+    }
+}
+
+/// Suspends evaluation until the test explicitly completes it. This models the
+/// system prompt returning success after the app has been backgrounded.
+@MainActor
+private final class DeferredAuthenticationContext: AuthenticationContext {
+    let biometryType: LABiometryType = .none
+    private(set) var wasInvalidated = false
+    private var continuation: CheckedContinuation<Void, Error>?
+
+    func canEvaluateBiometrics() -> Bool { false }
+
+    func evaluatePolicy(_ policy: LAPolicy, localizedReason: String) async throws {
+        try await withCheckedThrowingContinuation { continuation = $0 }
+    }
+
+    func invalidate() {
+        wasInvalidated = true
+    }
+
+    func succeed() {
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
+@MainActor
+private final class DeferredAuthenticationContextFactory: AuthenticationContextFactory {
+    let context = DeferredAuthenticationContext()
+
+    func makeContext() -> any AuthenticationContext {
+        context
     }
 }
 
@@ -67,6 +101,26 @@ final class ServicesTests: XCTestCase {
         let name = auth.biometryName
         // Should return a non-empty string regardless of hardware
         XCTAssertFalse(name.isEmpty, "biometryName should not be empty")
+    }
+
+    @MainActor
+    func testAuthManagerLockInvalidatesContextAndRejectsLateSuccess() async {
+        let factory = DeferredAuthenticationContextFactory()
+        let auth = AuthManager(isEnabled: true, contextFactory: factory)
+
+        auth.authenticate()
+        await Task.yield()
+        XCTAssertTrue(auth.isEvaluating)
+
+        auth.lock()
+        XCTAssertTrue(factory.context.wasInvalidated, "Lock must invalidate the active LAContext")
+        XCTAssertFalse(auth.isUnlocked)
+
+        // Simulate a platform callback that reports success after cancellation.
+        factory.context.succeed()
+        await Task.yield()
+        XCTAssertFalse(auth.isUnlocked, "A late authentication success must not unlock a backgrounded app")
+        XCTAssertFalse(auth.isEvaluating)
     }
 
     // MARK: - DCANotificationManager
@@ -490,7 +544,7 @@ final class ServicesTests: XCTestCase {
         let fileURL = dir.appendingPathComponent(WidgetDataProvider.snapshotFileName)
         try JSONEncoder().encode(seeded).write(to: fileURL)
 
-        let read = try XCTUnwrap(WidgetDataProvider.readSnapshot(from: dir),
+        let read = try XCTUnwrap(WidgetDataProvider.readSnapshot(from: dir, externalAccessIsLocked: false),
                                  "Seeded snapshot must be read back from the injected directory")
         XCTAssertEqual(read.totalValue, 4242.42, accuracy: 0.001)
         XCTAssertEqual(read.actionableCount, 1)
@@ -508,7 +562,7 @@ final class ServicesTests: XCTestCase {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
 
-        XCTAssertNil(WidgetDataProvider.readSnapshot(from: dir),
+        XCTAssertNil(WidgetDataProvider.readSnapshot(from: dir, externalAccessIsLocked: false),
                      "No snapshot file → nil, no crash")
     }
 
@@ -524,8 +578,28 @@ final class ServicesTests: XCTestCase {
         let fileURL = dir.appendingPathComponent(WidgetDataProvider.snapshotFileName)
         try Data("{\"not\":\"a snapshot\"}".utf8).write(to: fileURL)
 
-        XCTAssertNil(WidgetDataProvider.readSnapshot(from: dir),
+        XCTAssertNil(WidgetDataProvider.readSnapshot(from: dir, externalAccessIsLocked: false),
                      "Undecodable snapshot → nil, no crash")
+    }
+
+    func testReadSnapshotFromDirectoryRejectsSensitiveDataWhenExternalAccessLocked() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("widget-seam-locked-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let seeded = WidgetSnapshot(
+            totalValue: 4242.42, totalGainUsd: 424.24, totalGainPct: 11.1,
+            activeFunds: 2, actionableCount: 1, topFunds: [], updatedAt: Date()
+        )
+        let fileURL = dir.appendingPathComponent(WidgetDataProvider.snapshotFileName)
+        try JSONEncoder().encode(seeded).write(to: fileURL)
+
+        XCTAssertNil(
+            WidgetDataProvider.readSnapshot(from: dir, externalAccessIsLocked: true),
+            "A lock must hide even a previously written snapshot rather than returning stale values"
+        )
+        XCTAssertNotNil(WidgetDataProvider.readSnapshot(from: dir, externalAccessIsLocked: false))
     }
 
     /// Decoding must reject malformed snapshot data without crashing — the actual

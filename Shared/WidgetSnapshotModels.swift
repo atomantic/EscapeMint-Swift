@@ -1,5 +1,14 @@
 import Foundation
 
+/// App Group identifiers shared by the main app and widget extension. Keep the
+/// access-state key here so the extension can fail closed without depending on
+/// main-target-only `AppStorageKeys`.
+enum WidgetSharedStorage {
+    static let appGroupId = "group.net.shadowpuppet.EscapeMint"
+    static let snapshotFileName = "widget-snapshot.json"
+    static let externalPortfolioLockedKey = "escapemint-external-portfolio-locked"
+}
+
 // MARK: - Shared Widget Snapshot Models
 //
 // Single source of truth for the data written by WidgetDataProvider (main app)

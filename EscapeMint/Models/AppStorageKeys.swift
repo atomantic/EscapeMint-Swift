@@ -5,6 +5,11 @@ enum AppStorageKeys {
     static let showIntroOnLaunch = "escapemint-show-intro-on-launch"
     static let advancedTools = "escapemint-advanced-tools"
     static let biometricAuth = "escapemint-biometric-auth"
+    /// Stored in the App Group defaults so widgets and App Intents can safely
+    /// decide whether the shared portfolio snapshot may be read. This is
+    /// deliberately separate from `biometricAuth`, which lives in Keychain and
+    /// is not an extension-safe cross-process signal.
+    static let externalPortfolioLocked = "escapemint-external-portfolio-locked"
     static let dcaNotifications = "escapemint-dca-notifications"
     static let appearanceMode = "appearanceMode"
     static let sidebarCollapsed = "escapemint-sidebar-collapsed"
