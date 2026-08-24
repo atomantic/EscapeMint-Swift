@@ -695,6 +695,51 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(getLatestValue([]), 0)
     }
 
+    // MARK: - New Entry Equity Prefill
+
+    func testPrefilledEquityValueResetsAfterValueBasedExit() {
+        let entries = [
+            FundEntry(date: "2025-01-01", value: 1000, action: .BUY, amount: 1000),
+            FundEntry(date: "2025-02-01", value: 1250, action: .SELL, amount: 1250)
+        ]
+
+        XCTAssertEqual(prefilledEquityValue(for: entries), 0)
+    }
+
+    func testPrefilledEquityValueResetsAfterShareBasedExit() {
+        let entries = [
+            FundEntry(date: "2025-01-01", value: 1000, action: .BUY, amount: 1000, shares: 10),
+            // The sell amount differs from the recorded equity, but all shares are sold.
+            FundEntry(date: "2025-02-01", value: 1200, action: .SELL, amount: 1100, shares: 10)
+        ]
+
+        XCTAssertEqual(prefilledEquityValue(for: entries), 0)
+    }
+
+    func testPrefilledEquityValueHonorsGuidedExitMarker() {
+        let entries = [
+            FundEntry(date: "2025-01-01", value: 1000, action: .BUY, amount: 1000),
+            FundEntry(
+                date: "2025-02-01",
+                value: 1200,
+                action: .SELL,
+                amount: 1100,
+                notes: "Exited position | Market slippage"
+            )
+        ]
+
+        XCTAssertEqual(prefilledEquityValue(for: entries), 0)
+    }
+
+    func testPrefilledEquityValueCarriesForwardAfterPartialSell() {
+        let entries = [
+            FundEntry(date: "2025-01-01", value: 1000, action: .BUY, amount: 1000, shares: 10),
+            FundEntry(date: "2025-02-01", value: 1200, action: .SELL, amount: 200, shares: 2)
+        ]
+
+        XCTAssertEqual(prefilledEquityValue(for: entries), 1200, accuracy: 0.01)
+    }
+
     func testGetFundStartDate() {
         let entries = [
             FundEntry(date: "2025-03-01", value: 300),

@@ -15,6 +15,38 @@ extension Array where Element == FundEntry {
     }
 }
 
+// MARK: - New Entry Defaults
+
+/// Return the equity value to seed a new trading entry.
+///
+/// Trading-entry values are recorded before the action is applied, so the last
+/// row still contains the pre-sale equity after a full exit. In that case the
+/// next position starts at zero. Partial sells continue to carry forward the
+/// last recorded value, matching the existing entry form behavior.
+func prefilledEquityValue(for entries: [FundEntry]) -> Double {
+    guard let latest = entries.last else { return 0 }
+    guard latest.action == .SELL else { return latest.value }
+
+    let remainingShares = entries.reduce(0.0) { balance, entry in
+        guard let shares = entry.shares else { return balance }
+        switch entry.action {
+        case .BUY: return balance + abs(shares)
+        case .SELL: return balance - abs(shares)
+        default: return balance
+        }
+    }
+    let amount = latest.amount ?? 0
+    let wasFullExit = latest.notes?.contains("Exited position") == true
+        || isShareOrValueLiquidation(
+            shares: latest.shares,
+            remainingShares: remainingShares,
+            value: latest.value,
+            amount: amount
+        )
+
+    return wasFullExit ? 0 : latest.value
+}
+
 // MARK: - Cumulative Shares
 
 /// Compute cumulative shares from entries before a given date
