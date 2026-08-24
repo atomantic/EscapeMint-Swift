@@ -731,6 +731,27 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(prefilledEquityValue(for: entries), 0)
     }
 
+    func testPrefilledEquityValueResetsSharesBetweenPositionCycles() {
+        let entries = [
+            FundEntry(date: "2025-01-01", value: 1000, action: .BUY, amount: 1000, shares: 10),
+            // Value-based exit has no share count, so the running position must still reset.
+            FundEntry(date: "2025-02-01", value: 1200, action: .SELL, amount: 1200),
+            FundEntry(date: "2025-03-01", value: 500, action: .BUY, amount: 500, shares: 5),
+            FundEntry(date: "2025-04-01", value: 600, action: .SELL, amount: 500, shares: 5)
+        ]
+
+        XCTAssertEqual(prefilledEquityValue(for: entries), 0)
+    }
+
+    func testCumulativeSharesForNewEntryIncludesSameDayExit() {
+        let entries = [
+            FundEntry(date: "2025-01-01", value: 1000, action: .BUY, amount: 1000, shares: 10),
+            FundEntry(date: "2025-02-01", value: 1200, action: .SELL, amount: 1100, shares: 10)
+        ]
+
+        XCTAssertEqual(cumulativeSharesForNewEntry(entries: entries, on: "2025-02-01"), 0)
+    }
+
     func testPrefilledEquityValueCarriesForwardAfterPartialSell() {
         let entries = [
             FundEntry(date: "2025-01-01", value: 1000, action: .BUY, amount: 1000, shares: 10),

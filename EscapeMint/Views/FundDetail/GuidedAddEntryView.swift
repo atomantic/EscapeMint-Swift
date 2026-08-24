@@ -75,10 +75,13 @@ struct GuidedAddEntryView: View {
         return preliminaryDcaAmount / s
     }
 
-    /// Cumulative shares the user held BEFORE today, for equity derivation.
+    /// Cumulative shares held before this new entry, including recorded same-day actions.
     private var cumulativeSharesHeld: Double {
         guard let fund else { return 0 }
-        return getCumulativeShares(entries: fund.entries, beforeDate: isoDateFormatter.string(from: date))
+        return cumulativeSharesForNewEntry(
+            entries: fund.entries,
+            on: isoDateFormatter.string(from: date)
+        )
     }
 
     /// Single source of truth for "this entry fully closes the position."
