@@ -75,10 +75,13 @@ struct GuidedAddEntryView: View {
         return preliminaryDcaAmount / s
     }
 
-    /// Cumulative shares the user held BEFORE today, for equity derivation.
+    /// Cumulative shares held before this new entry, including recorded same-day actions.
     private var cumulativeSharesHeld: Double {
         guard let fund else { return 0 }
-        return getCumulativeShares(entries: fund.entries, beforeDate: isoDateFormatter.string(from: date))
+        return cumulativeSharesForNewEntry(
+            entries: fund.entries,
+            on: isoDateFormatter.string(from: date)
+        )
     }
 
     /// Single source of truth for "this entry fully closes the position."
@@ -256,7 +259,7 @@ struct GuidedAddEntryView: View {
         switch fund.config.effectiveEquityInput {
         case .direct:
             if enteredEquity.isEmpty {
-                let lastValue = fund.entries.last?.value ?? 0
+                let lastValue = prefilledEquityValue(for: fund.entries)
                 enteredEquity = String(format: "%.\(fund.config.dollarDec)f", lastValue)
             }
         case .shares_price:
@@ -280,7 +283,7 @@ struct GuidedAddEntryView: View {
     /// Picks a sensible $ reference amount for the step-1 shares-at-DCA question.
     /// Prefers the computed preliminary recommendation amount; falls back to config's mid DCA.
     private func preliminaryDcaReference(fund: FundData) -> Double {
-        let last = fund.entries.last?.value ?? 0
+        let last = prefilledEquityValue(for: fund.entries)
         if let rec = recommendationForLiveEquity(fund: fund, currentEquity: last), rec.amount > 0 {
             return rec.amount
         }

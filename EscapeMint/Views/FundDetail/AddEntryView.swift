@@ -178,27 +178,19 @@ struct AddEntryView: View {
                     if let last = existingEntries.last {
                         value = String(format: "%.2f", last.cash ?? last.value)
                     }
-                } else if let rec = recommendation {
-                    action = rec.action
-                    if rec.amount > 0 {
-                        amount = String(format: "%.2f", rec.amount)
-                    }
-                    // Default equity to last entry's value, or 0 for new funds
-                    if value.isEmpty {
-                        if let last = existingEntries.last {
-                            value = String(format: "%.2f", last.value)
-                        } else {
-                            value = "0.00"
-                        }
-                    }
                 } else {
-                    action = .BUY
-                    if value.isEmpty {
-                        if let last = existingEntries.last {
-                            value = String(format: "%.2f", last.value)
-                        } else {
-                            value = "0.00"
+                    if let rec = recommendation {
+                        action = rec.action
+                        if rec.amount > 0 {
+                            amount = String(format: "%.2f", rec.amount)
                         }
+                    } else {
+                        action = .BUY
+                    }
+                    // A full exit leaves no equity for the next position; otherwise
+                    // carry forward the last recorded pre-action equity.
+                    if value.isEmpty {
+                        value = String(format: "%.2f", prefilledEquityValue(for: existingEntries))
                     }
                 }
             }

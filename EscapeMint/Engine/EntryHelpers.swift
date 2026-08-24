@@ -15,6 +15,83 @@ extension Array where Element == FundEntry {
     }
 }
 
+// MARK: - New Entry Defaults
+
+/// Preserve append order for same-day entries while matching the engine's
+/// chronological walk for entries on different dates.
+private func entriesInActionOrder(_ entries: [FundEntry]) -> [FundEntry] {
+    entries.enumerated()
+        .sorted {
+            if $0.element.date != $1.element.date {
+                return $0.element.date < $1.element.date
+            }
+            return $0.offset < $1.offset
+        }
+        .map(\.element)
+}
+
+private func shareBalance(after entry: FundEntry, current: Double) -> Double {
+    guard let shares = entry.shares else { return current }
+    switch entry.action {
+    case .BUY: return current + abs(shares)
+    case .SELL: return current - abs(shares)
+    default: return current
+    }
+}
+
+private func isMarkedFullExit(_ entry: FundEntry, remainingShares: Double) -> Bool {
+    guard entry.action == .SELL else { return false }
+    return entry.notes?.contains("Exited position") == true
+        || isShareOrValueLiquidation(
+            shares: entry.shares,
+            remainingShares: remainingShares,
+            value: entry.value,
+            amount: entry.amount ?? 0
+        )
+}
+
+/// Return the equity value to seed a new trading entry.
+///
+/// Trading-entry values are recorded before the action is applied, so the last
+/// row still contains the pre-sale equity after a full exit. In that case the
+/// next position starts at zero. Partial sells continue to carry forward the
+/// last recorded value, matching the existing entry form behavior.
+func prefilledEquityValue(for entries: [FundEntry]) -> Double {
+    let orderedEntries = entriesInActionOrder(entries)
+    guard let latest = orderedEntries.last else { return 0 }
+    guard latest.action == .SELL else { return latest.value }
+
+    var remainingShares = 0.0
+    var latestWasFullExit = false
+    for entry in orderedEntries {
+        remainingShares = shareBalance(after: entry, current: remainingShares)
+        if entry.action == .SELL {
+            latestWasFullExit = isMarkedFullExit(entry, remainingShares: remainingShares)
+            if latestWasFullExit {
+                remainingShares = 0
+            }
+        }
+    }
+
+    return latestWasFullExit ? 0 : latest.value
+}
+
+/// Compute the position shares held before a new entry on `date`.
+///
+/// Existing entries on the selected date are already recorded actions and
+/// therefore precede the new entry appended by the form. Full exits reset the
+/// running position just as they do in the fund engine.
+func cumulativeSharesForNewEntry(entries: [FundEntry], on date: String) -> Double {
+    var shares = 0.0
+    for entry in entriesInActionOrder(entries) where entry.date <= date {
+        shares = shareBalance(after: entry, current: shares)
+        if isMarkedFullExit(entry, remainingShares: shares) {
+            shares = 0
+        }
+    }
+    return shares
+}
+
 // MARK: - Cumulative Shares
 
 /// Compute cumulative shares from entries before a given date
