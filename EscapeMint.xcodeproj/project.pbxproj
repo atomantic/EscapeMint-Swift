@@ -85,9 +85,11 @@
 		50073187F0C73B8FB20E8A96 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CF81295D6C93A9C4D22D1CC /* Formatters.swift */; };
 		5053D1A9A6AF0AC66A3DFB1B /* ChartSeries.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AE4FB89CA6A1686B8844967 /* ChartSeries.swift */; };
 		5054A9B1DC45CD5F64FE1290 /* LockScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 524A60C790216C69F3B6D153 /* LockScreenView.swift */; };
+		512AACCB5C7D1AC2C2D4CAC4 /* ICloudSyncMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E0F2FFF3CEF476A090B514E /* ICloudSyncMonitorTests.swift */; };
 		51EB3D963413A2F05AC1152C /* EntryColumns.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A1A407DBC865895E7439F3D /* EntryColumns.swift */; };
 		52CA480B96FC346E915EC772 /* CashSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B549A3BFFCFE267E268C335 /* CashSyncTests.swift */; };
 		53B861E3892CB31EF24911BF /* coinbasetest-cash.tsv in Resources */ = {isa = PBXBuildFile; fileRef = E0E8FFADDDBD64D9D18EDA3F /* coinbasetest-cash.tsv */; };
+		53C902A77544CD8BAD072FEC /* ICloudSyncMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E0F2FFF3CEF476A090B514E /* ICloudSyncMonitorTests.swift */; };
 		5556536B7023CD625296A7CD /* EscapeMintWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D069B36344092C759389B19F /* EscapeMintWidget.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		55587AFF22810DD9D1BB3D76 /* slv-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 8BE8950DBDF58E24133D5122 /* slv-weekly.json */; };
 		555BAE320CB3E158A9071351 /* FundDataStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E03E7F1021F4212250A332DB /* FundDataStoreTests.swift */; };
@@ -345,6 +347,7 @@
 		9CF81295D6C93A9C4D22D1CC /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatters.swift; sourceTree = "<group>"; };
 		9D9016C221D8B41402E543CF /* PlatformDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformDetailView.swift; sourceTree = "<group>"; };
 		9DEB29D5F7AD42857B739CEE /* EngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineTests.swift; sourceTree = "<group>"; };
+		9E0F2FFF3CEF476A090B514E /* ICloudSyncMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICloudSyncMonitorTests.swift; sourceTree = "<group>"; };
 		9EF8DB147F5CCF5962032B26 /* robinhoodtest-cash.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "robinhoodtest-cash.json"; sourceTree = "<group>"; };
 		A1CDA29D3BC058B300AC82EA /* spxl-weekly.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "spxl-weekly.json"; sourceTree = "<group>"; };
 		A93B5F48285731CDBAB58F06 /* FilePickerHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePickerHelper.swift; sourceTree = "<group>"; };
@@ -603,6 +606,7 @@
 				C188FD60BA97C16ED35355C4 /* FundDetailViewModelTests.swift */,
 				CD7045F4A08A28EE158CB394 /* FundMetricsTests.swift */,
 				534DF85FB1030ADC4B28C0D3 /* FundStoreConcurrencyTests.swift */,
+				9E0F2FFF3CEF476A090B514E /* ICloudSyncMonitorTests.swift */,
 				7C7A3006FF7A343378AAB90F /* LiveRecommendationTests.swift */,
 				8B66EEDBCE041795C1479F08 /* PortfolioTimeSeriesTests.swift */,
 				FA953739D75435BB66AB189B /* ServicesTests.swift */,
@@ -1076,6 +1080,7 @@
 				03F1DA8968EBB52E65DB3DCC /* FundDetailViewModelTests.swift in Sources */,
 				00C69901BFC3ED1EB67B856D /* FundMetricsTests.swift in Sources */,
 				215FA4880F56CE49F23FC059 /* FundStoreConcurrencyTests.swift in Sources */,
+				53C902A77544CD8BAD072FEC /* ICloudSyncMonitorTests.swift in Sources */,
 				12D7E7F4E5499B658ADDD6B6 /* LiveRecommendationTests.swift in Sources */,
 				4291B95CF899CC62176A5BF4 /* PortfolioTimeSeriesTests.swift in Sources */,
 				4F3E76F1EFDF20CB4EB1C904 /* ServicesTests.swift in Sources */,
@@ -1103,6 +1108,7 @@
 				0CBE20E39B2D1AE5E1EFDDDF /* FundDetailViewModelTests.swift in Sources */,
 				1C31C8C48EEF4758BEED3877 /* FundMetricsTests.swift in Sources */,
 				597A39332A4B8855CA429765 /* FundStoreConcurrencyTests.swift in Sources */,
+				512AACCB5C7D1AC2C2D4CAC4 /* ICloudSyncMonitorTests.swift in Sources */,
 				7E260BC7DE043F8F2DFB5CFB /* LiveRecommendationTests.swift in Sources */,
 				497A1A3BEFED53CAA2023F6C /* PortfolioTimeSeriesTests.swift in Sources */,
 				028FBE500288EC70FBD20E9A /* ServicesTests.swift in Sources */,
