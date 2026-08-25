@@ -811,34 +811,6 @@ actor FundStore {
         return imported
     }
 
-    func exportToDirectory(_ destDir: URL) throws -> Int {
-        let fm = fileManager
-        guard let files = try? fm.contentsOfDirectory(at: fundsDirectory, includingPropertiesForKeys: nil) else {
-            return 0
-        }
-
-        let tsvFiles = files.filter { $0.pathExtension == "tsv" }
-        var exported = 0
-
-        for tsvFile in tsvFiles {
-            let baseName = tsvFile.deletingPathExtension().lastPathComponent
-            let jsonFile = fundsDirectory.appendingPathComponent("\(baseName).json")
-
-            let destTSV = destDir.appendingPathComponent("\(baseName).tsv")
-            let destJSON = destDir.appendingPathComponent("\(baseName).json")
-
-            try? fm.removeItem(at: destTSV)
-            try fm.copyItem(at: tsvFile, to: destTSV)
-
-            if fm.fileExists(atPath: jsonFile.path) {
-                try? fm.removeItem(at: destJSON)
-                try fm.copyItem(at: jsonFile, to: destJSON)
-            }
-            exported += 1
-        }
-        return exported
-    }
-
     /// Export all funds to a single backup JSON file, returning its URL.
     func exportToBackupJSON() throws -> URL {
         let funds = readAllFunds()
