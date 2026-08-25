@@ -454,15 +454,33 @@ actor FundStore {
         #endif
     }
 
+    /// Return a config carrying the identity metadata required by both fund files and backups.
+    /// Keeping this transformation independent of file I/O ensures every persistence path
+    /// applies the same compatibility invariant.
+    private static func configByStampingDiskIdentity(
+        _ config: FundConfig,
+        id: String,
+        platform: String,
+        ticker: String
+    ) -> FundConfig {
+        var stamped = config
+        stamped.fund_id = id
+        stamped.platform = platform
+        stamped.ticker = ticker
+        return stamped
+    }
+
     func writeFund(_ fund: FundData) throws {
         let tsvURL = fundsDirectory.appendingPathComponent("\(fund.id).tsv")
         let configURL = fundsDirectory.appendingPathComponent("\(fund.id).json")
 
         // Write config with metadata
-        var configWithMeta = fund.config
-        configWithMeta.fund_id = fund.id
-        configWithMeta.platform = fund.platform
-        configWithMeta.ticker = fund.ticker
+        let configWithMeta = Self.configByStampingDiskIdentity(
+            fund.config,
+            id: fund.id,
+            platform: fund.platform,
+            ticker: fund.ticker
+        )
         let configData = try JSONEncoder.pretty.encode(configWithMeta)
         try configData.write(to: configURL)
 
@@ -763,10 +781,12 @@ actor FundStore {
             do {
                 // Stamp the on-disk identity metadata (the `__`-prefixed keys) from the
                 // top-level fund fields, which are authoritative for filenames/lookups.
-                var configWithMeta = fund.config
-                configWithMeta.fund_id = id
-                configWithMeta.platform = platform
-                configWithMeta.ticker = ticker
+                let configWithMeta = Self.configByStampingDiskIdentity(
+                    fund.config,
+                    id: id,
+                    platform: platform,
+                    ticker: ticker
+                )
 
                 let configData = try JSONEncoder.pretty.encode(configWithMeta)
                 try configData.write(to: configURL, options: .atomic)
@@ -826,10 +846,12 @@ actor FundStore {
         let backupFunds: [BackupFund] = funds.map { fund in
             // Stamp the `__`-prefixed identity keys onto the config so the exported
             // file mirrors the on-disk per-fund JSON the web app reads.
-            var configWithMeta = fund.config
-            configWithMeta.fund_id = fund.id
-            configWithMeta.platform = fund.platform
-            configWithMeta.ticker = fund.ticker
+            let configWithMeta = Self.configByStampingDiskIdentity(
+                fund.config,
+                id: fund.id,
+                platform: fund.platform,
+                ticker: fund.ticker
+            )
             return BackupFund(
                 id: fund.id,
                 platform: fund.platform,
