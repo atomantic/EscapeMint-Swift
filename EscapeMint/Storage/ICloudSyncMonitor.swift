@@ -125,17 +125,40 @@ final class ICloudSyncMonitor {
     /// execute back-to-back. Gate on this flag to coalesce overlaps.
     private var isReloadInFlight = false
 
+    /// Returns how long reconciliation should remain deferred after a local write.
+    /// Kept as a pure calculation so the boundary behavior can be tested without
+    /// waiting on a real metadata query or wall-clock timer.
+    static func remainingWriteSuppressionInterval(
+        lastWriteDate: Date,
+        now: Date,
+        window: TimeInterval
+    ) -> TimeInterval {
+        max(0, window - now.timeIntervalSince(lastWriteDate))
+    }
+
     private func scheduleReload() {
         debounceTask?.cancel()
         debounceTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(debounceInterval))
             guard !Task.isCancelled else { return }
 
-            // Skip if this change is likely from our own recent write
-            let sinceLastWrite = Date().timeIntervalSince(lastWriteDate)
-            guard sinceLastWrite > writeSuppressionWindow else {
-                Self.logger.info("☁️ skipping reload, local write was \(String(format: "%.1f", sinceLastWrite))s ago")
-                return
+            // A metadata notification can describe a remote change even when a local
+            // write happened recently. Defer instead of dropping the notification,
+            // and re-check after sleeping in case another local write extended the
+            // suppression window while this task was waiting.
+            while true {
+                let remaining = Self.remainingWriteSuppressionInterval(
+                    lastWriteDate: lastWriteDate,
+                    now: Date(),
+                    window: writeSuppressionWindow
+                )
+                guard remaining > 0 else { break }
+                Self.logger.info("☁️ deferring reload for \(String(format: "%.1f", remaining))s after local write")
+                do {
+                    try await Task.sleep(for: .seconds(remaining))
+                } catch {
+                    return
+                }
             }
 
             guard !isReloadInFlight else {
