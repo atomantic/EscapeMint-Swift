@@ -432,19 +432,14 @@ final class ServicesTests: XCTestCase {
         XCTAssertFalse(decoded.isDueForAction)
     }
 
-    // MARK: - WidgetDataProvider.readSnapshot
+    // MARK: - WidgetSnapshotTransport
 
     /// `readSnapshot()` must NEVER crash — the widget extension calls this on every
     /// timeline refresh. It can legitimately return nil (no App Group, missing file,
-    /// or undecodable contents) OR a fully-populated snapshot. We can't seed the App
-    /// Group container without a production injection seam (readSnapshot resolves the
-    /// container URL internally — see report note), so we assert the only invariant
-    /// that holds unconditionally: whatever it returns must be self-consistent. This
-    /// folds the former guard-return no-op test into a single non-vacuous check —
-    /// either branch makes a real assertion.
-    @MainActor
+    /// or undecodable contents) OR a fully-populated snapshot, so assert whichever
+    /// branch the current environment supplies is self-consistent.
     func testReadSnapshotReturnsNilOrSelfConsistentSnapshot() {
-        let snap = WidgetDataProvider.readSnapshot()
+        let snap = WidgetSnapshotTransport.readSnapshot()
         if let snap {
             XCTAssertTrue(snap.totalValue.isFinite)
             XCTAssertTrue(snap.totalGainUsd.isFinite)
@@ -464,10 +459,8 @@ final class ServicesTests: XCTestCase {
         }
     }
 
-    /// With the directory-injectable `readSnapshot(from:)` seam (#63) we can seed a
-    /// known snapshot in a temp directory and assert the exact decoded result —
-    /// previously untestable because the App Group container URL was resolved internally.
-    @MainActor
+    /// The directory-injectable shared reader can decode an app-written snapshot
+    /// without depending on app-only services.
     func testReadSnapshotFromDirectoryDecodesSeededSnapshot() throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("widget-seam-\(UUID().uuidString)")
@@ -487,10 +480,10 @@ final class ServicesTests: XCTestCase {
             ],
             updatedAt: Date(timeIntervalSince1970: 762_048_000)
         )
-        let fileURL = dir.appendingPathComponent(WidgetDataProvider.snapshotFileName)
+        let fileURL = dir.appendingPathComponent(WidgetSnapshotTransport.fileName)
         try JSONEncoder().encode(seeded).write(to: fileURL)
 
-        let read = try XCTUnwrap(WidgetDataProvider.readSnapshot(from: dir),
+        let read = try XCTUnwrap(WidgetSnapshotTransport.readSnapshot(from: dir),
                                  "Seeded snapshot must be read back from the injected directory")
         XCTAssertEqual(read.totalValue, 4242.42, accuracy: 0.001)
         XCTAssertEqual(read.actionableCount, 1)
@@ -501,30 +494,28 @@ final class ServicesTests: XCTestCase {
 
     /// Missing file in the injected directory returns nil (not a crash) — mirrors a
     /// first-launch widget read before any snapshot has been written.
-    @MainActor
     func testReadSnapshotFromDirectoryReturnsNilWhenFileMissing() throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("widget-seam-empty-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
 
-        XCTAssertNil(WidgetDataProvider.readSnapshot(from: dir),
+        XCTAssertNil(WidgetSnapshotTransport.readSnapshot(from: dir),
                      "No snapshot file → nil, no crash")
     }
 
     /// Garbage contents in the injected directory return nil (the production `try?`
     /// swallows decode failures) rather than crashing the widget timeline refresh.
-    @MainActor
     func testReadSnapshotFromDirectoryReturnsNilForGarbage() throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("widget-seam-garbage-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
 
-        let fileURL = dir.appendingPathComponent(WidgetDataProvider.snapshotFileName)
+        let fileURL = dir.appendingPathComponent(WidgetSnapshotTransport.fileName)
         try Data("{\"not\":\"a snapshot\"}".utf8).write(to: fileURL)
 
-        XCTAssertNil(WidgetDataProvider.readSnapshot(from: dir),
+        XCTAssertNil(WidgetSnapshotTransport.readSnapshot(from: dir),
                      "Undecodable snapshot → nil, no crash")
     }
 

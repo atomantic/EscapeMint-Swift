@@ -9,14 +9,14 @@ import WidgetKit
 final class WidgetDataProvider {
     static let shared = WidgetDataProvider()
     private static let logger = Logger(subsystem: "net.shadowpuppet.EscapeMint", category: "WidgetData")
-    nonisolated static let appGroupId = "group.net.shadowpuppet.EscapeMint"
-    nonisolated static let snapshotFileName = "widget-snapshot.json"
 
     private init() {}
 
     /// Write current portfolio state to the shared container
     func updateSnapshot() {
-        guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupId) else {
+        guard let containerURL = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: WidgetSnapshotTransport.appGroupIdentifier
+        ) else {
             Self.logger.error("⚠️ App Group container unavailable — widget data cannot be shared")
             return
         }
@@ -50,7 +50,7 @@ final class WidgetDataProvider {
             updatedAt: Date()
         )
 
-        let fileURL = containerURL.appendingPathComponent(Self.snapshotFileName)
+        let fileURL = containerURL.appendingPathComponent(WidgetSnapshotTransport.fileName)
         do {
             let data = try JSONEncoder().encode(snapshot)
             try data.write(to: fileURL, options: .atomic)
@@ -78,27 +78,6 @@ final class WidgetDataProvider {
         }
     }
 
-    /// Read snapshot from the shared container (called by the widget and by the
-    /// App Intents). Resolves the real App Group container URL, then delegates to
-    /// the directory-injectable overload below so tests can seed and assert a read.
-    /// `nonisolated` because it touches only static `let` constants and the
-    /// filesystem — no MainActor state — so intents running off the main actor
-    /// (and in a separate process) can read it without a hop.
-    nonisolated static func readSnapshot() -> WidgetSnapshot? {
-        guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) else {
-            return nil
-        }
-        return readSnapshot(from: containerURL)
-    }
-
-    /// Decode the snapshot stored in `containerURL` (the App Group container in
-    /// production). Factored out so tests can point at a temp directory, seed a
-    /// known `widget-snapshot.json`, and assert the decoded result — production
-    /// behavior is unchanged because `readSnapshot()` passes the real container.
-    nonisolated static func readSnapshot(from containerURL: URL) -> WidgetSnapshot? {
-        let fileURL = containerURL.appendingPathComponent(snapshotFileName)
-        return decodeJSONFile(fileURL, as: WidgetSnapshot.self)
-    }
 }
 
 // WidgetSnapshot and WidgetFundSnapshot are defined in Shared/WidgetSnapshotModels.swift
