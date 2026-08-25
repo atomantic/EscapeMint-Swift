@@ -19,18 +19,8 @@ struct EscapeMintTimelineProvider: TimelineProvider {
     }
 
     private func loadEntry() -> PortfolioEntry {
-        guard let snapshot = readSnapshot() else { return .noData }
+        guard let snapshot = WidgetSnapshotTransport.readSnapshot() else { return .noData }
         return PortfolioEntry(snapshot: snapshot)
-    }
-
-    // Must match WidgetDataProvider.appGroupId and .snapshotFileName in main app
-    private static let appGroupId = "group.net.shadowpuppet.EscapeMint"
-    private static let snapshotFileName = "widget-snapshot.json"
-
-    private func readSnapshot() -> WidgetSnapshot? {
-        guard let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupId) else { return nil }
-        guard let data = try? Data(contentsOf: url.appendingPathComponent(Self.snapshotFileName)) else { return nil }
-        return try? JSONDecoder().decode(WidgetSnapshot.self, from: data)
     }
 }
 

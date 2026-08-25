@@ -15,7 +15,7 @@ import SwiftUI
 // snippet view.
 
 private func loadSnapshot() -> WidgetSnapshot? {
-    WidgetDataProvider.readSnapshot()
+    WidgetSnapshotTransport.readSnapshot()
 }
 
 /// "What's my portfolio value?"
