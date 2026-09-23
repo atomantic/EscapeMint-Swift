@@ -621,6 +621,24 @@ struct LegendDot: View {
     }
 }
 
+struct LegendLine: View {
+    let color: Color
+    let dash: [CGFloat]
+    let label: String
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Path { path in
+                path.move(to: CGPoint(x: 0, y: 2))
+                path.addLine(to: CGPoint(x: 16, y: 2))
+            }
+            .stroke(color, style: StrokeStyle(lineWidth: 1.5, dash: dash))
+            .frame(width: 16, height: 4)
+            Text(label).font(.caption2).foregroundColor(.textSecondary)
+        }
+    }
+}
+
 private var emChartPlaceholder: some View {
     Text("Not enough data for chart")
         .font(.caption).foregroundColor(.textMuted)
