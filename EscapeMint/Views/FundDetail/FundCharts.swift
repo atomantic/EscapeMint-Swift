@@ -164,7 +164,11 @@ struct ValueChartView: View {
                 let d = config.dollarDec
                 LegendDot(color: .mint, label: "Value \(formatCurrency(last.value, decimals: d))")
                 LegendDot(color: .purple, label: "Invested \(formatCurrency(last.invested, decimals: d))")
-                LegendDot(color: .green, label: "Target \(formatCurrency(last.target, decimals: d))")
+                LegendLine(
+                    color: .green,
+                    dash: [4, 4],
+                    label: "Target \(formatCurrency(last.target, decimals: d))"
+                )
             }
         } chart: {
             if let points {
