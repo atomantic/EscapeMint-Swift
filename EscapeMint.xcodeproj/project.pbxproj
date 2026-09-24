@@ -49,6 +49,7 @@
 		264B08D4BF510C5ECFCB7EED /* coinbasetest-btc.json in Resources */ = {isa = PBXBuildFile; fileRef = 73E706FC8B143B51FB8C2E3C /* coinbasetest-btc.json */; };
 		26FC0CD3D4E75BA85FBDD8D4 /* StoreSideEffects.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35E92242D8AFD2A3779102DE /* StoreSideEffects.swift */; };
 		273582A9EC254FCE026E78AB /* StoreDockBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18B568AF3D3DF9595431CEBE /* StoreDockBadge.swift */; };
+		28D2CA85A2C3C35EAF9B6A12 /* ScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7D721D20792FDF4CA9560B7 /* ScreenshotTests.swift */; };
 		2B676A43D4F8628DEA0F5879 /* DCANotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEEDEDE31CF3AEE44DEDE3EE /* DCANotificationManager.swift */; };
 		2C78E452ED32276E3C625249 /* robinhoodtest-cash.json in Resources */ = {isa = PBXBuildFile; fileRef = 9EF8DB147F5CCF5962032B26 /* robinhoodtest-cash.json */; };
 		2C7C7FEBEC9E2493FF061567 /* PlatformDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D9016C221D8B41402E543CF /* PlatformDetailView.swift */; };
@@ -251,6 +252,13 @@
 			remoteGlobalIDString = C4CDC287DAE331C76445E6FB;
 			remoteInfo = EscapeMint_iOS;
 		};
+		9C42276C30315C2236C0F556 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 67B517483F51F1654F89779D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C4CDC287DAE331C76445E6FB;
+			remoteInfo = EscapeMint_iOS;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -350,6 +358,7 @@
 		9E0F2FFF3CEF476A090B514E /* ICloudSyncMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICloudSyncMonitorTests.swift; sourceTree = "<group>"; };
 		9EF8DB147F5CCF5962032B26 /* robinhoodtest-cash.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "robinhoodtest-cash.json"; sourceTree = "<group>"; };
 		A1CDA29D3BC058B300AC82EA /* spxl-weekly.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "spxl-weekly.json"; sourceTree = "<group>"; };
+		A7D721D20792FDF4CA9560B7 /* ScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotTests.swift; sourceTree = "<group>"; };
 		A93B5F48285731CDBAB58F06 /* FilePickerHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePickerHelper.swift; sourceTree = "<group>"; };
 		AA7B587266915BE35EF3BDDF /* tqqq-weekly.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "tqqq-weekly.json"; sourceTree = "<group>"; };
 		ADF82E9F62C6337CA018D70F /* FundEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundEngine.swift; sourceTree = "<group>"; };
@@ -367,6 +376,7 @@
 		C669BD8AC67F63BC10F2CFCF /* AppStorageKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStorageKeys.swift; sourceTree = "<group>"; };
 		C77048CAA018B5D730D1048A /* EscapeMintTests_iOS.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = EscapeMintTests_iOS.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CA5A9F7DA84AF88E840673BB /* ChartSeriesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartSeriesTests.swift; sourceTree = "<group>"; };
+		CD557C22A3EBDA256DE8DD96 /* EscapeMintUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = EscapeMintUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CD7045F4A08A28EE158CB394 /* FundMetricsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundMetricsTests.swift; sourceTree = "<group>"; };
 		D069B36344092C759389B19F /* EscapeMintWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = EscapeMintWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		D0D6554AB71D71AEFD5CB7BA /* StatBox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatBox.swift; sourceTree = "<group>"; };
@@ -487,6 +497,14 @@
 				5439E3A322BB84FE60191A58 /* IntroGuideView.swift */,
 			);
 			path = IntroGuide;
+			sourceTree = "<group>";
+		};
+		66EDAD883364F5386ECBC4D7 /* EscapeMintUITests */ = {
+			isa = PBXGroup;
+			children = (
+				A7D721D20792FDF4CA9560B7 /* ScreenshotTests.swift */,
+			);
+			path = EscapeMintUITests;
 			sourceTree = "<group>";
 		};
 		78210AACA08A819AB7199F50 /* Platforms */ = {
@@ -623,6 +641,7 @@
 				99D7A4CBB9248028C4C8B2F9 /* EscapeMint.app */,
 				C77048CAA018B5D730D1048A /* EscapeMintTests_iOS.xctest */,
 				2057B87E511BC30733DF4121 /* EscapeMintTests_macOS.xctest */,
+				CD557C22A3EBDA256DE8DD96 /* EscapeMintUITests.xctest */,
 				D069B36344092C759389B19F /* EscapeMintWidget.appex */,
 			);
 			name = Products;
@@ -664,6 +683,7 @@
 			children = (
 				24914B010A4C57D01A710CF3 /* EscapeMint */,
 				CD7B787A97EDE3519CB9E3B3 /* EscapeMintTests */,
+				66EDAD883364F5386ECBC4D7 /* EscapeMintUITests */,
 				17D9E83481D5A7226E9A862D /* EscapeMintWidget */,
 				1BBFEB1AE452A2A51EEB0759 /* Shared */,
 				D598F1BC45992489C9DDAAD3 /* Products */,
@@ -755,6 +775,24 @@
 			productReference = D069B36344092C759389B19F /* EscapeMintWidget.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		94D887AB720566A791015EF7 /* EscapeMintUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8F696822C25026CB4F99BC8E /* Build configuration list for PBXNativeTarget "EscapeMintUITests" */;
+			buildPhases = (
+				5B42B95795E02C37829897F9 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				913D3BC5B43359A05DAF8073 /* PBXTargetDependency */,
+			);
+			name = EscapeMintUITests;
+			packageProductDependencies = (
+			);
+			productName = EscapeMintUITests;
+			productReference = CD557C22A3EBDA256DE8DD96 /* EscapeMintUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		C4CDC287DAE331C76445E6FB /* EscapeMint_iOS */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = D25320A3BC926358A0790971 /* Build configuration list for PBXNativeTarget "EscapeMint_iOS" */;
@@ -813,6 +851,10 @@
 						DevelopmentTeam = TYQ32QCF6K;
 						ProvisioningStyle = Automatic;
 					};
+					94D887AB720566A791015EF7 = {
+						DevelopmentTeam = TYQ32QCF6K;
+						TestTargetID = C4CDC287DAE331C76445E6FB;
+					};
 					C4CDC287DAE331C76445E6FB = {
 						DevelopmentTeam = TYQ32QCF6K;
 						ProvisioningStyle = Automatic;
@@ -838,6 +880,7 @@
 			targets = (
 				DB0D534AC510DCF71ADA54DF /* EscapeMintTests_iOS */,
 				23079936C7795D89D6D6FA85 /* EscapeMintTests_macOS */,
+				94D887AB720566A791015EF7 /* EscapeMintUITests */,
 				7F83A01BEB8C7FD255B40AF0 /* EscapeMintWidget_iOS */,
 				C4CDC287DAE331C76445E6FB /* EscapeMint_iOS */,
 				579BDC633614FBB7BB0DAEE4 /* EscapeMint_macOS */,
@@ -985,6 +1028,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5B42B95795E02C37829897F9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				28D2CA85A2C3C35EAF9B6A12 /* ScreenshotTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		678FB095C2E083FD6F27156E /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1120,6 +1171,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		913D3BC5B43359A05DAF8073 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C4CDC287DAE331C76445E6FB /* EscapeMint_iOS */;
+			targetProxy = 9C42276C30315C2236C0F556 /* PBXContainerItemProxy */;
+		};
 		A39DBC1D760BE43CB5A4CF0C /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = C4CDC287DAE331C76445E6FB /* EscapeMint_iOS */;
@@ -1197,6 +1253,23 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		1539CF7F502086B6D9B1D8D1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = net.shadowpuppet.EscapeMint.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = EscapeMint_iOS;
 			};
 			name = Release;
 		};
@@ -1299,6 +1372,23 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
+		};
+		AC936C8B4C232FFB1F9A97E7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = net.shadowpuppet.EscapeMint.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = EscapeMint_iOS;
+			};
+			name = Debug;
 		};
 		B74A9C2C6B098FB6CAC4299A /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -1500,6 +1590,15 @@
 			buildConfigurations = (
 				85294C3F18E81361B708FEBC /* Debug */,
 				99A55DAB83D01F0322E177C5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8F696822C25026CB4F99BC8E /* Build configuration list for PBXNativeTarget "EscapeMintUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AC936C8B4C232FFB1F9A97E7 /* Debug */,
+				1539CF7F502086B6D9B1D8D1 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

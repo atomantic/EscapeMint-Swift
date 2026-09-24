@@ -50,6 +50,17 @@
                ReferencedContainer = "container:EscapeMint.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "94D887AB720566A791015EF7"
+               BuildableName = "EscapeMintUITests.xctest"
+               BlueprintName = "EscapeMintUITests"
+               ReferencedContainer = "container:EscapeMint.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

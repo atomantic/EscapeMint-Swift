@@ -17,7 +17,7 @@ set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT="$PROJECT_DIR/EscapeMint.xcodeproj"
-SCHEME="EscapeMint macOS"
+SCHEME="EscapeMint_macOS"
 SCREENSHOTS_DIR="$PROJECT_DIR/screenshots"
 DERIVED_DATA="$PROJECT_DIR/.build/DerivedData"
 APP_PATH="$DERIVED_DATA/Build/Products/Debug/EscapeMint.app"
@@ -56,12 +56,28 @@ for arg in "$@"; do
 done
 [[ ${#LANGUAGES[@]} -eq 0 ]] && LANGUAGES=("${ALL_LANGUAGES[@]}")
 
+# Resolve the generated project scheme before starting a build.
+if ! PROJECT_METADATA="$(xcodebuild -project "$PROJECT" -list -json 2>&1)"; then
+    echo "❌ Unable to read schemes from $PROJECT. Run 'xcodegen generate' first." >&2
+    printf '%s\n' "$PROJECT_METADATA" >&2
+    exit 1
+fi
+if ! printf '%s' "$PROJECT_METADATA" | python3 -c '
+import json, sys
+project = json.load(sys.stdin).get("project", {})
+if sys.argv[1] not in project.get("schemes", []):
+    print(f"❌ Required Xcode scheme {sys.argv[1]} is missing from EscapeMint.xcodeproj. Run xcodegen generate.", file=sys.stderr)
+    raise SystemExit(1)
+' "$SCHEME"; then
+    exit 1
+fi
+
 # macOS App Store screenshot size: 1280x800 minimum, Retina preferred
 WINDOW_WIDTH=1440
 WINDOW_HEIGHT=900
 
 echo "=========================================="
-echo "  EscapeMint macOS Screenshot Capture"
+echo "  macOS App Store Screenshot Capture"
 echo "=========================================="
 echo "  Languages: ${LANGUAGES[*]}"
 echo "  Window: ${WINDOW_WIDTH}x${WINDOW_HEIGHT}"
