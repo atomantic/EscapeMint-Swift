@@ -110,6 +110,18 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: net.shadowpuppet.EscapeMint.tests
         GENERATE_INFOPLIST_FILE: YES
 
+  EscapeMintUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - EscapeMintUITests
+    dependencies:
+      - target: EscapeMint_iOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: net.shadowpuppet.EscapeMint.uitests
+        GENERATE_INFOPLIST_FILE: YES
+
 schemes:
   EscapeMint_iOS:
     build:
@@ -118,6 +130,7 @@ schemes:
     test:
       targets:
         - EscapeMintTests_iOS
+        - EscapeMintUITests
   EscapeMint_macOS:
     build:
       targets:
