@@ -265,7 +265,7 @@ func buildCashSyncEntry(
         amount: amt
     )
     cashEntry.fund_size = cashFund.entries.last?.fund_size ?? 0
-    cashEntry.notes = "Auto: \(entry.action?.rawValue ?? "") \(ticker) $\(String(format: "%.2f", amt))"
+    cashEntry.notes = "Auto: \(entry.action?.rawValue ?? "") \(ticker) \(formatCurrency(amt))"
     return .success((cashFundId, cashEntry))
 }
 

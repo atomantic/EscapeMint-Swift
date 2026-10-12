@@ -557,12 +557,39 @@ final class EngineTests: XCTestCase {
 
     func testFormatCurrencyZero() {
         let result = formatCurrency(0)
-        XCTAssertEqual(result, "$0.00")
+        XCTAssertEqual(result, "$0")
     }
 
     func testFormatCurrencyNegative() {
         let result = formatCurrency(-500.00)
-        XCTAssertEqual(result, "-$500.00")
+        XCTAssertEqual(result, "-$500")
+    }
+
+    func testCurrencyOmitsOnlyZeroFractions() {
+        let formats: [(Double) -> String] = [
+            { formatCurrency($0) }, { formatCurrencyFull($0) }, { formatWidgetCurrency($0) }
+        ]
+        for format in formats {
+            XCTAssertEqual(format(42), "$42")
+            XCTAssertEqual(format(42.50), "$42.50")
+            XCTAssertEqual(format(-42), "-$42")
+            XCTAssertEqual(format(0), "$0")
+            XCTAssertEqual(format(42.001), "$42")
+            XCTAssertEqual(format(42.01), "$42.01")
+        }
+        XCTAssertEqual(formatCurrency(1_793_140), "$1,793,140")
+        XCTAssertEqual(formatCurrency(42, decimals: 4), "$42")
+        XCTAssertEqual(formatCurrencyFull(42, decimals: 4), "$42")
+        XCTAssertEqual(formatCurrencyFull(42.5, decimals: 4), "$42.5000")
+        XCTAssertEqual(formatCurrency(42.0001, decimals: 4), "$42.0001")
+        XCTAssertEqual(formatCurrency(42.4, decimals: 0), "$42")
+
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "de_DE")
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "USD"
+        XCTAssertEqual(currencyString(1234, using: formatter), "1.234 $")
+        XCTAssertEqual(currencyString(1234.5, using: formatter), "1.234,50 $")
     }
 
     func testFormatCurrencyLargeValue() {

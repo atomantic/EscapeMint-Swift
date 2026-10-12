@@ -328,11 +328,11 @@ struct AddEntryView: View {
         let s = parseFormulaValue(shares); if s != 0 { entry.shares = s }
         let p = parseFormulaValue(price); if p != 0 { entry.price = p }
         let d = r(parseFormulaValue(deposit)); if d != 0 {
-            let depNote = "Deposit: $\(String(format: "%.2f", d))"
+            let depNote = "Deposit: \(formatCurrency(d))"
             notes = notes.isEmpty ? depNote : "\(notes) | \(depNote)"
         }
         let w = r(parseFormulaValue(withdrawal)); if w != 0 {
-            let wNote = "Withdrawal: $\(String(format: "%.2f", w))"
+            let wNote = "Withdrawal: \(formatCurrency(w))"
             notes = notes.isEmpty ? wNote : "\(notes) | \(wNote)"
         }
         let dv = r(parseFormulaValue(dividend)); if dv != 0 { entry.dividend = dv }
