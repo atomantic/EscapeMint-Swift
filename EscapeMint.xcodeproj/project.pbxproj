@@ -118,6 +118,7 @@
 		6747EF58F1D183CCA49C979E /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28B9BA94998CDC7A51047BDF /* KeychainHelper.swift */; };
 		68A23EF44C80C3C9565151D0 /* PreviewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10BFEB1D9F0CE377C93BCF99 /* PreviewData.swift */; };
 		6C75E91B0F6FECF184432C98 /* StatBox.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D6554AB71D71AEFD5CB7BA /* StatBox.swift */; };
+		6D7D181EDE0D46FD0FE7CD86 /* CurrencyFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9AE7A7B66001D37BF5089CB /* CurrencyFormatting.swift */; };
 		7064B056C01915EFDB93C772 /* NotificationNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DDEBB26B5A4523E7DF3AB87 /* NotificationNames.swift */; };
 		7202A09CF06020B67B8D4E86 /* EscapeMintLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 015479839B54BBA737A6903D /* EscapeMintLoadingView.swift */; };
 		73A0B128972CB4F65E452D7C /* IntroGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5439E3A322BB84FE60191A58 /* IntroGuideView.swift */; };
@@ -200,8 +201,10 @@
 		D1CE1B005710D6A0481D7506 /* StoreDockBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18B568AF3D3DF9595431CEBE /* StoreDockBadge.swift */; };
 		D4AA378DD170290DE9E65AD4 /* FundCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78DC2F09A67B37D9062AFAC8 /* FundCharts.swift */; };
 		D51E964BE1B0742AE260DC58 /* PortfolioAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4ACF9EA4B2144A7D42B80A7 /* PortfolioAppIntents.swift */; };
+		D73CED41E7A514F4FEB4178C /* CurrencyFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9AE7A7B66001D37BF5089CB /* CurrencyFormatting.swift */; };
 		D82EDD49A5A8F5D7BB34E4E8 /* PortfolioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E53C89115C135EEDC05D6679 /* PortfolioEngine.swift */; };
 		D8472A006B773BB05E6364FA /* AdvancedToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43EA0A1D7008E27E20D07B13 /* AdvancedToolsTests.swift */; };
+		D928FF61DBAB8FA22975B719 /* CurrencyFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9AE7A7B66001D37BF5089CB /* CurrencyFormatting.swift */; };
 		D9F8E0607688300EB4B98165 /* AppIntentsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F291ED879F79ED3CD9C9D9C /* AppIntentsTests.swift */; };
 		DA1119CCE8C47551F26DCCB1 /* vti-weekly.json in Resources */ = {isa = PBXBuildFile; fileRef = 72B24FDF289E498E5460BB1F /* vti-weekly.json */; };
 		DBD3CC62B6F1522CA01C89ED /* IntroCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4948BA46E25035E9E656E36 /* IntroCharts.swift */; };
@@ -383,6 +386,7 @@
 		D4948BA46E25035E9E656E36 /* IntroCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroCharts.swift; sourceTree = "<group>"; };
 		D4ACF9EA4B2144A7D42B80A7 /* PortfolioAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioAppIntents.swift; sourceTree = "<group>"; };
 		D8A67F19978F79577997C81D /* FormulaParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormulaParser.swift; sourceTree = "<group>"; };
+		D9AE7A7B66001D37BF5089CB /* CurrencyFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyFormatting.swift; sourceTree = "<group>"; };
 		DCE916C651961957595DB46B /* BacktestCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacktestCache.swift; sourceTree = "<group>"; };
 		DE273771E41052451E80DD9F /* BacktestCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacktestCharts.swift; sourceTree = "<group>"; };
 		E03E7F1021F4212250A332DB /* FundDataStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundDataStoreTests.swift; sourceTree = "<group>"; };
@@ -424,6 +428,7 @@
 		1BBFEB1AE452A2A51EEB0759 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				D9AE7A7B66001D37BF5089CB /* CurrencyFormatting.swift */,
 				AE0F3FAE053123425C3E2E1D /* WidgetSnapshotModels.swift */,
 				1EBD2F44F071A77BF92A788B /* WidgetSnapshotTransport.swift */,
 			);
@@ -963,6 +968,7 @@
 				5053D1A9A6AF0AC66A3DFB1B /* ChartSeries.swift in Sources */,
 				94344EF2DAAFD9E0644FAF17 /* Converters.swift in Sources */,
 				1B21A19E3A1DBE5232B4E2FF /* CreateFundView.swift in Sources */,
+				D928FF61DBAB8FA22975B719 /* CurrencyFormatting.swift in Sources */,
 				2B676A43D4F8628DEA0F5879 /* DCANotificationManager.swift in Sources */,
 				5E2FF513C6EB32565600A3A4 /* DashboardView.swift in Sources */,
 				3A8A4108E6390930A06CAC9A /* DerivativesCharts.swift in Sources */,
@@ -1022,6 +1028,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D73CED41E7A514F4FEB4178C /* CurrencyFormatting.swift in Sources */,
 				CAB653772F235CDAA552A708 /* EscapeMintWidget.swift in Sources */,
 				14DFBBA3032AB6B69AF2C13C /* WidgetSnapshotModels.swift in Sources */,
 				3457CBE69FA4F1016D0A0370 /* WidgetSnapshotTransport.swift in Sources */,
@@ -1057,6 +1064,7 @@
 				3C982E833ACF982F33FAE6B1 /* ChartSeries.swift in Sources */,
 				59C7ACF796B9A37DB6B2F832 /* Converters.swift in Sources */,
 				1CA8B07A2B186B8B449AE2D3 /* CreateFundView.swift in Sources */,
+				6D7D181EDE0D46FD0FE7CD86 /* CurrencyFormatting.swift in Sources */,
 				9862AF46D12BC9C034A58091 /* DCANotificationManager.swift in Sources */,
 				8DF900326F27FB50847A2FA5 /* DashboardView.swift in Sources */,
 				5653E180C5C5F8DE88179A6B /* DerivativesCharts.swift in Sources */,

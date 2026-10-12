@@ -31,7 +31,7 @@ struct WidgetFundSnapshot: Codable {
 // MARK: - Widget Currency Formatter
 //
 // Compact currency display for space-constrained widget surfaces.
-// Values >= $1,000 are shown without cents ($1,234); smaller values show cents ($9.99).
+// Values >= $1,000 are shown without cents ($1,234); smaller values show nonzero cents ($9.99).
 // Uses NumberFormatter (not the K/M suffix approach in app's formatCurrencyCompact)
 // to preserve the locale-correct currency symbol and thousands separator.
 //
@@ -56,8 +56,8 @@ private let _widgetCurrencyFormatterCompact: NumberFormatter = {
 
 /// Format a dollar amount for compact widget display.
 /// - Values ≥ $1,000 drop the cents for brevity (e.g. "$1,234").
-/// - Values < $1,000 keep two decimal places (e.g. "$9.99").
+/// - Values < $1,000 keep nonzero cents (e.g. "$9.99", "$42").
 func formatWidgetCurrency(_ value: Double) -> String {
     let formatter = value >= 1000 ? _widgetCurrencyFormatterCompact : _widgetCurrencyFormatterFull
-    return formatter.string(from: NSNumber(value: value)) ?? "$\(Int(value))"
+    return currencyString(value, using: formatter)
 }

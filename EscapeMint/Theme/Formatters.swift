@@ -49,19 +49,17 @@ private let percentFormatter: NumberFormatter = {
 
 func formatCurrency(_ value: Double, decimals: Int = 2) -> String {
     if decimals == 2 {
-        return currencyFormatter.string(from: NSNumber(value: value)) ?? "$0.00"
+        return currencyString(value, using: currencyFormatter)
     }
-    return cachedCurrencyFormatter(decimals: decimals, pinMinimum: false)
-        .string(from: NSNumber(value: value)) ?? "$0.00"
+    return currencyString(value, using: cachedCurrencyFormatter(decimals: decimals, pinMinimum: false))
 }
 
-/// Always show cents (decimal places) regardless of magnitude
+/// Show full precision for nonzero fractions, omitting all-zero decimal places.
 func formatCurrencyFull(_ value: Double, decimals: Int = 2) -> String {
     if decimals == 2 {
-        return currencyFullFormatter.string(from: NSNumber(value: value)) ?? "$0.00"
+        return currencyString(value, using: currencyFullFormatter)
     }
-    return cachedCurrencyFormatter(decimals: decimals, pinMinimum: true)
-        .string(from: NSNumber(value: value)) ?? "$0.00"
+    return currencyString(value, using: cachedCurrencyFormatter(decimals: decimals, pinMinimum: true))
 }
 
 func formatPercent(_ value: Double) -> String {
