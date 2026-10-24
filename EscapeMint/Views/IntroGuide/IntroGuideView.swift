@@ -86,9 +86,21 @@ struct IntroGuideView: View {
             progressButtons
                 .fixedSize(horizontal: true, vertical: false)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                progressButtons
-                    .padding(.horizontal, 8)
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    progressButtons
+                        .padding(.horizontal, 8)
+                }
+                .onAppear { proxy.scrollTo(currentStep, anchor: .center) }
+                .onChange(of: currentStep) { _, step in
+                    if reduceMotion {
+                        proxy.scrollTo(step, anchor: .center)
+                    } else {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            proxy.scrollTo(step, anchor: .center)
+                        }
+                    }
+                }
             }
             .frame(height: 44)
         }
@@ -120,6 +132,7 @@ struct IntroGuideView: View {
                 .accessibilityLabel("Step \(step) of \(totalSteps)")
                 .accessibilityValue(step == currentStep ? "Current step" : "")
                 .accessibilityAddTraits(step == currentStep ? .isSelected : [])
+                .id(step)
                 #if os(macOS)
                 .focusable()
                 #endif
