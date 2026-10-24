@@ -18,6 +18,27 @@ private func loadSnapshot() -> WidgetSnapshot? {
     WidgetSnapshotTransport.readSnapshot()
 }
 
+let lockedPortfolioMessage = "EscapeMint portfolio sharing is locked while biometric authentication is enabled. Turn off biometric authentication in Settings to use widgets, Siri, or Shortcuts."
+#if os(macOS)
+let unavailableMacOSPortfolioMessage = "Portfolio queries through Siri and Shortcuts are unavailable on macOS. Open EscapeMint to view your portfolio."
+#endif
+
+func portfolioResponse(
+    isExternalPortfolioLocked: Bool? = nil,
+    _ summary: (WidgetSnapshot?) -> String
+) -> String {
+    #if os(macOS)
+    // macOS has no supported snapshot producer. Avoid the iOS App Group and
+    // report the platform limitation rather than inventing a biometric lock.
+    return unavailableMacOSPortfolioMessage
+    #else
+    guard !(isExternalPortfolioLocked ?? WidgetSnapshotTransport.externalPortfolioAccessIsLocked) else {
+        return lockedPortfolioMessage
+    }
+    return summary(loadSnapshot())
+    #endif
+}
+
 /// "What's my portfolio value?"
 struct PortfolioValueIntent: AppIntent {
     static let title: LocalizedStringResource = "Portfolio Value"
@@ -28,7 +49,7 @@ struct PortfolioValueIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
-        let phrase = PortfolioVoiceSummary.portfolioValue(loadSnapshot())
+        let phrase = portfolioResponse(PortfolioVoiceSummary.portfolioValue)
         return .result(
             dialog: IntentDialog(stringLiteral: phrase),
             view: IntentSnippetView(headline: "Portfolio Value", message: phrase)
@@ -46,7 +67,7 @@ struct TopPerformerIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
-        let phrase = PortfolioVoiceSummary.topPerformer(loadSnapshot())
+        let phrase = portfolioResponse(PortfolioVoiceSummary.topPerformer)
         return .result(
             dialog: IntentDialog(stringLiteral: phrase),
             view: IntentSnippetView(headline: "Top Performer", message: phrase)
@@ -64,7 +85,7 @@ struct MorningSummaryIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
-        let phrase = PortfolioVoiceSummary.morningSummary(loadSnapshot())
+        let phrase = portfolioResponse(PortfolioVoiceSummary.morningSummary)
         return .result(
             dialog: IntentDialog(stringLiteral: phrase),
             view: IntentSnippetView(headline: "Morning Summary", message: phrase)

@@ -1,5 +1,6 @@
 import XCTest
 import CoreSpotlight
+import LocalAuthentication
 @testable import EscapeMint
 
 /// Records the items/identifiers handed to Spotlight so tests can assert the
@@ -27,6 +28,69 @@ final class SpySearchableIndex: SearchableIndexing, @unchecked Sendable {
     func deleteSearchableItems(withIdentifiers identifiers: [String], completionHandler: (@Sendable (Error?) -> Void)?) {
         lock.withLock { _deletedIdentifiers.append(contentsOf: identifiers) }
         completionHandler?(nil)
+    }
+}
+
+/// Suspends evaluation until the test explicitly completes it. This models the
+/// system prompt returning success after the app has been backgrounded.
+@MainActor
+private final class DeferredAuthenticationContext: AuthenticationContext {
+    let biometryType: LABiometryType = .none
+    var biometricsAvailable = false
+    private(set) var wasInvalidated = false
+    private(set) var evaluationCount = 0
+    private var continuation: CheckedContinuation<Void, Error>?
+    private var startedWaiter: CheckedContinuation<Void, Never>?
+    private var finishedWaiter: CheckedContinuation<Void, Never>?
+    private var hasFinished = false
+
+    func canEvaluateBiometrics() -> Bool { biometricsAvailable }
+
+    func evaluatePolicy(_ policy: LAPolicy, localizedReason: String) async throws {
+        evaluationCount += 1
+        defer {
+            hasFinished = true
+            finishedWaiter?.resume()
+            finishedWaiter = nil
+        }
+        try await withCheckedThrowingContinuation {
+            continuation = $0
+            startedWaiter?.resume()
+            startedWaiter = nil
+        }
+    }
+
+    func waitForEvaluation() async {
+        guard continuation == nil else { return }
+        await withCheckedContinuation { startedWaiter = $0 }
+    }
+
+    func waitForEvaluationToFinish() async {
+        guard !hasFinished else { return }
+        await withCheckedContinuation { finishedWaiter = $0 }
+    }
+
+    func invalidate() {
+        wasInvalidated = true
+    }
+
+    func succeed() {
+        continuation?.resume()
+        continuation = nil
+    }
+
+    func fail(_ error: Error) {
+        continuation?.resume(throwing: error)
+        continuation = nil
+    }
+}
+
+@MainActor
+private final class DeferredAuthenticationContextFactory: AuthenticationContextFactory {
+    let context = DeferredAuthenticationContext()
+
+    func makeContext() -> any AuthenticationContext {
+        context
     }
 }
 
@@ -67,6 +131,79 @@ final class ServicesTests: XCTestCase {
         let name = auth.biometryName
         // Should return a non-empty string regardless of hardware
         XCTAssertFalse(name.isEmpty, "biometryName should not be empty")
+    }
+
+    @MainActor
+    func testAuthManagerLockInvalidatesContextAndRejectsLateSuccess() async {
+        let factory = DeferredAuthenticationContextFactory()
+        let auth = AuthManager(isEnabled: true, contextFactory: factory)
+
+        auth.authenticate()
+        await factory.context.waitForEvaluation()
+        XCTAssertTrue(auth.isEvaluating)
+
+        auth.lock()
+        XCTAssertTrue(factory.context.wasInvalidated, "Lock must invalidate the active LAContext")
+        XCTAssertFalse(auth.isUnlocked)
+
+        // Simulate a platform callback that reports success after cancellation.
+        factory.context.succeed()
+        await factory.context.waitForEvaluationToFinish()
+        XCTAssertFalse(auth.isUnlocked, "A late authentication success must not unlock a backgrounded app")
+        XCTAssertFalse(auth.isEvaluating)
+    }
+
+    @MainActor
+    func testAuthManagerLockRejectsLateBiometricFallback() async {
+        let factory = DeferredAuthenticationContextFactory()
+        factory.context.biometricsAvailable = true
+        let auth = AuthManager(isEnabled: true, contextFactory: factory)
+
+        auth.authenticate()
+        await factory.context.waitForEvaluation()
+        auth.lock()
+
+        factory.context.fail(LAError(.biometryLockout))
+        await factory.context.waitForEvaluationToFinish()
+
+        XCTAssertEqual(factory.context.evaluationCount, 1, "Lock must prevent a late passcode fallback prompt")
+        XCTAssertFalse(auth.isUnlocked)
+        XCTAssertFalse(auth.isEvaluating)
+    }
+
+    @MainActor
+    func testFailedDisablingPreservesAuthenticationAndExternalLock() {
+        var externalLockChanges: [Bool] = []
+        let auth = AuthManager(
+            isEnabled: true,
+            contextFactory: DeferredAuthenticationContextFactory(),
+            persistEnabled: { _ in throw NSError(domain: "AuthPersistenceTests", code: 1) },
+            externalAccessChanged: { externalLockChanges.append($0) }
+        )
+
+        XCTAssertFalse(auth.setEnabled(false))
+
+        XCTAssertTrue(auth.isEnabled, "A rejected write must preserve the authoritative enabled setting")
+        XCTAssertFalse(auth.isUnlocked, "Persistence failure must not unlock the app")
+        XCTAssertTrue(externalLockChanges.isEmpty, "Persistence failure must not grant external access")
+        XCTAssertNotNil(auth.settingError, "Settings must explain why the toggle did not change")
+    }
+
+    @MainActor
+    func testAuthenticationSettingPersistsBeforeExternalPermissionChanges() {
+        var events: [String] = []
+        let auth = AuthManager(
+            isEnabled: false,
+            contextFactory: DeferredAuthenticationContextFactory(),
+            persistEnabled: { _ in events.append("persisted") },
+            externalAccessChanged: { _ in events.append("sharing-updated") }
+        )
+
+        XCTAssertTrue(auth.setEnabled(true))
+        XCTAssertEqual(events, ["persisted", "sharing-updated"])
+        XCTAssertTrue(auth.isEnabled)
+        XCTAssertFalse(auth.isUnlocked)
+        XCTAssertNil(auth.settingError)
     }
 
     // MARK: - DCANotificationManager
@@ -434,6 +571,47 @@ final class ServicesTests: XCTestCase {
 
     // MARK: - WidgetSnapshotTransport
 
+    @MainActor
+    func testLockedSnapshotPublicationRedactsSavedFileEvenBeforeLoading() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("widget-redaction-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let fileURL = dir.appendingPathComponent(WidgetSnapshotTransport.fileName)
+        try Data("previous sensitive snapshot".utf8).write(to: fileURL)
+
+        WidgetDataProvider.shared.updateSnapshot(
+            store: FundDataStore(), containerURL: dir, externalAccessIsLocked: true
+        )
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path))
+    }
+
+    @MainActor
+    func testSnapshotPublicationPreservesExistingFileUntilPortfolioIsReady() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("widget-startup-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let fileURL = dir.appendingPathComponent(WidgetSnapshotTransport.fileName)
+        let saved = WidgetSnapshot(
+            totalValue: 4242.42, totalGainUsd: 424.24, totalGainPct: 11.1,
+            activeFunds: 2, actionableCount: 1, topFunds: [], updatedAt: Date()
+        )
+        let originalData = try JSONEncoder().encode(saved)
+        try originalData.write(to: fileURL)
+        let store = FundDataStore()
+
+        WidgetDataProvider.shared.updateSnapshot(store: store, containerURL: dir, externalAccessIsLocked: false)
+        XCTAssertEqual(try Data(contentsOf: fileURL), originalData, "Startup must preserve the complete saved snapshot")
+
+        store.seedForPreview([], asOfDate: "2026-10-24")
+        WidgetDataProvider.shared.updateSnapshot(store: store, containerURL: dir, externalAccessIsLocked: false)
+        let current = try XCTUnwrap(WidgetSnapshotTransport.readSnapshot(from: dir, externalAccessIsLocked: false))
+        XCTAssertEqual(current.activeFunds, 0, "A fully loaded empty portfolio must replace stale saved values")
+        XCTAssertEqual(current.totalValue, 0)
+    }
+
     /// `readSnapshot()` must NEVER crash — the widget extension calls this on every
     /// timeline refresh. It can legitimately return nil (no App Group, missing file,
     /// or undecodable contents) OR a fully-populated snapshot, so assert whichever
@@ -483,7 +661,7 @@ final class ServicesTests: XCTestCase {
         let fileURL = dir.appendingPathComponent(WidgetSnapshotTransport.fileName)
         try JSONEncoder().encode(seeded).write(to: fileURL)
 
-        let read = try XCTUnwrap(WidgetSnapshotTransport.readSnapshot(from: dir),
+        let read = try XCTUnwrap(WidgetSnapshotTransport.readSnapshot(from: dir, externalAccessIsLocked: false),
                                  "Seeded snapshot must be read back from the injected directory")
         XCTAssertEqual(read.totalValue, 4242.42, accuracy: 0.001)
         XCTAssertEqual(read.actionableCount, 1)
@@ -500,7 +678,7 @@ final class ServicesTests: XCTestCase {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
 
-        XCTAssertNil(WidgetSnapshotTransport.readSnapshot(from: dir),
+        XCTAssertNil(WidgetSnapshotTransport.readSnapshot(from: dir, externalAccessIsLocked: false),
                      "No snapshot file → nil, no crash")
     }
 
@@ -515,8 +693,28 @@ final class ServicesTests: XCTestCase {
         let fileURL = dir.appendingPathComponent(WidgetSnapshotTransport.fileName)
         try Data("{\"not\":\"a snapshot\"}".utf8).write(to: fileURL)
 
-        XCTAssertNil(WidgetSnapshotTransport.readSnapshot(from: dir),
+        XCTAssertNil(WidgetSnapshotTransport.readSnapshot(from: dir, externalAccessIsLocked: false),
                      "Undecodable snapshot → nil, no crash")
+    }
+
+    func testReadSnapshotFromDirectoryRejectsSensitiveDataWhenExternalAccessLocked() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("widget-seam-locked-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let seeded = WidgetSnapshot(
+            totalValue: 4242.42, totalGainUsd: 424.24, totalGainPct: 11.1,
+            activeFunds: 2, actionableCount: 1, topFunds: [], updatedAt: Date()
+        )
+        let fileURL = dir.appendingPathComponent(WidgetSnapshotTransport.fileName)
+        try JSONEncoder().encode(seeded).write(to: fileURL)
+
+        XCTAssertNil(
+            WidgetSnapshotTransport.readSnapshot(from: dir, externalAccessIsLocked: true),
+            "A lock must hide even a previously written snapshot rather than returning stale values"
+        )
+        XCTAssertNotNil(WidgetSnapshotTransport.readSnapshot(from: dir, externalAccessIsLocked: false))
     }
 
     /// Decoding must reject malformed snapshot data without crashing — the actual

@@ -2,6 +2,53 @@ import Foundation
 import LocalAuthentication
 import os
 
+/// A single LocalAuthentication prompt. This small seam lets AuthManager retain
+/// and invalidate the exact context currently presenting system UI, while tests
+/// can deterministically complete an authentication after a lock transition.
+@MainActor
+protocol AuthenticationContext: AnyObject {
+    var biometryType: LABiometryType { get }
+    func canEvaluateBiometrics() -> Bool
+    func evaluatePolicy(_ policy: LAPolicy, localizedReason: String) async throws
+    func invalidate()
+}
+
+@MainActor
+protocol AuthenticationContextFactory {
+    func makeContext() -> any AuthenticationContext
+}
+
+@MainActor
+private final class SystemAuthenticationContext: AuthenticationContext {
+    private let context = LAContext()
+
+    var biometryType: LABiometryType { context.biometryType }
+
+    func canEvaluateBiometrics() -> Bool {
+        var error: NSError?
+        return context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
+    }
+
+    func evaluatePolicy(_ policy: LAPolicy, localizedReason: String) async throws {
+        try await context.evaluatePolicy(policy, localizedReason: localizedReason)
+    }
+
+    func invalidate() {
+        context.invalidate()
+    }
+
+    func hideSystemFallback() {
+        context.localizedFallbackTitle = ""
+    }
+}
+
+@MainActor
+private struct SystemAuthenticationContextFactory: AuthenticationContextFactory {
+    func makeContext() -> any AuthenticationContext {
+        SystemAuthenticationContext()
+    }
+}
+
 @MainActor @Observable
 final class AuthManager {
     static let shared = AuthManager()
@@ -11,6 +58,18 @@ final class AuthManager {
     private(set) var biometryType: LABiometryType = .none
     private(set) var biometryAvailable = false
     private var authTask: Task<Void, Never>?
+    private var activeContext: (any AuthenticationContext)?
+    /// Incremented for every cancellation/lock. An evaluation can still finish
+    /// after `Task.cancel()`; this token prevents that late success from
+    /// changing lock state.
+    private var authenticationGeneration = 0
+    private let contextFactory: any AuthenticationContextFactory
+    /// Exists only for the injectable initializer used by unit tests. Production
+    /// continues to persist the setting in the Keychain below.
+    private var enabledOverride: Bool?
+    private let persistEnabledOverride: ((Bool) throws -> Void)?
+    private let externalAccessChangedOverride: ((Bool) -> Void)?
+    private(set) var settingError: String?
 
     private static let logger = Logger(subsystem: "net.shadowpuppet.EscapeMint", category: "AuthManager")
 
@@ -28,48 +87,31 @@ final class AuthManager {
     /// we fail toward the safer state — enabled if the migration source said
     /// enabled, otherwise disabled — and log the status code.
     var isEnabled: Bool {
-        get {
-            do {
-                if let stored = try KeychainHelper.readBool(
-                    service: Self.keychainService,
-                    account: Self.keychainAccount
-                ) {
-                    return stored
-                }
-                // No Keychain entry yet — perform one-time migration from UserDefaults.
-                let legacy = UserDefaults.standard.bool(forKey: AppStorageKeys.biometricAuth)
-                try KeychainHelper.writeBool(
-                    service: Self.keychainService,
-                    account: Self.keychainAccount,
-                    value: legacy
-                )
-                UserDefaults.standard.removeObject(forKey: AppStorageKeys.biometricAuth)
-                return legacy
-            } catch {
-                // Keychain read/write error: fail toward safer state.
-                // If the legacy UserDefaults key exists its value is the safer
-                // fallback; otherwise treat as disabled (no gate is better than
-                // a broken gate in a read-error scenario).
-                let legacy = UserDefaults.standard.object(forKey: AppStorageKeys.biometricAuth) as? Bool
-                Self.logger.error("Keychain read error — falling back to UserDefaults: \(error.localizedDescription)")
-                return legacy ?? false
+        if let enabledOverride { return enabledOverride }
+        do {
+            if let stored = try KeychainHelper.readBool(
+                service: Self.keychainService,
+                account: Self.keychainAccount
+            ) {
+                return stored
             }
-        }
-        set {
-            do {
-                try KeychainHelper.writeBool(
-                    service: Self.keychainService,
-                    account: Self.keychainAccount,
-                    value: newValue
-                )
-                // Keep UserDefaults in sync so any legacy @AppStorage bindings
-                // elsewhere (if introduced in future) reflect the current state.
-                UserDefaults.standard.set(newValue, forKey: AppStorageKeys.biometricAuth)
-            } catch {
-                Self.logger.error("Keychain write error: \(error.localizedDescription)")
-                // Best-effort fallback to UserDefaults so the UI stays consistent.
-                UserDefaults.standard.set(newValue, forKey: AppStorageKeys.biometricAuth)
-            }
+            // No Keychain entry yet — perform one-time migration from UserDefaults.
+            let legacy = UserDefaults.standard.bool(forKey: AppStorageKeys.biometricAuth)
+            try KeychainHelper.writeBool(
+                service: Self.keychainService,
+                account: Self.keychainAccount,
+                value: legacy
+            )
+            UserDefaults.standard.removeObject(forKey: AppStorageKeys.biometricAuth)
+            return legacy
+        } catch {
+            // Keychain read/write error: fail toward safer state.
+            // If the legacy UserDefaults key exists its value is the safer
+            // fallback; otherwise treat as disabled (no gate is better than
+            // a broken gate in a read-error scenario).
+            let legacy = UserDefaults.standard.object(forKey: AppStorageKeys.biometricAuth) as? Bool
+            Self.logger.error("Keychain read error — falling back to UserDefaults: \(error.localizedDescription)")
+            return legacy ?? false
         }
     }
 
@@ -84,71 +126,190 @@ final class AuthManager {
     }
 
     private init() {
+        self.contextFactory = SystemAuthenticationContextFactory()
+        self.persistEnabledOverride = nil
+        self.externalAccessChangedOverride = nil
         refreshBiometry()
-        if !isEnabled { isUnlocked = true }
+        let enabled = isEnabled
+        if !enabled { isUnlocked = true }
+        syncExternalPortfolioAccess(locked: enabled)
+    }
+
+    /// Test-only initializer. The injected context factory avoids a real
+    /// LocalAuthentication prompt and makes cancellation races reproducible.
+    init(
+        isEnabled: Bool,
+        contextFactory: any AuthenticationContextFactory,
+        persistEnabled: ((Bool) throws -> Void)? = nil,
+        externalAccessChanged: ((Bool) -> Void)? = nil
+    ) {
+        self.contextFactory = contextFactory
+        self.enabledOverride = isEnabled
+        self.persistEnabledOverride = persistEnabled
+        self.externalAccessChangedOverride = externalAccessChanged
+        self.isUnlocked = !isEnabled
+        refreshBiometry()
     }
 
     func authenticate() {
         guard isEnabled, !isUnlocked, !isEvaluating else { return }
 
         isEvaluating = true
+        let generation = authenticationGeneration
         authTask = Task {
-            defer {
-                isEvaluating = false
-                refreshBiometry()
-            }
-
-            // Skip biometrics if hardware isn't available — go straight to passcode
-            if biometryAvailable {
-                let context = LAContext()
-                // We handle passcode fallback ourselves rather than showing system's button
-                context.localizedFallbackTitle = ""
-
-                do {
-                    try await context.evaluatePolicy(
-                        .deviceOwnerAuthenticationWithBiometrics,
-                        localizedReason: "Unlock EscapeMint to view your portfolio"
-                    )
-                    isUnlocked = true
-                    return
-                } catch let error as LAError where error.code == .biometryLockout || error.code == .biometryNotAvailable || error.code == .userFallback {
-                    // Fall through to passcode
-                } catch {
-                    Self.logger.info("Auth cancelled: \(error.localizedDescription)")
-                    return
-                }
-            }
-
-            // Passcode fallback (or primary if no biometrics)
-            do {
-                try await LAContext().evaluatePolicy(
-                    .deviceOwnerAuthentication,
-                    localizedReason: "Unlock EscapeMint with your passcode"
-                )
-                isUnlocked = true
-            } catch {
-                Self.logger.info("Auth failed: \(error.localizedDescription)")
-            }
+            defer { finishAuthenticationAttempt(generation: generation) }
+            await evaluateAuthentication(generation: generation)
         }
     }
 
     func lock() {
         guard isEnabled else { return }
+        cancelAuthenticationAttempt()
+        isUnlocked = false
+        syncExternalPortfolioAccess(locked: true)
+    }
+
+    @discardableResult
+    func setEnabled(_ enabled: Bool) -> Bool {
+        cancelAuthenticationAttempt()
+        guard persistEnabledSetting(enabled) else { return false }
+        isUnlocked = !enabled
+        syncExternalPortfolioAccess(locked: enabled)
+        #if os(iOS)
+        if !enabled {
+            WidgetDataProvider.shared.updateSnapshot()
+        }
+        #endif
+        return true
+    }
+
+    /// Permission changes commit to the authoritative store before any unlock or
+    /// sharing side effect. A failed write must never grant access via defaults.
+    private func persistEnabledSetting(_ enabled: Bool) -> Bool {
+        do {
+            if enabledOverride != nil {
+                try persistEnabledOverride?(enabled)
+                enabledOverride = enabled
+            } else {
+                try KeychainHelper.writeBool(
+                    service: Self.keychainService,
+                    account: Self.keychainAccount,
+                    value: enabled
+                )
+                UserDefaults.standard.set(enabled, forKey: AppStorageKeys.biometricAuth)
+            }
+            settingError = nil
+            return true
+        } catch {
+            Self.logger.error("Keychain write error: \(error.localizedDescription)")
+            settingError = "Couldn't update biometric authentication. Your security setting has not changed."
+            return false
+        }
+    }
+
+    private func evaluateAuthentication(generation: Int) async {
+        // `lock()` can run after the unstructured Task is created but before it
+        // starts. Do not present a new system prompt for that already-revoked
+        // attempt.
+        guard generation == authenticationGeneration,
+              isEnabled,
+              !Task.isCancelled else { return }
+
+        // Skip biometrics if hardware isn't available — go straight to passcode.
+        let biometricContext = contextFactory.makeContext()
+        activeContext = biometricContext
+        biometryType = biometricContext.biometryType
+        biometryAvailable = biometricContext.canEvaluateBiometrics()
+
+        if biometryAvailable {
+            if let systemContext = biometricContext as? SystemAuthenticationContext {
+                // We handle passcode fallback ourselves rather than showing the
+                // system's fallback button.
+                systemContext.hideSystemFallback()
+            }
+
+            do {
+                try await biometricContext.evaluatePolicy(
+                    .deviceOwnerAuthenticationWithBiometrics,
+                    localizedReason: "Unlock EscapeMint to view your portfolio"
+                )
+                unlockIfCurrent(generation: generation)
+                return
+            } catch let error as LAError where error.code == .biometryLockout || error.code == .biometryNotAvailable || error.code == .userFallback {
+                // Fall through to passcode.
+            } catch {
+                Self.logger.info("Auth cancelled: \(error.localizedDescription)")
+                return
+            }
+        }
+
+        // A fallback error can arrive after lock invalidates the biometric
+        // context. Recheck revocation before presenting another system prompt.
+        guard generation == authenticationGeneration,
+              isEnabled,
+              !Task.isCancelled else { return }
+
+        let passcodeContext = contextFactory.makeContext()
+        activeContext = passcodeContext
+        do {
+            try await passcodeContext.evaluatePolicy(
+                .deviceOwnerAuthentication,
+                localizedReason: "Unlock EscapeMint with your passcode"
+            )
+            unlockIfCurrent(generation: generation)
+        } catch {
+            Self.logger.info("Auth failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func unlockIfCurrent(generation: Int) {
+        guard generation == authenticationGeneration,
+              isEnabled,
+              !Task.isCancelled else { return }
+        isUnlocked = true
+        // A widget or App Intent cannot verify this in-app authentication event.
+        // Keep the cross-process snapshot redacted for the full lifetime of an
+        // enabled biometric lock; disabling the lock restores its normal data
+        // sharing behavior.
+    }
+
+    private func cancelAuthenticationAttempt() {
+        authenticationGeneration &+= 1
+        activeContext?.invalidate()
+        activeContext = nil
         authTask?.cancel()
         authTask = nil
         isEvaluating = false
-        isUnlocked = false
     }
 
-    func setEnabled(_ enabled: Bool) {
-        isEnabled = enabled
-        if !enabled { isUnlocked = true }
+    private func finishAuthenticationAttempt(generation: Int) {
+        // A newer lock/auth attempt owns the state now. In particular, do not
+        // clear its spinner after a cancelled context returns late.
+        guard generation == authenticationGeneration else { return }
+        activeContext = nil
+        authTask = nil
+        isEvaluating = false
+        refreshBiometry()
+    }
+
+    private func syncExternalPortfolioAccess(locked: Bool) {
+        if let externalAccessChangedOverride {
+            externalAccessChangedOverride(locked)
+            return
+        }
+        // The App Group snapshot is an iOS widget transport. Avoid touching the
+        // group container on macOS, where it has no consumer and can trigger a
+        // cross-app-data TCC prompt.
+        #if os(iOS)
+        WidgetDataProvider.shared.setExternalPortfolioAccessLocked(locked)
+        // Initialization updates permission without publishing an unloaded store.
+        // The post-recompute observer publishes once loading finishes.
+        #endif
     }
 
     private func refreshBiometry() {
-        let context = LAContext()
-        var error: NSError?
-        biometryAvailable = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
+        let context = contextFactory.makeContext()
+        biometryAvailable = context.canEvaluateBiometrics()
         biometryType = context.biometryType
     }
 }

@@ -12,16 +12,44 @@ final class WidgetDataProvider {
 
     private init() {}
 
-    /// Write current portfolio state to the shared container
-    func updateSnapshot() {
-        guard let containerURL = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: WidgetSnapshotTransport.appGroupIdentifier
-        ) else {
+    /// Revokes or grants extension access. When access is revoked the existing
+    /// snapshot is removed immediately, rather than waiting for a recompute, so
+    /// a widget cannot continue rendering stale portfolio values after lock.
+    func setExternalPortfolioAccessLocked(_ locked: Bool) {
+        guard let defaults = UserDefaults(suiteName: WidgetSnapshotTransport.appGroupIdentifier) else {
+            Self.logger.error("App Group defaults unavailable — leaving external portfolio access locked")
+            return
+        }
+        defaults.set(locked, forKey: AppStorageKeys.externalPortfolioLocked)
+
+        if locked {
+            removeSnapshot()
+        }
+    }
+
+    /// Write current portfolio state to the shared container. Dependencies can
+    /// be injected to verify startup behavior without touching the App Group.
+    func updateSnapshot(
+        store: FundDataStore = .shared,
+        containerURL: URL? = nil,
+        externalAccessIsLocked: Bool = WidgetSnapshotTransport.externalPortfolioAccessIsLocked
+    ) {
+        guard !externalAccessIsLocked else {
+            // Never leave an old value-bearing file behind while a biometric
+            // lock is active. This also reloads widgets to their empty state.
+            removeSnapshot(containerURL: containerURL)
+            return
+        }
+
+        // Preserve the last complete snapshot until entries and derived metrics
+        // are ready, including when disabling protection during progressive load.
+        guard store.isLoaded, store.loadingPhase == .ready else { return }
+
+        guard let containerURL = containerURL ?? FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: WidgetSnapshotTransport.appGroupIdentifier) else {
             Self.logger.error("⚠️ App Group container unavailable — widget data cannot be shared")
             return
         }
 
-        let store = FundDataStore.shared
         let portfolio = store.portfolio
         let actionable = store.actionableFunds
 
@@ -76,6 +104,33 @@ final class WidgetDataProvider {
         } catch {
             Self.logger.error("Failed to write widget snapshot: \(error.localizedDescription)")
         }
+    }
+
+    private func removeSnapshot(containerURL: URL? = nil) {
+        guard let containerURL = containerURL ?? FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: WidgetSnapshotTransport.appGroupIdentifier) else {
+            return
+        }
+
+        let fileURL = containerURL.appendingPathComponent(WidgetSnapshotTransport.fileName)
+        do {
+            if FileManager.default.fileExists(atPath: fileURL.path) {
+                try FileManager.default.removeItem(at: fileURL)
+            }
+        } catch {
+            Self.logger.error("Failed to remove protected widget snapshot: \(error.localizedDescription)")
+            // If removal was rejected, replace the file with an intentionally
+            // undecodable payload. The widget then enters its no-data state
+            // instead of rendering the prior value-bearing snapshot.
+            do {
+                try Data().write(to: fileURL, options: .atomic)
+            } catch {
+                Self.logger.error("Failed to redact protected widget snapshot: \(error.localizedDescription)")
+            }
+        }
+
+        #if canImport(WidgetKit)
+        WidgetCenter.shared.reloadAllTimelines()
+        #endif
     }
 
 }
