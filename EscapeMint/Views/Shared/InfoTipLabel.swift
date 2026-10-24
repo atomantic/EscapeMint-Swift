@@ -15,9 +15,9 @@ struct InfoTipLabel: View {
                     .font(.caption2)
                     .foregroundColor(.textMuted)
                     .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .contentShape(Rectangle())
             .accessibilityLabel("More information about \(label)")
             .accessibilityHint("Shows help for \(label)")
             #if os(iOS)

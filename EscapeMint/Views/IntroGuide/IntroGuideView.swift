@@ -90,6 +90,7 @@ struct IntroGuideView: View {
                 progressButtons
                     .padding(.horizontal, 8)
             }
+            .frame(height: 44)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 10)
@@ -113,9 +114,9 @@ struct IntroGuideView: View {
                         .fill(step == currentStep ? Color.mint : step < currentStep ? Color.mint.opacity(0.5) : Color.textMuted.opacity(0.3))
                         .frame(width: step == currentStep ? 20 : 8, height: 8)
                         .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .contentShape(Rectangle())
                 .accessibilityLabel("Step \(step) of \(totalSteps)")
                 .accessibilityValue(step == currentStep ? "Current step" : "")
                 .accessibilityAddTraits(step == currentStep ? .isSelected : [])
