@@ -13,9 +13,14 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, Se
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let userInfo = response.notification.request.content.userInfo
-        if let fundId = userInfo[NotificationUserInfoKey.fundId] as? String {
-            NotificationCenter.default.postSelectFund(id: fundId)
+        let fundId = userInfo[NotificationUserInfoKey.fundId] as? String
+        if let fundId {
+            Task { @MainActor in
+                NotificationCenter.default.postSelectFund(id: fundId)
+            }
         }
+        // Acknowledge delivery on the delegate callback before hopping to the
+        // main actor; the non-Sendable completion must not cross actor domains.
         completionHandler()
     }
 
