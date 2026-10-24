@@ -65,6 +65,27 @@ final class FundDataStore {
     /// never allowed to install its captured snapshot over that newer committed state.
     private var mutationGeneration = 0
     private var activeReloadGeneration: Int?
+    private var pendingPersistenceCount = 0
+    private var persistenceWaiters: [CheckedContinuation<Void, Never>] = []
+
+    private func beginPersistedMutation() -> Int {
+        pendingPersistenceCount += 1
+        return beginMutation()
+    }
+
+    private func finishPersistedMutation() {
+        pendingPersistenceCount -= 1
+        guard pendingPersistenceCount == 0 else { return }
+        let waiters = persistenceWaiters
+        persistenceWaiters.removeAll()
+        for waiter in waiters { waiter.resume() }
+    }
+
+    private func waitForPendingPersistence() async {
+        while pendingPersistenceCount > 0 {
+            await withCheckedContinuation { persistenceWaiters.append($0) }
+        }
+    }
 
     private func beginMutation() -> Int {
         mutationGeneration += 1
@@ -313,6 +334,9 @@ final class FundDataStore {
     // MARK: - Reload from Disk
 
     func reload() async {
+        // Memory commits precede disk I/O. A disk snapshot taken in that gap is
+        // partial, even when it belongs to a newer reload generation.
+        await waitForPendingPersistence()
         let generation = beginMutation()
         activeReloadGeneration = generation
         loadingPhase = .loadingEntries
@@ -466,34 +490,27 @@ final class FundDataStore {
     /// recompute twice from one button tap.
     func addFunds(_ newFunds: [FundData]) async {
         guard !newFunds.isEmpty else { return }
-        let generation = beginMutation()
+        let generation = beginPersistedMutation()
+        defer { finishPersistedMutation() }
         funds.append(contentsOf: newFunds)
         loadedFundCount = funds.count
         for fund in newFunds {
             bumpFundVersion(fund.id)
         }
-        var didWrite = false
-        for fund in newFunds {
-            do {
-                // Write the latest in-memory state, NOT the captured `fund` parameter — a
-                // concurrent updateConfig that landed during `await recompute()` would have
-                // mutated funds[idx], and writing the old captured snapshot would clobber it.
-                guard let toWrite = funds.first(where: { $0.id == fund.id }) else { continue }
-                try await store.writeFund(toWrite)
-                didWrite = true
-            } catch {
-                recordDiskError("adding fund", error)
-            }
+        do {
+            try await store.writeFunds(newFunds)
+        } catch {
+            recordDiskError("adding funds", error)
         }
-        if didWrite {
-            ICloudSyncMonitor.shared.markLocalWrite()
-        }
+        // A batch can have partial success; suppress reloads caused by any write.
+        ICloudSyncMonitor.shared.markLocalWrite()
         await recomputeCommittedState(generation: generation)
     }
 
     func updateFund(_ fund: FundData) async {
         guard let idx = funds.firstIndex(where: { $0.id == fund.id }) else { return }
-        let generation = beginMutation()
+        let generation = beginPersistedMutation()
+        defer { finishPersistedMutation() }
         funds[idx] = fund
         bumpFundVersion(fund.id)
         do {
@@ -516,7 +533,8 @@ final class FundDataStore {
     /// triggering 20 recomputes, notification reschedules, widget refreshes.
     func renameFunds(_ edits: [(oldId: String, newFund: FundData)]) async {
         guard !edits.isEmpty else { return }
-        let generation = beginMutation()
+        let generation = beginPersistedMutation()
+        defer { finishPersistedMutation() }
         let preparedEdits = Self.prepareRenameEdits(edits)
         let snapshot = Self.applyRenames(to: funds, edits: preparedEdits)
         for (oldId, newFund) in preparedEdits {
@@ -596,7 +614,8 @@ final class FundDataStore {
     }
 
     func deleteFund(id: String) async {
-        let generation = beginMutation()
+        let generation = beginPersistedMutation()
+        defer { finishPersistedMutation() }
         funds.removeAll { $0.id == id }
         loadedFundCount = funds.count
         forgetFund(id: id)
@@ -612,7 +631,8 @@ final class FundDataStore {
     func deletePlatform(named platform: String) async {
         let cleanPlatform = platform.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !cleanPlatform.isEmpty else { return }
-        let generation = beginMutation()
+        let generation = beginPersistedMutation()
+        defer { finishPersistedMutation() }
 
         let removedIds = funds
             .filter { $0.platform == cleanPlatform }
@@ -650,7 +670,8 @@ final class FundDataStore {
     /// same frame (no intermediate stale-summary render).
     func appendEntries(writes: [(fundId: String, entry: FundEntry)]) async {
         guard !writes.isEmpty else { return }
-        let generation = beginMutation()
+        let generation = beginPersistedMutation()
+        defer { finishPersistedMutation() }
         var snapshot = funds
         var touched: [String] = []
         for (fundId, entry) in writes {
@@ -691,7 +712,8 @@ final class FundDataStore {
 
     func replaceEntries(fundId: String, entries: [FundEntry]) async {
         guard let idx = funds.firstIndex(where: { $0.id == fundId }) else { return }
-        let generation = beginMutation()
+        let generation = beginPersistedMutation()
+        defer { finishPersistedMutation() }
         funds[idx].entries = entries
         bumpFundVersion(fundId)
         notifyFundInvalidated(fundId)
@@ -706,7 +728,8 @@ final class FundDataStore {
 
     func updateConfig(fundId: String, config: FundConfig) async {
         guard let idx = funds.firstIndex(where: { $0.id == fundId }) else { return }
-        let generation = beginMutation()
+        let generation = beginPersistedMutation()
+        defer { finishPersistedMutation() }
         funds[idx].config = config
         bumpFundVersion(fundId)
         do {

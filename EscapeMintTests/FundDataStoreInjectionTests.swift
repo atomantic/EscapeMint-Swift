@@ -94,6 +94,8 @@ final class FundDataStoreInjectionTests: XCTestCase {
         private struct State {
             var funds: [String: FundData] = [:]
             var writeCount = 0
+            var batchWriteCount = 0
+            var readAllCount = 0
             var appendCount = 0
             var singleAppendCallCount = 0
             var batchAppendCallCount = 0
@@ -104,9 +106,12 @@ final class FundDataStoreInjectionTests: XCTestCase {
         }
         private let lock = OSAllocatedUnfairLock(initialState: State())
         private let batchPersistenceGate: BatchPersistenceGate?
+        private let writePersistenceGate: BatchPersistenceGate?
 
-        init(seed: [FundData] = [], batchPersistenceGate: BatchPersistenceGate? = nil) {
+        init(seed: [FundData] = [], batchPersistenceGate: BatchPersistenceGate? = nil,
+             writePersistenceGate: BatchPersistenceGate? = nil) {
             self.batchPersistenceGate = batchPersistenceGate
+            self.writePersistenceGate = writePersistenceGate
             lock.withLock { state in
                 for fund in seed { state.funds[fund.id] = fund }
             }
@@ -114,6 +119,8 @@ final class FundDataStoreInjectionTests: XCTestCase {
 
         // Inspection helpers for assertions.
         var writeCount: Int { lock.withLock { $0.writeCount } }
+        var batchWriteCount: Int { lock.withLock { $0.batchWriteCount } }
+        var readAllCount: Int { lock.withLock { $0.readAllCount } }
         var appendCount: Int { lock.withLock { $0.appendCount } }
         var singleAppendCallCount: Int { lock.withLock { $0.singleAppendCallCount } }
         var batchAppendCallCount: Int { lock.withLock { $0.batchAppendCallCount } }
@@ -137,15 +144,24 @@ final class FundDataStoreInjectionTests: XCTestCase {
             lock.withLock { $0.funds[id]?.entries ?? [] }
         }
         func readAllFunds() async -> [FundData] {
-            lock.withLock { Array($0.funds.values) }
+            lock.withLock { state in
+                state.readAllCount += 1
+                return Array(state.funds.values)
+            }
         }
 
         // Mutations
         func writeFund(_ fund: FundData) async throws {
-            lock.withLock { state in
+            let shouldHold = lock.withLock { state in
                 state.funds[fund.id] = fund
                 state.writeCount += 1
+                return state.writeCount == 1 && writePersistenceGate != nil
             }
+            if shouldHold { await writePersistenceGate?.hold() }
+        }
+        func writeFunds(_ funds: [FundData]) async throws {
+            lock.withLock { $0.batchWriteCount += 1 }
+            for fund in funds { try await writeFund(fund) }
         }
         func appendEntry(fundId: String, entry: FundEntry) async throws {
             let shouldHold = lock.withLock { state in
@@ -364,6 +380,39 @@ final class FundDataStoreInjectionTests: XCTestCase {
         XCTAssertEqual(fake.deleteCount, 1, "deleteFund should delegate to the fake")
         XCTAssertNil(fake.storedFund(seeded.id), "fund should be gone from the fake after delete")
         XCTAssertNil(store.summary(byId: seeded.id), "summary should be dropped after delete")
+    }
+
+    /// Stop the addition after its first disk write, then enter reload while the
+    /// cash fund exists only in committed memory. Reload must wait for persistence.
+    func testReloadDuringLinkedAdditionCannotDiscardUnwrittenCashFund() async throws {
+        let primary = makeFund(platform: "adding", ticker: "asset", entries: sampleEntries())
+        let cash = makeFund(platform: "adding", ticker: "cash", entries: sampleEntries())
+        let gate = BatchPersistenceGate()
+        let fake = FakeFundStore(writePersistenceGate: gate)
+        let store = FundDataStore(store: fake)
+        let adding = Task { await store.addFunds([primary, cash]) }
+        await gate.waitUntilHeld()
+        XCTAssertEqual(fake.writeCount, 1)
+        XCTAssertNil(fake.storedFund(cash.id))
+        let reloadEntered = expectation(description: "reload entered during persistence")
+        let reloading = Task {
+            reloadEntered.fulfill()
+            await store.reload()
+        }
+        await fulfillment(of: [reloadEntered], timeout: 2)
+        XCTAssertEqual(fake.readAllCount, 0, "reload must not snapshot partially persisted additions")
+        XCTAssertNotNil(store.fund(byId: cash.id))
+        await gate.release()
+        await adding.value
+        await reloading.value
+
+        XCTAssertEqual(fake.batchWriteCount, 1)
+        XCTAssertEqual(fake.writeCount, 2)
+        XCTAssertNotNil(fake.storedFund(primary.id))
+        XCTAssertNotNil(fake.storedFund(cash.id))
+        XCTAssertEqual(Set(store.funds.map(\.id)), [primary.id, cash.id])
+        XCTAssertNotNil(store.summary(byId: primary.id))
+        XCTAssertNotNil(store.summary(byId: cash.id))
     }
 
     /// A primary entry and its cash counterpart are one logical disk mutation.

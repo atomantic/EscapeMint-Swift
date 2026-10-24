@@ -116,6 +116,7 @@ protocol FundStoreProtocol: Sendable {
     func readAllFunds() async -> [FundData]
 
     func writeFund(_ fund: FundData) async throws
+    func writeFunds(_ funds: [FundData]) async throws
     func renameFund(from oldId: String, to newFund: FundData) async throws
     func renameFunds(_ edits: [(oldId: String, newFund: FundData)]) async throws
     func appendEntry(fundId: String, entry: FundEntry) async throws
@@ -145,6 +146,15 @@ protocol FundStoreProtocol: Sendable {
 }
 
 extension FundStoreProtocol {
+    func writeFunds(_ funds: [FundData]) async throws {
+        var firstError: (any Error)?
+        for fund in funds {
+            do { try await writeFund(fund) }
+            catch { if firstError == nil { firstError = error } }
+        }
+        if let firstError { throw firstError }
+    }
+
     /// Default composition keeps test/injected stores source-compatible. The
     /// production actor overrides this with one non-suspending actor operation.
     func renameFund(from oldId: String, to newFund: FundData) async throws {
@@ -618,6 +628,17 @@ actor FundStore {
         let configData = try JSONEncoder.pretty.encode(configWithMeta)
         let tsvData = Data(buildTSV(fund.entries).utf8)
         try replaceFundPair(id: fund.id, configData: configData, tsvData: tsvData)
+    }
+
+    /// Keep linked additions in one actor turn, so a disk reload cannot observe
+    /// just the asset while its cash fund has yet to be persisted.
+    func writeFunds(_ funds: [FundData]) throws {
+        var firstError: (any Error)?
+        for fund in funds {
+            do { try writeFund(fund) }
+            catch { if firstError == nil { firstError = error } }
+        }
+        if let firstError { throw firstError }
     }
 
     /// Persist a renamed pair without an actor re-entrancy gap between creating

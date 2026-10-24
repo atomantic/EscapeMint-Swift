@@ -277,7 +277,8 @@ extension StorageFallbackTests {
         let count = try await store.replaceAllFundsFromBackupJSON(backup)
         XCTAssertEqual(count, 1)
         XCTAssertEqual(try directoryBytes(cloud), try directoryBytes(local))
-        #if os(iOS)
+        // Simulator filesystems do not expose iOS data-protection attributes.
+        #if os(iOS) && !targetEnvironment(simulator)
         for root in [cloud, local] {
             for ext in ["json", "tsv"] {
                 let attributes = try FileManager.default.attributesOfItem(atPath: root.appendingPathComponent("new-asset.\(ext)").path)
