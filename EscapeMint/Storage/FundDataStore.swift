@@ -405,10 +405,18 @@ final class FundDataStore {
     /// Returns the imported fund count.
     func importFromBackupJSON(_ url: URL, replacingExisting: Bool) async throws -> Int {
         let count: Int
-        if replacingExisting {
-            count = try await store.replaceAllFundsFromBackupJSON(url)
-        } else {
-            count = try await store.importFromBackupJSON(url)
+        do {
+            if replacingExisting {
+                count = try await store.replaceAllFundsFromBackupJSON(url)
+            } else {
+                count = try await store.importFromBackupJSON(url)
+            }
+        } catch {
+            // A failed rollback can still change disk state; reconcile before the
+            // caller reports the error rather than leaving a stale portfolio visible.
+            ICloudSyncMonitor.shared.markLocalWrite()
+            await reload()
+            throw error
         }
         ICloudSyncMonitor.shared.markLocalWrite()
         await reload()

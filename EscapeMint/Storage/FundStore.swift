@@ -174,7 +174,7 @@ extension FundStore: FundStoreProtocol {}
 actor FundStore {
     static let shared = FundStore()
 
-    private let fileManager = FileManager.default
+    private let fileManager: FileManager
     private static let iCloudContainerId = "iCloud.net.shadowpuppet.EscapeMint"
     private static let logger = Logger(subsystem: "net.shadowpuppet.EscapeMint", category: "FundStore")
     private static let backupDateFormatter: DateFormatter = {
@@ -193,14 +193,13 @@ actor FundStore {
         var fundsDirectory: URL
         var isICloud: Bool
     }
-    private static let stateLock = OSAllocatedUnfairLock<DirectoryState?>(initialState: nil)
+    private nonisolated let stateLock: OSAllocatedUnfairLock<DirectoryState>
 
     nonisolated var fundsDirectory: URL {
-        // force-unwrap is safe: `init` sets state before the actor is ever accessible
-        Self.stateLock.withLock { $0! }.fundsDirectory
+        stateLock.withLock { $0.fundsDirectory }
     }
     nonisolated var isICloud: Bool {
-        Self.stateLock.withLock { $0! }.isICloud
+        stateLock.withLock { $0.isICloud }
     }
     nonisolated static var shouldUseLocalStorageOnly: Bool {
         let args = CommandLine.arguments
@@ -213,16 +212,13 @@ actor FundStore {
         return false
         #endif
     }
-    fileprivate static var currentFundsDirectory: URL {
-        stateLock.withLock { $0! }.fundsDirectory
-    }
 
     /// Fund identifiers become file names, so keep the acceptance rule in one place.
-    /// In particular, `.` and `..` match the character set but are path components,
-    /// not fund IDs.
+    /// Preserve legacy names (including spaces and Unicode) while rejecting path
+    /// components and separators, so an upgrade never hides existing portfolios.
     nonisolated static func isSafeFundID(_ id: String) -> Bool {
         guard !id.isEmpty, id != ".", id != ".." else { return false }
-        return id.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "." || $0 == "_" || $0 == "-") }
+        return !id.contains("/") && !id.contains("\\") && !id.contains("\0")
     }
 
     private func requireSafeFundID(_ id: String) throws {
@@ -315,7 +311,16 @@ actor FundStore {
             skipICloud: Self.shouldUseLocalStorageOnly,
             ubiquityURLProvider: { fm.url(forUbiquityContainerIdentifier: Self.iCloudContainerId) }
         )
-        Self.stateLock.withLock { $0 = state }
+        fileManager = fm
+        stateLock = OSAllocatedUnfairLock(initialState: state)
+    }
+
+    /// Isolated filesystem seam for recovery tests; never changes the shared store.
+    init(fundsDirectory: URL, isICloud: Bool = false, fileManager: FileManager = .default) {
+        self.fileManager = fileManager
+        stateLock = OSAllocatedUnfairLock(initialState: DirectoryState(
+            fundsDirectory: fundsDirectory, isICloud: isICloud
+        ))
     }
 
     /// Retry iCloud resolution if it wasn't available at init (e.g. after system reboot).
@@ -354,7 +359,7 @@ actor FundStore {
                 try fm.createDirectory(at: funds, withIntermediateDirectories: true)
                 _ = try fm.contentsOfDirectory(at: funds, includingPropertiesForKeys: nil)
                 Self.logger.info("☁️ iCloud recovered on attempt \(attempt)")
-                Self.stateLock.withLock { state in
+                stateLock.withLock { state in
                     state = DirectoryState(fundsDirectory: funds, isICloud: true)
                 }
                 return true
@@ -399,8 +404,10 @@ actor FundStore {
             guard !fm.fileExists(atPath: destTSV.path) || !fm.fileExists(atPath: destJSON.path) else { continue }
             try replaceFundPair(
                 id: id,
-                configData: Data(contentsOf: jsonFile),
-                tsvData: Data(contentsOf: tsvFile)
+                // Repair only missing members: a cloud file may contain newer data
+                // than the local fallback even when its companion has disappeared.
+                configData: Data(contentsOf: fm.fileExists(atPath: destJSON.path) ? destJSON : jsonFile),
+                tsvData: Data(contentsOf: fm.fileExists(atPath: destTSV.path) ? destTSV : tsvFile)
             )
         }
     }
@@ -419,7 +426,7 @@ actor FundStore {
 
     /// Read only JSON configs (no TSV entries) — returns FundData with empty entries for instant sidebar/nav.
     nonisolated func readAllFundConfigs() -> [FundData] {
-        let dir = Self.currentFundsDirectory
+        let dir = fundsDirectory
         guard let files = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
             return []
         }
@@ -470,7 +477,7 @@ actor FundStore {
     /// Read entries for a single fund by its id — nonisolated for true parallel I/O.
     nonisolated func readFundEntries(id: String) -> [FundEntry] {
         guard Self.isSafeFundID(id) else { return [] }
-        let tsvURL = Self.currentFundsDirectory.appendingPathComponent("\(id).tsv")
+        let tsvURL = fundsDirectory.appendingPathComponent("\(id).tsv")
         guard let content = try? String(contentsOf: tsvURL, encoding: .utf8) else { return [] }
         return parseTSV(content)
     }
@@ -566,11 +573,16 @@ actor FundStore {
         defer {
             try? fileManager.removeItem(at: stagedConfig)
             try? fileManager.removeItem(at: stagedTSV)
+            // Rollback writes also replace file objects and must retain protection.
+            applyCompleteProtection(to: configURL)
+            applyCompleteProtection(to: tsvURL)
         }
 
         // Validate staged content before touching the committed pair.
         try configData.write(to: stagedConfig, options: .atomic)
         try tsvData.write(to: stagedTSV, options: .atomic)
+        applyCompleteProtection(to: stagedConfig)
+        applyCompleteProtection(to: stagedTSV)
         _ = try JSONDecoder().decode(FundConfig.self, from: Data(contentsOf: stagedConfig))
         _ = parseTSV(try String(contentsOf: stagedTSV, encoding: .utf8))
 
@@ -591,8 +603,6 @@ actor FundStore {
             }
             throw error
         }
-        applyCompleteProtection(to: configURL)
-        applyCompleteProtection(to: tsvURL)
     }
 
     func writeFund(_ fund: FundData) throws {
@@ -954,75 +964,96 @@ actor FundStore {
     func importFromBackupJSON(_ jsonURL: URL) throws -> Int {
         try fileManager.createDirectory(at: fundsDirectory, withIntermediateDirectories: true)
         let staged = try stageBackupFunds(from: jsonURL)
+        var imported = 0
         for fund in staged {
-            try replaceFundPair(id: fund.id, configData: fund.configData, tsvData: fund.tsvData)
+            do {
+                try replaceFundPair(id: fund.id, configData: fund.configData, tsvData: fund.tsvData)
+                imported += 1
+            } catch {
+                Self.logger.warning("skipping backup fund '\(fund.id, privacy: .private)': \(error.localizedDescription, privacy: .public)")
+            }
         }
-        return staged.count
+        guard imported > 0 else {
+            throw NSError(domain: "FundStore", code: 7, userInfo: [NSLocalizedDescriptionKey: "No funds could be imported"])
+        }
+        // Report partial success so the facade marks writes and reloads committed pairs.
+        return imported
     }
 
-    /// Replace all current funds only after the full backup has been decoded and
-    /// staged. The old directory is retained until every staged pair has moved into
-    /// place, and is restored on any error.
+    /// Replace both the active and fallback roots. Keep every original directory
+    /// until all replacements commit, so neither fallback nor a later migration can
+    /// resurrect removed funds. Roll back every changed root on any commit failure.
     func replaceAllFundsFromBackupJSON(_ jsonURL: URL) throws -> Int {
         let staged = try stageBackupFunds(from: jsonURL)
-        let parent = fundsDirectory.deletingLastPathComponent()
         let transactionID = UUID().uuidString
-        let stagingDirectory = parent.appendingPathComponent(".fund-import-\(transactionID)")
-        let rollbackDirectory = parent.appendingPathComponent(".fund-rollback-\(transactionID)")
-        try fileManager.createDirectory(at: stagingDirectory, withIntermediateDirectories: true)
-        defer {
-            try? fileManager.removeItem(at: stagingDirectory)
+        let replacements = deletionDirectories().map { live in
+            let parent = live.deletingLastPathComponent()
+            return (
+                live: live,
+                staging: parent.appendingPathComponent(".fund-import-\(transactionID)"),
+                rollback: parent.appendingPathComponent(".fund-rollback-\(transactionID)")
+            )
         }
-        for fund in staged {
-            let configURL = stagingDirectory.appendingPathComponent("\(fund.id).json")
-            let tsvURL = stagingDirectory.appendingPathComponent("\(fund.id).tsv")
-            try fund.configData.write(to: configURL, options: .atomic)
-            try fund.tsvData.write(to: tsvURL, options: .atomic)
-            _ = try JSONDecoder().decode(FundConfig.self, from: Data(contentsOf: configURL))
-            _ = parseTSV(try String(contentsOf: tsvURL, encoding: .utf8))
+        defer {
+            for replacement in replacements {
+                try? fileManager.removeItem(at: replacement.staging)
+            }
+        }
+        // Complete all preparation before moving either live root.
+        for replacement in replacements {
+            try fileManager.createDirectory(at: replacement.staging, withIntermediateDirectories: true)
+            for fund in staged {
+                let configURL = replacement.staging.appendingPathComponent("\(fund.id).json")
+                let tsvURL = replacement.staging.appendingPathComponent("\(fund.id).tsv")
+                try fund.configData.write(to: configURL, options: .atomic)
+                try fund.tsvData.write(to: tsvURL, options: .atomic)
+                applyCompleteProtection(to: configURL)
+                applyCompleteProtection(to: tsvURL)
+                _ = try JSONDecoder().decode(FundConfig.self, from: Data(contentsOf: configURL))
+                _ = parseTSV(try String(contentsOf: tsvURL, encoding: .utf8))
+            }
         }
 
-        let hadLiveDirectory = fileManager.fileExists(atPath: fundsDirectory.path)
-        var movedLiveToRollback = false
+        var movedOriginals = Set<URL>()
+        var installed = Set<URL>()
         do {
-            if hadLiveDirectory {
-                try fileManager.moveItem(at: fundsDirectory, to: rollbackDirectory)
-                movedLiveToRollback = true
-            }
-            try fileManager.moveItem(at: stagingDirectory, to: fundsDirectory)
-        } catch let commitError {
-            guard movedLiveToRollback else { throw commitError }
-            do {
-                guard !fileManager.fileExists(atPath: fundsDirectory.path) else {
-                    throw NSError(
-                        domain: "FundStore",
-                        code: 9,
-                        userInfo: [NSLocalizedDescriptionKey: "Replacement path unexpectedly exists"]
-                    )
+            for replacement in replacements {
+                if fileManager.fileExists(atPath: replacement.live.path) {
+                    try fileManager.moveItem(at: replacement.live, to: replacement.rollback)
+                    movedOriginals.insert(replacement.live)
                 }
-                try fileManager.moveItem(at: rollbackDirectory, to: fundsDirectory)
-            } catch let restoreError {
-                // Never clean up rollback here: it may be the only intact copy.
-                throw NSError(
-                    domain: "FundStore",
-                    code: 9,
-                    userInfo: [NSLocalizedDescriptionKey:
-                        "Fund replacement failed (\(commitError.localizedDescription)) and restoration failed (\(restoreError.localizedDescription)). Recovery data remains at \(rollbackDirectory.path)"
-                    ]
-                )
+                try fileManager.moveItem(at: replacement.staging, to: replacement.live)
+                installed.insert(replacement.live)
+            }
+        } catch let commitError {
+            var restorationErrors: [String] = []
+            // Continue restoring other roots even if one restoration fails. Never
+            // delete a rollback directory in this path: it may be the only copy.
+            for replacement in replacements.reversed() {
+                do {
+                    if installed.contains(replacement.live) {
+                        try fileManager.removeItem(at: replacement.live)
+                    }
+                    if movedOriginals.contains(replacement.live) {
+                        try fileManager.moveItem(at: replacement.rollback, to: replacement.live)
+                    }
+                } catch {
+                    restorationErrors.append("\(replacement.rollback.path): \(error.localizedDescription)")
+                }
+            }
+            if !restorationErrors.isEmpty {
+                throw NSError(domain: "FundStore", code: 9, userInfo: [NSLocalizedDescriptionKey:
+                    "Fund replacement failed (\(commitError.localizedDescription)). Recovery data remains at \(restorationErrors.joined(separator: "; "))"
+                ])
             }
             throw commitError
         }
-        for fund in staged {
-            applyCompleteProtection(to: fundsDirectory.appendingPathComponent("\(fund.id).json"))
-            applyCompleteProtection(to: fundsDirectory.appendingPathComponent("\(fund.id).tsv"))
-        }
-        // The new directory is fully committed. Only now is the rollback copy obsolete.
-        if fileManager.fileExists(atPath: rollbackDirectory.path) {
+        // Both roots now contain the replacement. Only now are originals obsolete.
+        for replacement in replacements where movedOriginals.contains(replacement.live) {
             do {
-                try fileManager.removeItem(at: rollbackDirectory)
+                try fileManager.removeItem(at: replacement.rollback)
             } catch {
-                Self.logger.warning("committed fund rollback cleanup failed at \(rollbackDirectory.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                Self.logger.warning("committed fund rollback cleanup failed at \(replacement.rollback.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }
         }
         return staged.count

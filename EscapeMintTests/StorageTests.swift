@@ -589,8 +589,10 @@ final class StorageTests: XCTestCase {
     }
 
     func testSafeFundIDBoundaryRejectsPathComponents() {
-        XCTAssertTrue(FundStore.isSafeFundID("coinbase-btc_1.0"))
-        for unsafe in ["", ".", "..", "../escape", "a/b", "a\\b", "name space"] {
+        for safe in ["coinbase-btc_1.0", "name space", "Crédit-資産"] {
+            XCTAssertTrue(FundStore.isSafeFundID(safe))
+        }
+        for unsafe in ["", ".", "..", "../escape", "a/b", "a\\b", "nul\0id"] {
             XCTAssertFalse(FundStore.isSafeFundID(unsafe), "\(unsafe) must not be usable as a file name")
         }
     }
