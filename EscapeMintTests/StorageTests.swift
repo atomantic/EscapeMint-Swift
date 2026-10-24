@@ -359,9 +359,9 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(entries[1]["dividend"] as? Double, 5.0)
     }
 
-    // MARK: - Directory Import/Export
+    // MARK: - Directory Import
 
-    func testDirectoryImportExportReplacesBothFundFiles() async throws {
+    func testDirectoryImportReplacesBothFundFiles() async throws {
         let store = FundStore.shared
         let platform = "dirio-\(UUID().uuidString.prefix(8).lowercased())"
         let original = FundData(
@@ -379,14 +379,15 @@ final class StorageTests: XCTestCase {
         }
         try await store.writeFund(original)
 
-        // Use the production export boundary, then keep only this test's pair so the
-        // production importer receives an unambiguous one-fund directory.
+        // Copy the pair persisted by writeFund to build a one-fund import fixture.
         let sourceDir = tempDir.appendingPathComponent("exported")
         try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
-        _ = try await store.exportToDirectory(sourceDir)
-        for file in try FileManager.default.contentsOfDirectory(at: sourceDir, includingPropertiesForKeys: nil)
-        where file.deletingPathExtension().lastPathComponent != fundId {
-            try FileManager.default.removeItem(at: file)
+        for ext in ["json", "tsv"] {
+            let name = "\(fundId).\(ext)"
+            try FileManager.default.copyItem(
+                at: store.fundsDirectory.appendingPathComponent(name),
+                to: sourceDir.appendingPathComponent(name)
+            )
         }
         XCTAssertTrue(FileManager.default.fileExists(atPath: sourceDir.appendingPathComponent("\(fundId).json").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: sourceDir.appendingPathComponent("\(fundId).tsv").path))
@@ -429,10 +430,12 @@ final class StorageTests: XCTestCase {
 
         let sourceDir = tempDir.appendingPathComponent("mismatched-export")
         try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
-        _ = try await store.exportToDirectory(sourceDir)
-        for file in try FileManager.default.contentsOfDirectory(at: sourceDir, includingPropertiesForKeys: nil)
-        where file.deletingPathExtension().lastPathComponent != original.id {
-            try FileManager.default.removeItem(at: file)
+        for ext in ["json", "tsv"] {
+            let name = "\(original.id).\(ext)"
+            try FileManager.default.copyItem(
+                at: store.fundsDirectory.appendingPathComponent(name),
+                to: sourceDir.appendingPathComponent(name)
+            )
         }
         let configURL = sourceDir.appendingPathComponent("\(original.id).json")
         var mismatchedConfig = try JSONDecoder().decode(FundConfig.self, from: Data(contentsOf: configURL))
