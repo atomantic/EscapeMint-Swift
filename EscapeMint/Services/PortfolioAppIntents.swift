@@ -18,7 +18,7 @@ private func loadSnapshot() -> WidgetSnapshot? {
     WidgetSnapshotTransport.readSnapshot()
 }
 
-let lockedPortfolioMessage = "EscapeMint is locked. Open the app and authenticate to view your portfolio."
+let lockedPortfolioMessage = "EscapeMint portfolio sharing is locked while biometric authentication is enabled. Turn off biometric authentication in Settings to use widgets, Siri, or Shortcuts."
 
 func portfolioResponse(
     isExternalPortfolioLocked: Bool = WidgetSnapshotTransport.externalPortfolioAccessIsLocked,

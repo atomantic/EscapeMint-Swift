@@ -222,6 +222,12 @@ final class AuthManager {
             }
         }
 
+        // A fallback error can arrive after lock invalidates the biometric
+        // context. Recheck revocation before presenting another system prompt.
+        guard generation == authenticationGeneration,
+              isEnabled,
+              !Task.isCancelled else { return }
+
         let passcodeContext = contextFactory.makeContext()
         activeContext = passcodeContext
         do {

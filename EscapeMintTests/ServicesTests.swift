@@ -36,13 +36,38 @@ final class SpySearchableIndex: SearchableIndexing, @unchecked Sendable {
 @MainActor
 private final class DeferredAuthenticationContext: AuthenticationContext {
     let biometryType: LABiometryType = .none
+    var biometricsAvailable = false
     private(set) var wasInvalidated = false
+    private(set) var evaluationCount = 0
     private var continuation: CheckedContinuation<Void, Error>?
+    private var startedWaiter: CheckedContinuation<Void, Never>?
+    private var finishedWaiter: CheckedContinuation<Void, Never>?
+    private var hasFinished = false
 
-    func canEvaluateBiometrics() -> Bool { false }
+    func canEvaluateBiometrics() -> Bool { biometricsAvailable }
 
     func evaluatePolicy(_ policy: LAPolicy, localizedReason: String) async throws {
-        try await withCheckedThrowingContinuation { continuation = $0 }
+        evaluationCount += 1
+        defer {
+            hasFinished = true
+            finishedWaiter?.resume()
+            finishedWaiter = nil
+        }
+        try await withCheckedThrowingContinuation {
+            continuation = $0
+            startedWaiter?.resume()
+            startedWaiter = nil
+        }
+    }
+
+    func waitForEvaluation() async {
+        guard continuation == nil else { return }
+        await withCheckedContinuation { startedWaiter = $0 }
+    }
+
+    func waitForEvaluationToFinish() async {
+        guard !hasFinished else { return }
+        await withCheckedContinuation { finishedWaiter = $0 }
     }
 
     func invalidate() {
@@ -51,6 +76,11 @@ private final class DeferredAuthenticationContext: AuthenticationContext {
 
     func succeed() {
         continuation?.resume()
+        continuation = nil
+    }
+
+    func fail(_ error: Error) {
+        continuation?.resume(throwing: error)
         continuation = nil
     }
 }
@@ -109,7 +139,7 @@ final class ServicesTests: XCTestCase {
         let auth = AuthManager(isEnabled: true, contextFactory: factory)
 
         auth.authenticate()
-        await Task.yield()
+        await factory.context.waitForEvaluation()
         XCTAssertTrue(auth.isEvaluating)
 
         auth.lock()
@@ -118,8 +148,26 @@ final class ServicesTests: XCTestCase {
 
         // Simulate a platform callback that reports success after cancellation.
         factory.context.succeed()
-        await Task.yield()
+        await factory.context.waitForEvaluationToFinish()
         XCTAssertFalse(auth.isUnlocked, "A late authentication success must not unlock a backgrounded app")
+        XCTAssertFalse(auth.isEvaluating)
+    }
+
+    @MainActor
+    func testAuthManagerLockRejectsLateBiometricFallback() async {
+        let factory = DeferredAuthenticationContextFactory()
+        factory.context.biometricsAvailable = true
+        let auth = AuthManager(isEnabled: true, contextFactory: factory)
+
+        auth.authenticate()
+        await factory.context.waitForEvaluation()
+        auth.lock()
+
+        factory.context.fail(LAError(.biometryLockout))
+        await factory.context.waitForEvaluationToFinish()
+
+        XCTAssertEqual(factory.context.evaluationCount, 1, "Lock must prevent a late passcode fallback prompt")
+        XCTAssertFalse(auth.isUnlocked)
         XCTAssertFalse(auth.isEvaluating)
     }
 

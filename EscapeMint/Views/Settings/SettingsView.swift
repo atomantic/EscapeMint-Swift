@@ -196,7 +196,7 @@ struct SettingsView: View {
             .pickerStyle(.segmented)
         }
 
-        Section("Security") {
+        Section {
             if auth.biometryAvailable {
                 Toggle("Require \(auth.biometryName)", isOn: Binding(
                     get: { auth.isEnabled },
@@ -206,6 +206,10 @@ struct SettingsView: View {
                 LabeledContent("Biometric Auth", value: "Not Available")
                     .foregroundStyle(.secondary)
             }
+        } header: {
+            Text("Security")
+        } footer: {
+            Text("Requiring biometric authentication also hides your portfolio from widgets, Siri, and Shortcuts, including while the app is unlocked.")
         }
 
         Section {
