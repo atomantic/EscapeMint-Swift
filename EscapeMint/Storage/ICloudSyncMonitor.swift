@@ -114,8 +114,12 @@ final class ICloudSyncMonitor {
             guard status == NSMetadataUbiquitousItemDownloadingStatusNotDownloaded,
                   let path = item.value(forAttribute: NSMetadataItemPathKey) as? String else { continue }
             let url = URL(fileURLWithPath: path)
-            try? fm.startDownloadingUbiquitousItem(at: url)
-            Self.logger.info("☁️ triggered download for evicted iCloud file: \(url.lastPathComponent, privacy: .public)")
+            do {
+                try fm.startDownloadingUbiquitousItem(at: url)
+                Self.logger.info("☁️ triggered download for evicted iCloud file: \(url.lastPathComponent, privacy: .private)")
+            } catch {
+                Self.logger.error("☁️ failed to request download for evicted iCloud file: \(url.lastPathComponent, privacy: .private): \(error.localizedDescription, privacy: .private)")
+            }
         }
     }
 
