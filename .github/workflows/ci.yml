@@ -21,16 +21,11 @@ jobs:
       - name: Install pinned XcodeGen
         uses: ./.github/actions/setup-xcodegen
 
-      - name: Install xcbeautify
-        run: brew install xcbeautify
-
       - name: Generate Xcode project
         run: xcodegen generate
 
       - name: Run iOS tests
         run: |
-          # pipefail so a failing xcodebuild is not masked by xcbeautify's exit 0.
-          set -o pipefail
           DEVICE_ID=""
           while IFS= read -r device; do
             if [[ "$device" =~ iPhone.*\(([0-9A-Fa-f-]{36})\).*\((Booted|Shutdown)\) ]]; then
@@ -56,14 +51,12 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             -skipPackagePluginValidation \
-            -skipMacroValidation \
-            | xcbeautify
+            -skipMacroValidation
 
       - name: Run macOS tests
         run: |
           # macOS is a shipping platform; build + test it so macOS-only
           # regressions are caught in CI rather than at deploy time.
-          set -o pipefail
           xcodebuild test \
             -project EscapeMint.xcodeproj \
             -scheme EscapeMint_macOS \
@@ -74,5 +67,4 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             -skipPackagePluginValidation \
-            -skipMacroValidation \
-            | xcbeautify
+            -skipMacroValidation
