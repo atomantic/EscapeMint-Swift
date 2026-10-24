@@ -1,6 +1,13 @@
 import SwiftUI
 import Charts
 
+private struct BacktestMetricsGridWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 900
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 struct BacktestView: View, SizeClassAware {
     private var cache: BacktestCache { .shared }
     @State private var config: BacktestConfig
@@ -12,6 +19,7 @@ struct BacktestView: View, SizeClassAware {
     @State private var hoverCP: Int?
     @State private var hoverGB: Int?
     @State private var hoverAPY: Int?
+    @State private var metricsGridWidth: CGFloat = 900
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     // First-run detection
@@ -25,6 +33,14 @@ struct BacktestView: View, SizeClassAware {
 
     enum SortOrder {
         case asc, desc
+    }
+
+    private var metricsColumnCount: Int {
+        #if os(macOS)
+        metricsGridWidth >= 900 ? 8 : (metricsGridWidth >= 600 ? 4 : 2)
+        #else
+        isWide ? 4 : 2
+        #endif
     }
 
     init() {
@@ -293,12 +309,7 @@ struct BacktestView: View, SizeClassAware {
     @ViewBuilder
     private var metricsGrid: some View {
         if let result {
-            #if os(macOS)
-            let columnCount = 8
-            #else
-            let columnCount = isWide ? 4 : 2
-            #endif
-            let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: columnCount)
+            let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: metricsColumnCount)
             LazyVGrid(columns: columns, spacing: 8) {
                 MetricCard(label: "Final Value",
                            value: formatCurrency(result.finalValue),
@@ -333,6 +344,7 @@ struct BacktestView: View, SizeClassAware {
                            sub: "\(result.totalSells) sells",
                            color: .mint)
             }
+            .background(metricsGridWidthReader)
         } else if isRunning {
             metricsPlaceholder
         }
@@ -340,12 +352,7 @@ struct BacktestView: View, SizeClassAware {
 
     @ViewBuilder
     private var metricsPlaceholder: some View {
-        #if os(macOS)
-        let columnCount = 8
-        #else
-        let columnCount = isWide ? 4 : 2
-        #endif
-        let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: columnCount)
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: metricsColumnCount)
         LazyVGrid(columns: columns, spacing: 8) {
             ForEach(["Final Value", "Liquid APY", "Realized APY", "Unrealized Gain",
                      "Realized Gain", "Liquid P&L", "Total Invested", "Total Extracted"], id: \.self) { label in
@@ -354,6 +361,14 @@ struct BacktestView: View, SizeClassAware {
                     .shimmer()
             }
         }
+        .background(metricsGridWidthReader)
+    }
+
+    private var metricsGridWidthReader: some View {
+        GeometryReader { geo in
+            Color.clear.preference(key: BacktestMetricsGridWidthKey.self, value: geo.size.width)
+        }
+        .onPreferenceChange(BacktestMetricsGridWidthKey.self) { metricsGridWidth = $0 }
     }
 
     // MARK: - Charts Grid

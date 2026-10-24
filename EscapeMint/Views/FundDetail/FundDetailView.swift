@@ -192,49 +192,37 @@ struct FundDetailView: View {
     private func configSummary(_ fund: FundData, features: FundTypeFeatures, state: FundState) -> some View {
         let config = fund.config
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                Text(features.label)
-                    .fontWeight(.medium)
-                if let cat = config.category, let catInfo = categoryConfig[cat] {
-                    Text(catInfo.shortLabel)
-                        .tagBadge(background: Color.forCategory(cat).opacity(0.2))
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    configSummaryBadges(config: config, features: features)
+                    Spacer()
+                    if config.status == .closed, let lastCash = fund.entries.last?.cash {
+                        Text("Cash: \(formatCurrency(lastCash, decimals: config.dollarDec))")
+                            .fontWeight(.medium)
+                    }
                 }
-                if config.status == .closed {
-                    Text("Closed")
-                        .tagBadge(background: .bgInput)
-                }
-                if config.margin_enabled == true {
-                    Text("Margin")
-                        .foregroundColor(.blue)
-                        .tagBadge(background: Color.blue.opacity(0.2))
-                }
-                if let acc = config.accumulate {
-                    Text(acc ? "Accumulate" : "Harvest")
-                        .foregroundColor(acc ? .mint : .orange)
-                }
-                Spacer()
-                if config.status == .closed, let lastCash = fund.entries.last?.cash {
-                    Text("Cash: \(formatCurrency(lastCash, decimals: config.dollarDec))")
-                        .fontWeight(.medium)
+                .fixedSize(horizontal: true, vertical: false)
+
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), spacing: 8)], alignment: .leading, spacing: 6) {
+                    configSummaryBadges(config: config, features: features)
+                    if config.status == .closed, let lastCash = fund.entries.last?.cash {
+                        Text("Cash: \(formatCurrency(lastCash, decimals: config.dollarDec))")
+                            .fontWeight(.medium)
+                    }
                 }
             }
             if !isCashFund(config.fund_type) {
-                HStack(spacing: 8) {
-                    Text("\(formatPercent(config.target_apy ?? 0)) target")
-                    Text("\(config.interval_days ?? 7)d interval")
-                    if let min = config.input_min_usd, let mid = config.input_mid_usd, let max = config.input_max_usd {
-                        Text("DCA $\(Int(min))/$\(Int(mid))/$\(Int(max))")
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) {
+                        configStrategyLeadingDetails(config: config)
+                        Spacer()
+                        configStrategyTrailingDetails(config: config, state: state, fund: fund)
                     }
-                    Spacer()
-                    if state.cashAvailableUsd > 0 {
-                        // For manage_cash=false funds this balance comes from the platform
-                        // cash fund, not the fund itself — label it accordingly.
-                        Text("\(config.managesOwnCash ? "Cash" : "Platform cash"): \(formatCurrency(state.cashAvailableUsd, decimals: config.dollarDec))")
-                    }
-                    if config.margin_enabled == true,
-                       let marginAvail = fund.entries.last?.margin_available, marginAvail > 0 {
-                        Text("Margin: \(formatCurrency(marginAvail, decimals: config.dollarDec))")
-                            .foregroundColor(.blue)
+                    .fixedSize(horizontal: true, vertical: false)
+
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], alignment: .leading, spacing: 6) {
+                        configStrategyLeadingDetails(config: config)
+                        configStrategyTrailingDetails(config: config, state: state, fund: fund)
                     }
                 }
             }
@@ -244,6 +232,51 @@ struct FundDetailView: View {
         .padding(8)
         .background(Color.bgCard)
         .cornerRadius(8)
+    }
+
+    @ViewBuilder
+    private func configSummaryBadges(config: FundConfig, features: FundTypeFeatures) -> some View {
+        Text(features.label)
+            .fontWeight(.medium)
+        if let cat = config.category, let catInfo = categoryConfig[cat] {
+            Text(catInfo.shortLabel)
+                .tagBadge(background: Color.forCategory(cat).opacity(0.2))
+        }
+        if config.status == .closed {
+            Text("Closed")
+                .tagBadge(background: .bgInput)
+        }
+        if config.margin_enabled == true {
+            Text("Margin")
+                .foregroundColor(.blue)
+                .tagBadge(background: Color.blue.opacity(0.2))
+        }
+        if let acc = config.accumulate {
+            Text(acc ? "Accumulate" : "Harvest")
+                .foregroundColor(acc ? .mint : .orange)
+        }
+    }
+
+    @ViewBuilder
+    private func configStrategyLeadingDetails(config: FundConfig) -> some View {
+        Text("\(formatPercent(config.target_apy ?? 0)) target")
+        Text("\(config.interval_days ?? 7)d interval")
+        if let min = config.input_min_usd, let mid = config.input_mid_usd, let max = config.input_max_usd {
+            Text("DCA $\(Int(min))/$\(Int(mid))/$\(Int(max))")
+        }
+    }
+
+    @ViewBuilder
+    private func configStrategyTrailingDetails(config: FundConfig, state: FundState, fund: FundData) -> some View {
+        if state.cashAvailableUsd > 0 {
+            // For manage_cash=false funds this balance comes from the platform cash fund.
+            Text("\(config.managesOwnCash ? "Cash" : "Platform cash"): \(formatCurrency(state.cashAvailableUsd, decimals: config.dollarDec))")
+        }
+        if config.margin_enabled == true,
+           let marginAvail = fund.entries.last?.margin_available, marginAvail > 0 {
+            Text("Margin: \(formatCurrency(marginAvail, decimals: config.dollarDec))")
+                .foregroundColor(.blue)
+        }
     }
 
     // MARK: - Recommendation Card

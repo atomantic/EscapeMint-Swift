@@ -31,18 +31,20 @@ jobs:
         run: |
           # pipefail so a failing xcodebuild is not masked by xcbeautify's exit 0.
           set -o pipefail
-          AVAILABLE_DEVICES=$(xcrun simctl list devices available | sed -nE 's/^[[:space:]]+(iPhone.*) \([0-9A-F-]{36}\) \(.*/\1/p')
-          for DEVICE in "iPhone 17 Pro" "iPhone 17" "iPhone 16" "iPhone 15" "iPhone 14"; do
-            if printf '%s\n' "$AVAILABLE_DEVICES" | grep -Fxq "$DEVICE"; then
-              DESTINATION="platform=iOS Simulator,name=$DEVICE"
+          DEVICE_ID=""
+          while IFS= read -r device; do
+            if [[ "$device" =~ iPhone.*\(([0-9A-Fa-f-]{36})\).*\((Booted|Shutdown)\) ]]; then
+              DEVICE_ID="${BASH_REMATCH[1]}"
               break
             fi
-          done
-          if [ -z "${DESTINATION:-}" ]; then
-            echo "No supported iPhone simulator is available" >&2
-            printf '%s\n' "$AVAILABLE_DEVICES" >&2
+          done < <(xcrun simctl list devices available)
+
+          if [[ -z "$DEVICE_ID" ]]; then
+            echo "No available iPhone simulator found" >&2
             exit 1
           fi
+
+          DESTINATION="platform=iOS Simulator,id=$DEVICE_ID"
 
           xcodebuild test \
             -project EscapeMint.xcodeproj \

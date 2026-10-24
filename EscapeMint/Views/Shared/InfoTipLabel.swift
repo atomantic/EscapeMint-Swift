@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// A label with a tappable info icon that shows a popover/alert with help text.
+/// Parent rows must reserve at least 44 points of height for the help button.
 struct InfoTipLabel: View {
     let label: String
     let tip: String
@@ -14,8 +15,12 @@ struct InfoTipLabel: View {
                 Image(systemName: "info.circle")
                     .font(.caption2)
                     .foregroundColor(.textMuted)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("More information about \(label)")
+            .accessibilityHint("Shows help for \(label)")
             #if os(iOS)
             .popover(isPresented: $showTip) {
                 Text(tip)

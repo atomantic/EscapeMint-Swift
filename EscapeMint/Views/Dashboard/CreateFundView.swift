@@ -332,7 +332,7 @@ struct CreateFundView: View {
                 .foregroundColor(.textPrimary)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 32)
+        .frame(minHeight: 44)
     }
 
     private func macTipToggle(_ label: String, tip: String, isOn: Binding<Bool>) -> some View {
@@ -342,7 +342,7 @@ struct CreateFundView: View {
                 .foregroundColor(.textSecondary)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 32)
+        .frame(minHeight: 44)
     }
 
     private func macPicker<SelectionValue: Hashable, Content: View>(_ label: String, selection: Binding<SelectionValue>, @ViewBuilder content: () -> Content) -> some View {
