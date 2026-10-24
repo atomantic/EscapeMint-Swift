@@ -27,21 +27,29 @@ final class WidgetDataProvider {
         }
     }
 
-    /// Write current portfolio state to the shared container
-    func updateSnapshot() {
-        guard !WidgetSnapshotTransport.externalPortfolioAccessIsLocked else {
+    /// Write current portfolio state to the shared container. Dependencies can
+    /// be injected to verify startup behavior without touching the App Group.
+    func updateSnapshot(
+        store: FundDataStore = .shared,
+        containerURL: URL? = nil,
+        externalAccessIsLocked: Bool = WidgetSnapshotTransport.externalPortfolioAccessIsLocked
+    ) {
+        guard !externalAccessIsLocked else {
             // Never leave an old value-bearing file behind while a biometric
             // lock is active. This also reloads widgets to their empty state.
-            removeSnapshot()
+            removeSnapshot(containerURL: containerURL)
             return
         }
 
-        guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: WidgetSnapshotTransport.appGroupIdentifier) else {
+        // Preserve the last complete snapshot until entries and derived metrics
+        // are ready, including when disabling protection during progressive load.
+        guard store.isLoaded, store.loadingPhase == .ready else { return }
+
+        guard let containerURL = containerURL ?? FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: WidgetSnapshotTransport.appGroupIdentifier) else {
             Self.logger.error("⚠️ App Group container unavailable — widget data cannot be shared")
             return
         }
 
-        let store = FundDataStore.shared
         let portfolio = store.portfolio
         let actionable = store.actionableFunds
 
@@ -98,8 +106,8 @@ final class WidgetDataProvider {
         }
     }
 
-    private func removeSnapshot() {
-        guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: WidgetSnapshotTransport.appGroupIdentifier) else {
+    private func removeSnapshot(containerURL: URL? = nil) {
+        guard let containerURL = containerURL ?? FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: WidgetSnapshotTransport.appGroupIdentifier) else {
             return
         }
 

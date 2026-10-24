@@ -184,6 +184,11 @@ final class AuthManager {
         isEnabled = enabled
         isUnlocked = !enabled
         syncExternalPortfolioAccess(locked: enabled)
+        #if os(iOS)
+        if !enabled {
+            WidgetDataProvider.shared.updateSnapshot()
+        }
+        #endif
     }
 
     private func evaluateAuthentication(generation: Int) async {
@@ -277,9 +282,8 @@ final class AuthManager {
         // cross-app-data TCC prompt.
         #if os(iOS)
         WidgetDataProvider.shared.setExternalPortfolioAccessLocked(locked)
-        if !locked {
-            WidgetDataProvider.shared.updateSnapshot()
-        }
+        // Initialization updates permission without publishing an unloaded store.
+        // The post-recompute observer publishes once loading finishes.
         #endif
     }
 

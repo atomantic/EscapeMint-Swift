@@ -188,6 +188,9 @@ final class FundDataStore {
         isConfigLoaded = true
 
         if configs.isEmpty {
+            // Notify the snapshot publisher even when there are no funds so a
+            // completed empty load can replace values saved by a prior launch.
+            await recompute()
             isLoaded = true
             loadingPhase = .ready
             scheduleDeferredICloudRecoveryIfNeeded()

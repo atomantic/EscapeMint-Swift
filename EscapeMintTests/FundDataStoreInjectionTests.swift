@@ -162,6 +162,22 @@ final class FundDataStoreInjectionTests: XCTestCase {
         ]
     }
 
+    /// An empty initial load must also refresh snapshots saved by a prior launch.
+    func testEmptyLoadNotifiesSnapshotObservers() async {
+        let store = FundDataStore(store: FakeFundStore())
+        var notified = 0
+        store.addRecomputeObserver { context in
+            XCTAssertTrue(context.funds.isEmpty)
+            notified += 1
+        }
+
+        await store.loadIfNeeded()
+
+        XCTAssertTrue(store.isLoaded)
+        XCTAssertEqual(store.loadingPhase, .ready)
+        XCTAssertEqual(notified, 1, "An empty portfolio must invalidate snapshots from a prior launch")
+    }
+
     /// loadIfNeeded streams configs + entries from the injected fake and recomputes
     /// derived state — no real filesystem touched.
     func testLoadIfNeededReadsFromInjectedFake() async throws {

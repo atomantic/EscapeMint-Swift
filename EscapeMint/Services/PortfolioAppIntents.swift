@@ -19,15 +19,24 @@ private func loadSnapshot() -> WidgetSnapshot? {
 }
 
 let lockedPortfolioMessage = "EscapeMint portfolio sharing is locked while biometric authentication is enabled. Turn off biometric authentication in Settings to use widgets, Siri, or Shortcuts."
+#if os(macOS)
+let unavailableMacOSPortfolioMessage = "Portfolio queries through Siri and Shortcuts are unavailable on macOS. Open EscapeMint to view your portfolio."
+#endif
 
 func portfolioResponse(
-    isExternalPortfolioLocked: Bool = WidgetSnapshotTransport.externalPortfolioAccessIsLocked,
+    isExternalPortfolioLocked: Bool? = nil,
     _ summary: (WidgetSnapshot?) -> String
 ) -> String {
-    guard !isExternalPortfolioLocked else {
+    #if os(macOS)
+    // macOS has no supported snapshot producer. Avoid the iOS App Group and
+    // report the platform limitation rather than inventing a biometric lock.
+    return unavailableMacOSPortfolioMessage
+    #else
+    guard !(isExternalPortfolioLocked ?? WidgetSnapshotTransport.externalPortfolioAccessIsLocked) else {
         return lockedPortfolioMessage
     }
     return summary(loadSnapshot())
+    #endif
 }
 
 /// "What's my portfolio value?"

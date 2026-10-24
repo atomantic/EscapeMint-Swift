@@ -536,6 +536,47 @@ final class ServicesTests: XCTestCase {
 
     // MARK: - WidgetSnapshotTransport
 
+    @MainActor
+    func testLockedSnapshotPublicationRedactsSavedFileEvenBeforeLoading() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("widget-redaction-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let fileURL = dir.appendingPathComponent(WidgetSnapshotTransport.fileName)
+        try Data("previous sensitive snapshot".utf8).write(to: fileURL)
+
+        WidgetDataProvider.shared.updateSnapshot(
+            store: FundDataStore(), containerURL: dir, externalAccessIsLocked: true
+        )
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path))
+    }
+
+    @MainActor
+    func testSnapshotPublicationPreservesExistingFileUntilPortfolioIsReady() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("widget-startup-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let fileURL = dir.appendingPathComponent(WidgetSnapshotTransport.fileName)
+        let saved = WidgetSnapshot(
+            totalValue: 4242.42, totalGainUsd: 424.24, totalGainPct: 11.1,
+            activeFunds: 2, actionableCount: 1, topFunds: [], updatedAt: Date()
+        )
+        let originalData = try JSONEncoder().encode(saved)
+        try originalData.write(to: fileURL)
+        let store = FundDataStore()
+
+        WidgetDataProvider.shared.updateSnapshot(store: store, containerURL: dir, externalAccessIsLocked: false)
+        XCTAssertEqual(try Data(contentsOf: fileURL), originalData, "Startup must preserve the complete saved snapshot")
+
+        store.seedForPreview([], asOfDate: "2026-10-24")
+        WidgetDataProvider.shared.updateSnapshot(store: store, containerURL: dir, externalAccessIsLocked: false)
+        let current = try XCTUnwrap(WidgetSnapshotTransport.readSnapshot(from: dir, externalAccessIsLocked: false))
+        XCTAssertEqual(current.activeFunds, 0, "A fully loaded empty portfolio must replace stale saved values")
+        XCTAssertEqual(current.totalValue, 0)
+    }
+
     /// `readSnapshot()` must NEVER crash — the widget extension calls this on every
     /// timeline refresh. It can legitimately return nil (no App Group, missing file,
     /// or undecodable contents) OR a fully-populated snapshot, so assert whichever

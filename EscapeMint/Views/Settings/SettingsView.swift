@@ -209,7 +209,9 @@ struct SettingsView: View {
         } header: {
             Text("Security")
         } footer: {
+            #if os(iOS)
             Text("Requiring biometric authentication also hides your portfolio from widgets, Siri, and Shortcuts, including while the app is unlocked.")
+            #endif
         }
 
         Section {
