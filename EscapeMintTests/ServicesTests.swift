@@ -171,6 +171,41 @@ final class ServicesTests: XCTestCase {
         XCTAssertFalse(auth.isEvaluating)
     }
 
+    @MainActor
+    func testFailedDisablingPreservesAuthenticationAndExternalLock() {
+        var externalLockChanges: [Bool] = []
+        let auth = AuthManager(
+            isEnabled: true,
+            contextFactory: DeferredAuthenticationContextFactory(),
+            persistEnabled: { _ in throw NSError(domain: "AuthPersistenceTests", code: 1) },
+            externalAccessChanged: { externalLockChanges.append($0) }
+        )
+
+        XCTAssertFalse(auth.setEnabled(false))
+
+        XCTAssertTrue(auth.isEnabled, "A rejected write must preserve the authoritative enabled setting")
+        XCTAssertFalse(auth.isUnlocked, "Persistence failure must not unlock the app")
+        XCTAssertTrue(externalLockChanges.isEmpty, "Persistence failure must not grant external access")
+        XCTAssertNotNil(auth.settingError, "Settings must explain why the toggle did not change")
+    }
+
+    @MainActor
+    func testAuthenticationSettingPersistsBeforeExternalPermissionChanges() {
+        var events: [String] = []
+        let auth = AuthManager(
+            isEnabled: false,
+            contextFactory: DeferredAuthenticationContextFactory(),
+            persistEnabled: { _ in events.append("persisted") },
+            externalAccessChanged: { _ in events.append("sharing-updated") }
+        )
+
+        XCTAssertTrue(auth.setEnabled(true))
+        XCTAssertEqual(events, ["persisted", "sharing-updated"])
+        XCTAssertTrue(auth.isEnabled)
+        XCTAssertFalse(auth.isUnlocked)
+        XCTAssertNil(auth.settingError)
+    }
+
     // MARK: - DCANotificationManager
 
     /// A future-dated last entry (today + interval ahead of `now`) means the next DCA

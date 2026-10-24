@@ -206,6 +206,11 @@ struct SettingsView: View {
                 LabeledContent("Biometric Auth", value: "Not Available")
                     .foregroundStyle(.secondary)
             }
+            if let error = auth.settingError {
+                Text(error)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
         } header: {
             Text("Security")
         } footer: {
