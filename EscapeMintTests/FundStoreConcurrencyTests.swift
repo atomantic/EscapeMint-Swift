@@ -127,39 +127,85 @@ final class FundStoreConcurrencyTests: XCTestCase {
 
     // MARK: - Interleaved appends + replaces
 
-    /// Mix concurrent appends and full replaces against one fund. Regardless of
-    /// interleaving, every reload during and after the storm must parse cleanly
-    /// (no exceptions, no garbage rows with empty dates being surfaced).
+    /// Mix concurrent appends and full replaces against one fund. Every observed
+    /// state must be a complete submitted replacement snapshot followed by complete
+    /// appends; an empty result, a dropped partial row, or a blended replacement fails.
     func testInterleavedAppendsAndReplacesAlwaysParseCleanly() async throws {
         let fundId = try await makeFund(tag: "mixed")
+        let baseline = FundEntry(date: "2024-12-31", value: 1, notes: "baseline-0")
+        try await store.replaceEntries(fundId: fundId, entries: [baseline])
 
-        await withTaskGroup(of: Void.self) { group in
-            for i in 0..<120 {
+        let replaceCount = 40
+        let appendCount = 80
+        let replacementSnapshots: [Int: [String]] = Dictionary(uniqueKeysWithValues: (0..<replaceCount).map { writer in
+            (writer, (0..<(writer % 7 + 1)).map { "replace-\(writer)-\($0)" })
+        })
+
+        // Writers return nil. Readers return their entire observed parse, including an
+        // empty array (which is deliberately retained and rejected below).
+        let observations = try await withThrowingTaskGroup(of: [FundEntry]?.self, returning: [[FundEntry]].self) { group in
+            for writer in 0..<replaceCount {
                 group.addTask { [store] in
-                    if i % 3 == 0 {
-                        let snapshot = (0..<(i % 10 + 1)).map { Self.makeEntry($0) }
-                        try? await store.replaceEntries(fundId: fundId, entries: snapshot)
-                    } else {
-                        try? await store.appendEntry(fundId: fundId, entry: Self.makeEntry(i))
+                    let snapshot = (0..<(writer % 7 + 1)).map { row -> FundEntry in
+                        var entry = Self.makeEntry(writer * 10 + row)
+                        entry.notes = "replace-\(writer)-\(row)"
+                        return entry
                     }
-                }
-                // Concurrent readers racing the writers must never see a torn file.
-                group.addTask { [store] in
-                    let parsed = store.readFundEntries(id: fundId)
-                    // Every surfaced row must have a non-empty date — parseTSV drops
-                    // malformed rows, so a torn write can never masquerade as a zeroed entry.
-                    for e in parsed {
-                        XCTAssertFalse(e.date.isEmpty, "No malformed (empty-date) row may surface")
-                    }
+                    try await store.replaceEntries(fundId: fundId, entries: snapshot)
+                    return nil
                 }
             }
+            for append in 0..<appendCount {
+                group.addTask { [store] in
+                    var entry = Self.makeEntry(1000 + append)
+                    entry.notes = "append-\(append)"
+                    try await store.appendEntry(fundId: fundId, entry: entry)
+                    return nil
+                }
+            }
+            for _ in 0..<(replaceCount + appendCount) {
+                group.addTask { [store] in
+                    // Yield so these reads interleave with writes rather than all
+                    // necessarily observing the seeded baseline before the storm.
+                    await Task.yield()
+                    return store.readFundEntries(id: fundId)
+                }
+            }
+
+            var reads: [[FundEntry]] = []
+            for try await result in group {
+                if let result { reads.append(result) }
+            }
+            return reads
         }
 
-        // Final state must still be a clean parse.
+        XCTAssertEqual(observations.count, replaceCount + appendCount,
+                       "every concurrent reader must report an observed state")
         let maybeFinal = await store.readFundById(fundId)
         let final = try XCTUnwrap(maybeFinal)
-        for e in final.entries {
-            XCTAssertFalse(e.date.isEmpty)
+        for observed in observations + [final.entries] {
+            XCTAssertFalse(observed.isEmpty, "a valid seeded fund must never parse as an empty file")
+            let tags = observed.compactMap(\.notes)
+            XCTAssertEqual(tags.count, observed.count, "a partial row must not lose its identifying tag")
+            XCTAssertEqual(Set(tags).count, tags.count, "no entry may be duplicated or blended")
+
+            let snapshotTags: [String]
+            if tags.first == "baseline-0" {
+                snapshotTags = ["baseline-0"]
+            } else if let first = tags.first,
+                      let writer = Int(first.split(separator: "-")[1]),
+                      let expected = replacementSnapshots[writer] {
+                snapshotTags = expected
+            } else {
+                XCTFail("state did not begin with a submitted snapshot: \(tags)")
+                continue
+            }
+            XCTAssertGreaterThanOrEqual(tags.count, snapshotTags.count)
+            XCTAssertEqual(Array(tags.prefix(snapshotTags.count)), snapshotTags,
+                           "replacement portion must be complete and from one writer")
+            for tag in tags.dropFirst(snapshotTags.count) {
+                XCTAssertTrue(tag.hasPrefix("append-"), "only complete appends may follow a replacement: \(tag)")
+            }
         }
     }
 

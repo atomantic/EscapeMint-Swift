@@ -166,3 +166,222 @@ private final class InaccessibleICloudFileManager: LocalDocumentsFileManager {
         return try super.contentsOfDirectory(at: url, includingPropertiesForKeys: keys, options: mask)
     }
 }
+
+// MARK: - Import and migration recovery
+
+extension StorageFallbackTests {
+    private func recoveryStore(failLocalInstall: Bool = false, failCloudRestore: Bool = false) throws
+        -> (store: FundStore, cloud: URL, local: URL) {
+        let cloud = tempDir.appendingPathComponent("Cloud/funds")
+        let localDocuments = tempDir.appendingPathComponent("Local")
+        let local = localDocuments.appendingPathComponent("funds")
+        let fm = RecoveryFileManager(
+            localDocuments: localDocuments,
+            failedInstall: failLocalInstall ? local.path : nil,
+            failedRestore: failCloudRestore ? cloud.path : nil
+        )
+        for directory in [cloud, local] {
+            try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        return (FundStore(fundsDirectory: cloud, isICloud: true, fileManager: fm), cloud, local)
+    }
+
+    private func recoveryFund(_ id: String, value: Double) -> FundData {
+        FundData(platform: "broker", ticker: "asset", config: FundConfig(fund_id: id, fund_type: .stock),
+                 entries: [FundEntry(date: "2025-01-01", value: value)])
+    }
+
+    private func recoveryBackup(_ funds: [FundData]) throws -> URL {
+        let document = BackupDocument(funds: funds.map {
+            BackupFund(id: $0.id, platform: $0.platform, ticker: $0.ticker, config: $0.config, entries: $0.entries)
+        }, backupDate: "2025-01-01")
+        let url = tempDir.appendingPathComponent("backup.json")
+        try JSONEncoder().encode(document).write(to: url)
+        return url
+    }
+
+    private func directoryBytes(_ directory: URL) throws -> [String: Data] {
+        var bytes: [String: Data] = [:]
+        for url in try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) {
+            bytes[url.lastPathComponent] = try Data(contentsOf: url)
+        }
+        return bytes
+    }
+
+    func testLegacyFundNamesRemainLoadableAndExportable() async throws {
+        let (store, cloud, _) = try recoveryStore()
+        let id = "Crédit broker-資産"
+        var fund = recoveryFund(id, value: 123)
+        fund.config.cash_fund = "Crédit broker-cash"
+        // Seed bytes directly, as an older app would, without relying on the new writer.
+        var diskConfig = fund.config
+        diskConfig.platform = fund.platform
+        diskConfig.ticker = fund.ticker
+        try JSONEncoder().encode(diskConfig).write(to: cloud.appendingPathComponent("\(id).json"))
+        try buildTSV(fund.entries).write(to: cloud.appendingPathComponent("\(id).tsv"), atomically: true, encoding: .utf8)
+
+        let loaded = await store.readAllFunds()
+        XCTAssertEqual(loaded.map(\.id), [id])
+        XCTAssertEqual(loaded.first?.config.cash_fund, fund.config.cash_fund)
+        XCTAssertEqual(store.readAllFundConfigs().map(\.id), [id])
+        XCTAssertEqual(store.readFundEntries(id: id).first?.value, 123)
+        let backup = try await store.exportToBackupJSON()
+        defer { try? FileManager.default.removeItem(at: backup) }
+        let exported = try JSONDecoder().decode(BackupDocument.self, from: Data(contentsOf: backup))
+        XCTAssertEqual(exported.funds.map(\.id), [id])
+        XCTAssertEqual(exported.funds.first?.config.cash_fund, fund.config.cash_fund)
+    }
+
+    func testMigrationPreservesExistingCloudTSVWhenRepairingMissingConfig() async throws {
+        let (store, cloud, local) = try recoveryStore()
+        let localStore = FundStore(fundsDirectory: local)
+        try await localStore.writeFund(recoveryFund("broker-asset", value: 10))
+        try await store.writeFund(recoveryFund("broker-asset", value: 900))
+        let tsv = cloud.appendingPathComponent("broker-asset.tsv")
+        let original = try Data(contentsOf: tsv)
+        try FileManager.default.removeItem(at: cloud.appendingPathComponent("broker-asset.json"))
+
+        try await store.migrateToICloudIfNeeded()
+
+        XCTAssertEqual(try Data(contentsOf: tsv), original)
+        let loaded = await store.readFundById("broker-asset")
+        XCTAssertEqual(loaded?.entries.first?.value, 900)
+    }
+
+    func testMigrationPreservesExistingCloudConfigWhenRepairingMissingTSV() async throws {
+        let (store, cloud, local) = try recoveryStore()
+        let localStore = FundStore(fundsDirectory: local)
+        try await localStore.writeFund(recoveryFund("broker-asset", value: 10))
+        var newer = recoveryFund("broker-asset", value: 900)
+        newer.config.target_apy = 0.37
+        try await store.writeFund(newer)
+        let config = cloud.appendingPathComponent("broker-asset.json")
+        let original = try Data(contentsOf: config)
+        try FileManager.default.removeItem(at: cloud.appendingPathComponent("broker-asset.tsv"))
+
+        try await store.migrateToICloudIfNeeded()
+
+        XCTAssertEqual(try Data(contentsOf: config), original)
+        let loaded = await store.readFundById("broker-asset")
+        XCTAssertEqual(loaded?.config.target_apy, 0.37)
+        XCTAssertEqual(loaded?.entries.first?.value, 10)
+    }
+
+    func testReplaceAllUpdatesFallbackAndCannotResurrectRemovedFunds() async throws {
+        let (store, cloud, local) = try recoveryStore()
+        let localStore = FundStore(fundsDirectory: local)
+        try await store.writeFund(recoveryFund("cloud-old", value: 10))
+        try await localStore.writeFund(recoveryFund("local-old", value: 20))
+        let backup = try recoveryBackup([recoveryFund("new-asset", value: 300)])
+
+        let count = try await store.replaceAllFundsFromBackupJSON(backup)
+        XCTAssertEqual(count, 1)
+        XCTAssertEqual(try directoryBytes(cloud), try directoryBytes(local))
+        // Simulator filesystems do not expose iOS data-protection attributes.
+        #if os(iOS) && !targetEnvironment(simulator)
+        for root in [cloud, local] {
+            for ext in ["json", "tsv"] {
+                let attributes = try FileManager.default.attributesOfItem(atPath: root.appendingPathComponent("new-asset.\(ext)").path)
+                XCTAssertEqual(attributes[.protectionKey] as? FileProtectionType, .complete)
+            }
+        }
+        #endif
+        let fallbackFunds = await localStore.readAllFunds()
+        XCTAssertEqual(fallbackFunds.map(\.id), ["new-asset"])
+        try await store.migrateToICloudIfNeeded()
+        let cloudFunds = await store.readAllFunds()
+        XCTAssertEqual(cloudFunds.map(\.id), ["new-asset"])
+        XCTAssertEqual(cloudFunds.first?.entries.first?.value, 300)
+    }
+
+    func testReplaceAllRestoresBothRootsWhenSecondInstallFails() async throws {
+        let (store, cloud, local) = try recoveryStore(failLocalInstall: true)
+        let localStore = FundStore(fundsDirectory: local)
+        try await store.writeFund(recoveryFund("cloud-old", value: 10))
+        try await localStore.writeFund(recoveryFund("local-old", value: 20))
+        let originalCloud = try directoryBytes(cloud)
+        let originalLocal = try directoryBytes(local)
+        let backup = try recoveryBackup([recoveryFund("new-asset", value: 300)])
+
+        do {
+            _ = try await store.replaceAllFundsFromBackupJSON(backup)
+            XCTFail("second-root installation must fail")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("simulated install failure"))
+        }
+        XCTAssertEqual(try directoryBytes(cloud), originalCloud)
+        XCTAssertEqual(try directoryBytes(local), originalLocal)
+    }
+
+    func testReplaceAllRetainsRecoveryCopyWhenOneRootCannotBeRestored() async throws {
+        let (store, cloud, local) = try recoveryStore(failLocalInstall: true, failCloudRestore: true)
+        let localStore = FundStore(fundsDirectory: local)
+        try await store.writeFund(recoveryFund("cloud-old", value: 10))
+        try await localStore.writeFund(recoveryFund("local-old", value: 20))
+        let originalCloud = try directoryBytes(cloud)
+        let originalLocal = try directoryBytes(local)
+        let backup = try recoveryBackup([recoveryFund("new-asset", value: 300)])
+
+        var failureMessage = ""
+        do {
+            _ = try await store.replaceAllFundsFromBackupJSON(backup)
+            XCTFail("restoration must report failure")
+        } catch { failureMessage = error.localizedDescription }
+        let recovery = try FileManager.default.contentsOfDirectory(
+            at: cloud.deletingLastPathComponent(), includingPropertiesForKeys: nil
+        ).filter { $0.lastPathComponent.hasPrefix(".fund-rollback-") }
+        XCTAssertEqual(recovery.count, 1)
+        let recoveryURL = try XCTUnwrap(recovery.first)
+        // Directory enumeration may resolve /var to /private/var; the error uses the original root.
+        let recoveryPath = cloud.deletingLastPathComponent().appendingPathComponent(recoveryURL.lastPathComponent).path
+        XCTAssertTrue(failureMessage.contains(recoveryPath), failureMessage)
+        XCTAssertEqual(try directoryBytes(recoveryURL), originalCloud)
+        XCTAssertEqual(try directoryBytes(local), originalLocal, "other roots must still be restored")
+    }
+
+    @MainActor
+    func testPartialBackupMergeReloadsCommittedFundsAfterLaterPairFails() async throws {
+        let (store, cloud, _) = try recoveryStore()
+        try await store.writeFund(recoveryFund("first-asset", value: 10))
+        try await store.writeFund(recoveryFund("second-asset", value: 20))
+        let blockedConfig = cloud.appendingPathComponent("second-asset.json")
+        try FileManager.default.removeItem(at: blockedConfig)
+        try FileManager.default.createDirectory(at: blockedConfig, withIntermediateDirectories: true)
+        let originalSecondTSV = try Data(contentsOf: cloud.appendingPathComponent("second-asset.tsv"))
+        let backup = try recoveryBackup([
+            recoveryFund("first-asset", value: 100), recoveryFund("second-asset", value: 200)
+        ])
+        let facade = FundDataStore(store: store)
+        await facade.reload()
+        let count = try await facade.importFromBackupJSON(backup, replacingExisting: false)
+
+        XCTAssertEqual(count, 1)
+        XCTAssertEqual(facade.fund(byId: "first-asset")?.entries.first?.value, 100)
+        let persisted = await store.readFundById("first-asset")
+        XCTAssertEqual(persisted?.entries.first?.value, 100)
+        XCTAssertEqual(try Data(contentsOf: cloud.appendingPathComponent("second-asset.tsv")), originalSecondTSV)
+    }
+}
+
+private final class RecoveryFileManager: LocalDocumentsFileManager {
+    let failedInstall: String?
+    let failedRestore: String?
+
+    init(localDocuments: URL, failedInstall: String?, failedRestore: String?) {
+        self.failedInstall = failedInstall
+        self.failedRestore = failedRestore
+        super.init(localDocuments: localDocuments)
+    }
+
+    override func moveItem(at srcURL: URL, to dstURL: URL) throws {
+        if dstURL.path == failedInstall, srcURL.lastPathComponent.hasPrefix(".fund-import-") {
+            throw NSError(domain: "RecoveryTest", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "simulated install failure"])
+        }
+        if dstURL.path == failedRestore, srcURL.lastPathComponent.hasPrefix(".fund-rollback-") {
+            throw NSError(domain: "RecoveryTest", code: 2,
+                          userInfo: [NSLocalizedDescriptionKey: "simulated restore failure"])
+        }
+        try super.moveItem(at: srcURL, to: dstURL)
+    }
+}
