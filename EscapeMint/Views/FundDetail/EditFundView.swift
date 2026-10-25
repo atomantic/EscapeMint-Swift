@@ -181,7 +181,6 @@ struct EditFundView: View {
     }
 
     @ViewBuilder
-    @ViewBuilder
     private var optionsTab: some View {
         Section("Sell & Cash") {
             dcaTipField("Min profit ($) to sell", tip: DCAHelp.minProfit, text: $minProfitUsd)

@@ -51,8 +51,10 @@ final class LeveragedPathRiskTests: XCTestCase {
         XCTAssertFalse(config.fallbackEnabled)
         XCTAssertEqual(config.fallbackDrawdownThreshold, 0.60, accuracy: 0.0001)
         XCTAssertEqual(config.fallbackMADays, 200)
-        let encoded = String(data: try JSONEncoder().encode(config), encoding: .utf8) ?? ""
-        XCTAssertFalse(encoded.contains("fallback_enabled"))
+        let encoded = try JSONEncoder().encode(config)
+        let again = try JSONDecoder().decode(FundConfig.self, from: encoded)
+        XCTAssertNil(again.fallback_enabled)
+        XCTAssertFalse(again.fallbackEnabled)
     }
 
     func testDisabledFallbackDoesNotChangeTheBuy() {

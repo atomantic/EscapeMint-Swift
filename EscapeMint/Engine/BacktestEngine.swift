@@ -11,8 +11,8 @@ struct HistoricalData: Codable {
     let dataPoints: Int
     let prices: [PricePoint]
     let dividends: [DividendPoint]?
-    /// Where the bundled series came from. Older files omit it.
-    let source: String? = nil
+    /// Where the bundled series came from. Older files omit the key.
+    var source: String?
 
     struct PricePoint: Codable {
         let date: String
@@ -22,6 +22,28 @@ struct HistoricalData: Codable {
     struct DividendPoint: Codable {
         let exDate: String
         let amount: Double
+    }
+
+    init(
+        ticker: String,
+        name: String,
+        type: String,
+        startDate: String,
+        endDate: String,
+        dataPoints: Int,
+        prices: [PricePoint],
+        dividends: [DividendPoint]?,
+        source: String? = nil
+    ) {
+        self.ticker = ticker
+        self.name = name
+        self.type = type
+        self.startDate = startDate
+        self.endDate = endDate
+        self.dataPoints = dataPoints
+        self.prices = prices
+        self.dividends = dividends
+        self.source = source
     }
 }
 
