@@ -81,6 +81,15 @@ struct FundConfig: Codable {
     // Guided-entry behavior
     var equity_input: EquityInputMethod?
 
+    // Optional 1x fallback for a daily-reset leveraged fund. Nil or false leaves
+    // every existing fund on the original drawdown-scaled buy. Never borrows.
+    var fallback_enabled: Bool?
+    var fallback_ticker: String?
+    /// Positive fraction. Nil uses 0.60 (down 60%) when the rule is on.
+    var fallback_drawdown: Double?
+    /// Calendar days for the underlying moving average. Nil uses 200 when the rule is on.
+    var fallback_ma_days: Int?
+
     // Chart bounds (persisted per-fund)
     var chart_bounds: [String: ChartBounds]?
     // Cached expensive history computations to avoid repeated redraw recalculation.
@@ -100,6 +109,7 @@ struct FundConfig: Codable {
         case initial_margin_rate, maintenance_margin_rate, contract_multiplier
         case dollar_decimals
         case equity_input
+        case fallback_enabled, fallback_ticker, fallback_drawdown, fallback_ma_days
         case chart_bounds
         case history_cache
     }
@@ -125,6 +135,19 @@ extension FundConfig {
     /// directly observable and the user reasons in shares + price instead.
     var effectiveEquityInput: EquityInputMethod {
         equity_input ?? .direct
+    }
+
+    /// Off unless this fund explicitly opts in. Missing keys on older files stay off.
+    var fallbackEnabled: Bool { fallback_enabled == true }
+
+    var fallbackDrawdownThreshold: Double {
+        let value = fallback_drawdown ?? 0.60
+        return value > 0 ? value : 0.60
+    }
+
+    var fallbackMADays: Int {
+        let value = fallback_ma_days ?? 200
+        return value > 0 ? value : 200
     }
 }
 
@@ -279,7 +302,8 @@ struct FundSummary {
            let marginAvail = latestEntry.margin_available, marginAvail > 0 {
             stateForRec.cashAvailableUsd += marginAvail
         }
-        return computeRecommendation(config: fund.config, state: stateForRec)
+        let context = fallbackContext(for: fund, state: stateForRec)
+        return computeRecommendation(config: fund.config, state: stateForRec, fallback: context)
     }
 
     private static func computeIsDueForAction(fund: FundData, today: String) -> Bool {
@@ -462,6 +486,8 @@ struct Recommendation {
     let action: FundAction
     let amount: Double
     let reasoning: String
+    /// Set when a buy should be placed in the 1x fund instead of this fund's ticker.
+    var routeTicker: String? = nil
 }
 
 // Full per-fund metrics (matches web app's FundMetrics)

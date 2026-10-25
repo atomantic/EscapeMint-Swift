@@ -11,6 +11,8 @@ struct HistoricalData: Codable {
     let dataPoints: Int
     let prices: [PricePoint]
     let dividends: [DividendPoint]?
+    /// Where the bundled series came from. Older files omit the key.
+    var source: String?
 
     struct PricePoint: Codable {
         let date: String
@@ -20,6 +22,28 @@ struct HistoricalData: Codable {
     struct DividendPoint: Codable {
         let exDate: String
         let amount: Double
+    }
+
+    init(
+        ticker: String,
+        name: String,
+        type: String,
+        startDate: String,
+        endDate: String,
+        dataPoints: Int,
+        prices: [PricePoint],
+        dividends: [DividendPoint]?,
+        source: String? = nil
+    ) {
+        self.ticker = ticker
+        self.name = name
+        self.type = type
+        self.startDate = startDate
+        self.endDate = endDate
+        self.dataPoints = dataPoints
+        self.prices = prices
+        self.dividends = dividends
+        self.source = source
     }
 }
 
@@ -32,6 +56,9 @@ struct BacktestConfig: Equatable {
     var btcPct: Double = 0.70
     var gldPct: Double = 0.05
     var slvPct: Double = 0.05
+    var qqqPct: Double = 0
+    var soxxPct: Double = 0
+    var soxlPct: Double = 0
 
     // DCA Strategy
     var initialCash: Double = 10000
@@ -51,13 +78,14 @@ struct BacktestConfig: Equatable {
     var cashAPY: Double = 0.04
 
     var totalAllocation: Double {
-        spxlPct + vtiPct + brgnxPct + tqqqPct + btcPct + gldPct + slvPct
+        spxlPct + vtiPct + brgnxPct + tqqqPct + btcPct + gldPct + slvPct + qqqPct + soxxPct + soxlPct
     }
 
     var allocations: [(ticker: String, pct: Double)] {
         [
             ("SPXL", spxlPct), ("VTI", vtiPct), ("BRGNX", brgnxPct),
-            ("TQQQ", tqqqPct), ("BTC", btcPct), ("GLD", gldPct), ("SLV", slvPct)
+            ("TQQQ", tqqqPct), ("BTC", btcPct), ("GLD", gldPct), ("SLV", slvPct),
+            ("QQQ", qqqPct), ("SOXX", soxxPct), ("SOXL", soxlPct)
         ].filter { $0.pct > 0 }
     }
 }
@@ -131,6 +159,9 @@ enum BacktestPreset: String, CaseIterable, Identifiable {
     case btc = "BTC"
     case gld = "GLD"
     case slv = "SLV"
+    case qqq = "QQQ"
+    case soxx = "SOXX"
+    case soxl = "SOXL"
 
     var id: String { rawValue }
 
@@ -181,6 +212,24 @@ enum BacktestPreset: String, CaseIterable, Identifiable {
             c.tqqqPct = 0; c.btcPct = 0; c.gldPct = 0; c.slvPct = 1.0
             c.targetAPY = 0.10
             if !accumulate { c.inputMax = 150 }
+        case .qqq:
+            c.spxlPct = 0; c.vtiPct = 0; c.brgnxPct = 0
+            c.tqqqPct = 0; c.btcPct = 0; c.gldPct = 0; c.slvPct = 0
+            c.qqqPct = 1.0; c.soxxPct = 0; c.soxlPct = 0
+            c.targetAPY = 0.10
+            if !accumulate { c.inputMax = 150 }
+        case .soxx:
+            c.spxlPct = 0; c.vtiPct = 0; c.brgnxPct = 0
+            c.tqqqPct = 0; c.btcPct = 0; c.gldPct = 0; c.slvPct = 0
+            c.qqqPct = 0; c.soxxPct = 1.0; c.soxlPct = 0
+            c.targetAPY = 0.10
+            if !accumulate { c.inputMax = 150 }
+        case .soxl:
+            c.spxlPct = 0; c.vtiPct = 0; c.brgnxPct = 0
+            c.tqqqPct = 0; c.btcPct = 0; c.gldPct = 0; c.slvPct = 0
+            c.qqqPct = 0; c.soxxPct = 0; c.soxlPct = 1.0
+            c.targetAPY = accumulate ? 0.20 : 0.52
+            if !accumulate { c.inputMax = 350 }
         }
 
         return c

@@ -236,6 +236,8 @@ struct IntroGuideView: View {
             BuySellZonesChart()
         case .leverage:
             LeverageComparisonChart()
+        case .pathRisk:
+            PathRiskChart()
         case .modes:
             ModeComparisonChart(preloader: modePreloader)
         case .none:

@@ -56,4 +56,8 @@ enum DCAHelp {
     static let accumulate = "In accumulate mode, sell recommendations only cover the DCA amount — preserving your core position. When off (harvest mode), the system may recommend selling the full position."
     static let manageCash = "When on, this fund maintains its own cash pile for DCA purchases. When off, cash is tracked at the platform level in a separate cash fund."
     static let category = "Categories group your funds by investment strategy: Liquidity (cash access), Yield (stable income), Store of Value (inflation hedge), Volatility (market swings)."
+    static let fallback = "For a daily-reset 3x fund in a long bear. When this is on, a new buy goes to the 1x ticker once the 3x fund is down past the threshold or the underlying is below its moving average, and back when the trend recovers. Shares you already hold are not sold, so a fund that falls toward a total loss can still be closed or reverse-split with you in it. A one-day 33% index drop would wipe a 3x fund out. Treat that as a stress test: these indexes have not had a day that large. This never borrows — do not turn on margin."
+    static let fallbackTicker = "Where new buys go while the fallback is active. TQQQ uses QQQ, SOXL uses SOXX, SPXL uses SPY."
+    static let fallbackDrawdown = "How far the 3x fund must fall before new buys leave it. 60 means down 60% from the peak of the current uptrend, or 60% below what you paid."
+    static let fallbackMA = "Length of the underlying moving average, in days. 200 is the default. Bundled sample prices are weekly, so 200 days is read as a 40-week average."
 }

@@ -360,7 +360,7 @@ func computeLimit(config: FundConfig, state: FundState) -> Double {
     return minUsd
 }
 
-func computeRecommendation(config: FundConfig, state: FundState) -> Recommendation? {
+func computeRecommendation(config: FundConfig, state: FundState, fallback: FallbackContext? = nil) -> Recommendation? {
     guard let fundType = config.fund_type else { return nil }
     if isCashFund(fundType) { return nil }
     if fundType == .derivatives { return nil }
@@ -380,8 +380,12 @@ func computeRecommendation(config: FundConfig, state: FundState) -> Recommendati
                                   reasoning: "No cash available. Deposit funds to your platform cash account before your first DCA purchase.")
         }
         let buyAmount = hasCashPool ? min(limit, state.cashAvailableUsd) : min(limit, state.cashAvailableUsd)
-        return Recommendation(action: .BUY, amount: buyAmount,
-                              reasoning: "No position yet. System calculates initial DCA of \(formatCurrency(buyAmount)).")
+        return routedBuy(
+            Recommendation(action: .BUY, amount: buyAmount,
+                           reasoning: "No position yet. System calculates initial DCA of \(formatCurrency(buyAmount))."),
+            config: config,
+            fallback: fallback
+        )
     }
 
     // SELL: above target by more than min_profit AND in profit
@@ -413,7 +417,43 @@ func computeRecommendation(config: FundConfig, state: FundState) -> Recommendati
         reasoning = "On track or above cost. Rules calculate min DCA of \(formatCurrency(limit))."
     }
 
-    return Recommendation(action: .BUY, amount: buyAmount, reasoning: reasoning)
+    return routedBuy(
+        Recommendation(action: .BUY, amount: buyAmount, reasoning: reasoning),
+        config: config,
+        fallback: fallback
+    )
+}
+
+/// Leaves the dollar amount alone. A routed buy is the same size, placed in the 1x ticker.
+/// Sells are not redirected, and nothing here borrows.
+private func routedBuy(_ recommendation: Recommendation, config: FundConfig, fallback: FallbackContext?) -> Recommendation {
+    guard recommendation.action == .BUY, recommendation.amount > 0, config.fallbackEnabled, let fallback else {
+        return recommendation
+    }
+    let decision = evaluateFallback(
+        rule: FallbackRule(
+            enabled: true,
+            drawdownThreshold: config.fallbackDrawdownThreshold,
+            movingAverageBars: fallback.movingAverageBars
+        ),
+        leveragedPrices: fallback.leveragedPrices,
+        underlyingCloses: fallback.underlyingCloses,
+        costBasisDrawdown: fallback.costBasisDrawdown
+    )
+    guard decision.route == .underlying else { return recommendation }
+    let ticker = fallback.routeTicker.uppercased()
+    let reason: String
+    if decision.belowMovingAverage {
+        reason = "the underlying is below its moving average"
+    } else {
+        reason = "the 3x fund is down \(formatPercent(decision.priceDrawdown)) from its trend peak or cost basis"
+    }
+    return Recommendation(
+        action: recommendation.action,
+        amount: recommendation.amount,
+        reasoning: recommendation.reasoning + " 1x fallback: route this buy to \(ticker) because \(reason). This does not use margin.",
+        routeTicker: ticker
+    )
 }
 
 // MARK: - Aggregate (Time-Weighted Fund Size)

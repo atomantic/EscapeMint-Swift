@@ -452,6 +452,18 @@ extension Color {
         light: Color(red: 148/255, green: 163/255, blue: 184/255),   // gray
         dark: Color(red: 203/255, green: 213/255, blue: 225/255)     // slate-300
     )
+    static let assetQQQ = Color(
+        light: Color(red: 14/255, green: 116/255, blue: 144/255),    // teal
+        dark: Color(red: 56/255, green: 189/255, blue: 248/255)      // sky
+    )
+    static let assetSOXX = Color(
+        light: Color(red: 190/255, green: 24/255, blue: 93/255),     // pink
+        dark: Color(red: 244/255, green: 114/255, blue: 182/255)
+    )
+    static let assetSOXL = Color(
+        light: Color(red: 185/255, green: 28/255, blue: 28/255),     // red
+        dark: Color(red: 248/255, green: 113/255, blue: 113/255)
+    )
 }
 
 #if DEBUG

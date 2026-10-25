@@ -1,12 +1,13 @@
 import Foundation
 
-enum IntroChartType {
+enum IntroChartType: Equatable {
     case none
     case growth
     case volatility
     case traditionalDca
     case buySell
     case leverage
+    case pathRisk
     case modes
 }
 
@@ -147,13 +148,28 @@ let introSteps: [IntroStepData] = [
             .text("TQQQ is a 3x leveraged long on the Nasdaq-100."),
             .text("SPXL is a 3x leveraged ETF tracking the S&P 500."),
             .text("More volatility = more opportunities to buy low and sell high."),
-            .warning("Historical results are not guaranteed. The past decade was exceptionally favorable for leveraged ETFs. A sustained shift in market conditions — such as prolonged sideways movement or rising rates — could significantly impair these products through volatility decay and higher borrowing costs."),
+            .warning("Historical results are not guaranteed. The past decade was exceptionally favorable for leveraged ETFs. A multi-year bear, a long sideways market, or rising rates can impair these products through volatility decay and higher borrowing costs. A 3x fund can fall more than 99% over a bear market like 2000–02, and the issuer can then close it or reverse-split it. The next step shows that path, and an optional 1x fallback. A one-day drop of about 33% would also wipe a 3x fund out. Treat that as a stress test: the indexes behind these funds have not had a day that large."),
             .text("Your choice of assets depends on your risk tolerance and research.")
         ],
         chartType: .leverage
     ),
     IntroStepData(
         id: 11,
+        title: "3x Funds Can Be Wiped Out",
+        content: [
+            .text("TQQQ, SOXL, and SPXL reset every day. They multiply that day's move, not the long-run return."),
+            .text("Volatility decay is the quiet leak. An index that falls 10% and then rises enough to get back to even still leaves a 3x fund down, because the loss and the rebound are not symmetric after the daily reset. A choppy market can grind the fund down while the index goes nowhere."),
+            .text("The loss that ruins these funds is a slow bear market. In 2000–02 the Nasdaq-100 fell roughly 78% from peak to trough. A 3x fund built from those daily returns, after a 0.9% yearly fee, fell more than 99%. The decline compounds for years. The issuer can close the fund or reverse-split it, which locks that loss in: the product you meant to hold for the rebound may be gone when the index recovers. The 1x fallback is for that path."),
+            .text("A single day down about 33% would zero a 3x fund while the stocks underneath still had about two-thirds of their value. Treat that as a stress test. From 1975 through October 2026, the S&P 500's worst day was October 19, 1987, down 20.5% — about a 61% day for a 3x fund. The Nasdaq-100, in history going back to 1985, fell about 15% on that same day, about 12% on October 26, 1987, and about 12% on March 16, 2020. Its worst days in 2000–01 were about 9% to 10%. The semiconductor index's worst day since 1994 was about 16%, also on March 16, 2020. None of those indexes has had a 33% day in those histories. Since February 2013, a 20% drop in the S&P 500 triggers a Level 3 circuit breaker and trading stops for the rest of the day. Market-wide breakers have existed since 1988; until 2013 they tracked the Dow, and the halt-for-the-day level was a 30% drop."),
+            .text("This app buys more as a loss gets deeper. That fits VTI or QQQ, which are still the same portfolio of companies. In a long bear it is a poor fit for a 3x fund, because the extra cash goes into a product that can be closed before the index recovers."),
+            .boldLabel(label: "1x fallback (optional, off unless you turn it on):", color: .amber, text: "New buys go to the 1x fund (TQQQ to QQQ, SOXL to SOXX, SPXL to SPY) when the 3x fund is down 60% or more from its peak in the current trend, or the underlying index is below its 200-day average. Buys return to the 3x fund when the index closes back above that average. You can change both numbers on the fund. Shares already in the 3x fund stay there. This rule does not sell them, and it never borrows."),
+            .text("Do not use margin with these funds. A fund that can fall more than 99%, plus borrowed money, can lose more than you put in."),
+            .text("In both 1999–2012 simulations — Nasdaq-100 and semiconductors — with real index closes, the same deposits, and this app's drawdown-scaled buy sizes, buy-and-hold VTI finished ahead of the 3x-only path and ahead of the fallback. VTI's max drawdown was about half as deep. The fallback still kept more at the worst point than staying in the 3x fund the whole way. A 3x fund is a satellite for a trend you are willing to leave, not the whole portfolio.")
+        ],
+        chartType: .pathRisk
+    ),
+    IntroStepData(
+        id: 12,
         title: "What This System Is NOT",
         content: [
             .text("This system is not for:"),
@@ -166,7 +182,7 @@ let introSteps: [IntroStepData] = [
         chartType: .none
     ),
     IntroStepData(
-        id: 12,
+        id: 13,
         title: "Your Personal Configuration",
         content: [
             .text("You control:"),
@@ -179,7 +195,7 @@ let introSteps: [IntroStepData] = [
         chartType: .none
     ),
     IntroStepData(
-        id: 13,
+        id: 14,
         title: "Get Started",
         content: [
             .text("Ready to see the strategy in action? Run a backtest with historical data to explore how different assets and configurations would have performed."),

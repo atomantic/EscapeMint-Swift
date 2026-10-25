@@ -71,9 +71,19 @@ struct BacktestConfigPanel: View, SizeClassAware {
             allocationSlider("VTI", value: $config.vtiPct, color: .assetVTI)
             allocationSlider("BRGNX", value: $config.brgnxPct, color: .assetBRGNX)
             allocationSlider("TQQQ", value: $config.tqqqPct, color: .assetTQQQ)
+            allocationSlider("QQQ", value: $config.qqqPct, color: .assetQQQ)
+            allocationSlider("SOXL", value: $config.soxlPct, color: .assetSOXL)
+            allocationSlider("SOXX", value: $config.soxxPct, color: .assetSOXX)
             allocationSlider("BTC", value: $config.btcPct, color: .assetBTC)
             allocationSlider("GLD", value: $config.gldPct, color: .assetGLD)
             allocationSlider("SLV", value: $config.slvPct, color: .assetSLV)
+
+            if config.tqqqPct > 0 || config.soxlPct > 0 || config.spxlPct > 0 {
+                Text("In a multi-year bear, a daily-reset 3x fund can fall more than 99% and then be closed or reverse-split. On the fund, you can turn on a 1x fallback (TQQQ to QQQ, SOXL to SOXX, SPXL to SPY). It stays off until you enable it. A one-day 33% wipeout is a stress test: these indexes have not had a day that large. Do not use margin.")
+                    .font(.caption2)
+                    .foregroundColor(.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .contain)
@@ -123,6 +133,9 @@ struct BacktestConfigPanel: View, SizeClassAware {
             ("VTI", config.vtiPct, .assetVTI),
             ("BRGNX", config.brgnxPct, .assetBRGNX),
             ("TQQQ", config.tqqqPct, .assetTQQQ),
+            ("QQQ", config.qqqPct, .assetQQQ),
+            ("SOXL", config.soxlPct, .assetSOXL),
+            ("SOXX", config.soxxPct, .assetSOXX),
             ("BTC", config.btcPct, .assetBTC),
             ("GLD", config.gldPct, .assetGLD),
             ("SLV", config.slvPct, .assetSLV),

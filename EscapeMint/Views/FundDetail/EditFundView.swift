@@ -25,6 +25,10 @@ struct EditFundView: View {
     @State private var expenseFromFund: Bool
     @State private var dollarDecimals: String
     @State private var equityInput: EquityInputMethod
+    @State private var fallbackEnabled: Bool
+    @State private var fallbackTicker: String
+    @State private var fallbackDrawdownPct: String
+    @State private var fallbackMADays: String
     @State private var showDeleteConfirm = false
     @State private var isSaving = false
     @State private var selectedTab = 0
@@ -52,6 +56,10 @@ struct EditFundView: View {
         _expenseFromFund = State(initialValue: fund.config.expense_from_fund ?? false)
         _dollarDecimals = State(initialValue: fund.config.dollar_decimals.map(String.init) ?? "2")
         _equityInput = State(initialValue: fund.config.effectiveEquityInput)
+        _fallbackEnabled = State(initialValue: fund.config.fallbackEnabled)
+        _fallbackTicker = State(initialValue: fund.config.fallback_ticker ?? LeveragedPairs.suggestedUnderlying(for: fund.ticker) ?? "")
+        _fallbackDrawdownPct = State(initialValue: cleanNum((fund.config.fallback_drawdown ?? 0.60) * 100))
+        _fallbackMADays = State(initialValue: String(fund.config.fallback_ma_days ?? 200))
     }
 
     private var isTradingFund: Bool {
@@ -182,6 +190,29 @@ struct EditFundView: View {
                 dcaTipToggle("Margin enabled", tip: "Enable margin tracking for this fund", isOn: $marginEnabled)
             }
         }
+
+        fallbackSection
+    }
+
+    @ViewBuilder
+    private var fallbackSection: some View {
+        Section {
+            dcaTipToggle("1x fallback", tip: DCAHelp.fallback, isOn: $fallbackEnabled)
+                .onChange(of: fallbackEnabled) { _, isOn in
+                    if isOn && fallbackTicker.isEmpty {
+                        fallbackTicker = LeveragedPairs.suggestedUnderlying(for: ticker) ?? ""
+                    }
+                }
+            if fallbackEnabled {
+                dcaTipField("1x ticker", tip: DCAHelp.fallbackTicker, text: $fallbackTicker, placeholder: "QQQ")
+                dcaTipField("Drawdown (%)", tip: DCAHelp.fallbackDrawdown, text: $fallbackDrawdownPct, placeholder: "60")
+                dcaTipField("Moving average (days)", tip: DCAHelp.fallbackMA, text: $fallbackMADays, placeholder: "200")
+            }
+        } header: {
+            Text("Leveraged-fund fallback")
+        } footer: {
+            Text("Leave this off for ordinary funds. For TQQQ, SOXL, or SPXL in a long bear, it sends the next buy to the 1x fund after a deep drop or a broken trend, then back when the trend recovers. Shares already held stay put. Do not use margin.")
+        }
     }
 
     private func save() {
@@ -207,9 +238,22 @@ struct EditFundView: View {
         let dd = Int(dollarDecimals) ?? 2
         config.dollar_decimals = dd == 2 ? nil : dd
         config.equity_input = equityInput == .direct ? nil : equityInput
+        let cleanTicker = ticker.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if fallbackEnabled {
+            config.fallback_enabled = true
+            let typed = fallbackTicker.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            config.fallback_ticker = typed.isEmpty ? LeveragedPairs.suggestedUnderlying(for: cleanTicker) : typed
+            let drawdown = (Double(fallbackDrawdownPct) ?? 60) / 100
+            config.fallback_drawdown = drawdown > 0 ? drawdown : 0.60
+            let days = Int(fallbackMADays) ?? 200
+            config.fallback_ma_days = days > 0 ? days : 200
+        } else if fund.config.fallback_enabled != nil {
+            config.fallback_enabled = false
+        } else {
+            config.fallback_enabled = nil
+        }
 
         let cleanPlatform = platform.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let cleanTicker = ticker.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let platformChanged = cleanPlatform != fund.platform
         let tickerChanged = cleanTicker != fund.ticker
 
