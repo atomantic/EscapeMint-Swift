@@ -40,7 +40,7 @@ EscapeMint has no Pro tier, no "unlock full features", no ads, no analytics, and
 ## Features
 
 - **Rules-based DCA recommendations** per fund — buy more when below target APY, harvest when above, hold through the dead zone
-- **Backtesting** across multi-asset allocations with historical price data (BTC, TQQQ, SPXL, VTI, BRGNX, GLD, SLV)
+- **Backtesting** across multi-asset allocations with historical price data (BTC, TQQQ, QQQ, SOXL, SOXX, SPXL, VTI, BRGNX, GLD, SLV)
 - **Aggregate portfolio metrics** — realized + unrealized gains, APY, allocation drift, daily change
 - **Per-fund detail** with 4 chart types (equity, price, APY, gain)
 - **Derivatives support** — margin, liquidation detection, leveraged positions

@@ -1,12 +1,13 @@
 import Foundation
 
-enum IntroChartType {
+enum IntroChartType: Equatable {
     case none
     case growth
     case volatility
     case traditionalDca
     case buySell
     case leverage
+    case pathRisk
     case modes
 }
 
@@ -147,13 +148,27 @@ let introSteps: [IntroStepData] = [
             .text("TQQQ is a 3x leveraged long on the Nasdaq-100."),
             .text("SPXL is a 3x leveraged ETF tracking the S&P 500."),
             .text("More volatility = more opportunities to buy low and sell high."),
-            .warning("Historical results are not guaranteed. The past decade was exceptionally favorable for leveraged ETFs. A sustained shift in market conditions — such as prolonged sideways movement or rising rates — could significantly impair these products through volatility decay and higher borrowing costs."),
+            .warning("Historical results are not guaranteed. The past decade was exceptionally favorable for leveraged ETFs. A sustained shift in market conditions — such as prolonged sideways movement or rising rates — could significantly impair these products through volatility decay and higher borrowing costs. A large enough one-day drop can wipe a 3x fund out even though the index does not. The next step shows that path, and an optional 1x fallback."),
             .text("Your choice of assets depends on your risk tolerance and research.")
         ],
         chartType: .leverage
     ),
     IntroStepData(
         id: 11,
+        title: "3x Funds Can Be Wiped Out",
+        content: [
+            .text("TQQQ, SOXL, and SPXL reset every day. They multiply that day's move, not the long-run return."),
+            .text("Volatility decay is the quiet leak. An index that falls 10% and then rises enough to get back to even still leaves a 3x fund down, because the loss and the rebound are not symmetric after the daily reset. A choppy market can grind the fund down while the index goes nowhere."),
+            .text("The index does not have to reach zero. A single day down about 33% is a total loss for a 3x fund. The stocks underneath still have about two-thirds of their value. The fund does not. In 2000–02 the Nasdaq-100 fell roughly 78% from peak to trough. A 3x fund built from those daily returns, after a 0.9% yearly fee, fell more than 99%. Companies often close a fund after a collapse like that, so the rebound you were buying never arrives in that product."),
+            .text("This app buys more as a loss gets deeper. That is the right instinct for VTI or QQQ, which are still the same portfolio of companies. It is dangerous for a 3x fund, because the extra cash goes into a product that can be ruined."),
+            .boldLabel(label: "1x fallback (optional, off unless you turn it on):", color: .amber, text: "New buys go to the 1x fund (TQQQ to QQQ, SOXL to SOXX, SPXL to SPY) when the 3x fund is down 60% or more from its peak in the current trend, or the underlying index is below its 200-day average. Buys return to the 3x fund when the index closes back above that average. You can change both numbers on the fund. Shares already in the 3x fund stay there. This rule does not sell them, and it never borrows."),
+            .text("Do not use margin with these funds. A wiped-out fund plus borrowed money can lose more than you put in."),
+            .text("In a 1999–2012 simulation using real index closes, the same deposits, and this app's drawdown-scaled buy sizes, the fallback kept more money at the worst point than buying the 3x fund the whole way, and it finished ahead. Buy-and-hold VTI, given those same buy amounts, drew down far less. A 3x fund is a satellite for a trend you are willing to leave, not a place for the whole portfolio.")
+        ],
+        chartType: .pathRisk
+    ),
+    IntroStepData(
+        id: 12,
         title: "What This System Is NOT",
         content: [
             .text("This system is not for:"),
@@ -166,7 +181,7 @@ let introSteps: [IntroStepData] = [
         chartType: .none
     ),
     IntroStepData(
-        id: 12,
+        id: 13,
         title: "Your Personal Configuration",
         content: [
             .text("You control:"),
@@ -179,7 +194,7 @@ let introSteps: [IntroStepData] = [
         chartType: .none
     ),
     IntroStepData(
-        id: 13,
+        id: 14,
         title: "Get Started",
         content: [
             .text("Ready to see the strategy in action? Run a backtest with historical data to explore how different assets and configurations would have performed."),

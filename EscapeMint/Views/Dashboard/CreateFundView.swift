@@ -18,6 +18,10 @@ struct CreateFundView: View {
     @State private var accumulate = true
     @State private var manageCash = false
     @State private var marginEnabled = false
+    @State private var fallbackEnabled = false
+    @State private var fallbackTicker = ""
+    @State private var fallbackDrawdownPct = "60"
+    @State private var fallbackMADays = "200"
     @State private var cashBalance = ""
     @State private var selectedTab = 0
     @State private var isSaving = false
@@ -129,6 +133,8 @@ struct CreateFundView: View {
             }
         }
 
+        fallbackSection
+
         if needsPlatformCash && !platformCashExists && !platform.isEmpty {
             Section {
                 dcaTipField("Cash balance ($)", tip: "Starting cash available for DCA purchases on this platform.", text: $cashBalance, placeholder: "0")
@@ -137,6 +143,27 @@ struct CreateFundView: View {
             } footer: {
                 Text("A cash fund will be created for \(platform) to track available cash.")
             }
+        }
+    }
+
+    @ViewBuilder
+    private var fallbackSection: some View {
+        Section {
+            dcaTipToggle("1x fallback", tip: DCAHelp.fallback, isOn: $fallbackEnabled)
+                .onChange(of: fallbackEnabled) { _, isOn in
+                    if isOn && fallbackTicker.isEmpty {
+                        fallbackTicker = LeveragedPairs.suggestedUnderlying(for: ticker) ?? ""
+                    }
+                }
+            if fallbackEnabled {
+                dcaTipField("1x ticker", tip: DCAHelp.fallbackTicker, text: $fallbackTicker, placeholder: "QQQ")
+                dcaTipField("Drawdown (%)", tip: DCAHelp.fallbackDrawdown, text: $fallbackDrawdownPct, placeholder: "60")
+                dcaTipField("Moving average (days)", tip: DCAHelp.fallbackMA, text: $fallbackMADays, placeholder: "200")
+            }
+        } header: {
+            Text("Leveraged-fund fallback")
+        } footer: {
+            Text("Off by default. For a 3x fund, new buys can go to the 1x ticker after a deep drop or a broken trend. Do not use margin.")
         }
     }
 
@@ -239,6 +266,21 @@ struct CreateFundView: View {
                             if getFeatures(fundType).supportsMargin {
                                 macDivider
                                 macTipToggle("Margin enabled", tip: "Enable margin tracking for this fund", isOn: $marginEnabled)
+                            }
+                            macDivider
+                            macTipToggle("1x fallback", tip: DCAHelp.fallback, isOn: $fallbackEnabled)
+                                .onChange(of: fallbackEnabled) { _, isOn in
+                                    if isOn && fallbackTicker.isEmpty {
+                                        fallbackTicker = LeveragedPairs.suggestedUnderlying(for: ticker) ?? ""
+                                    }
+                                }
+                            if fallbackEnabled {
+                                macDivider
+                                macTipField("1x ticker", tip: DCAHelp.fallbackTicker, text: $fallbackTicker, placeholder: "QQQ")
+                                macDivider
+                                macTipField("Drawdown (%)", tip: DCAHelp.fallbackDrawdown, text: $fallbackDrawdownPct, placeholder: "60")
+                                macDivider
+                                macTipField("Moving average (days)", tip: DCAHelp.fallbackMA, text: $fallbackMADays, placeholder: "200")
                             }
 
                             if needsPlatformCash && !platformCashExists && !platform.isEmpty {
@@ -418,6 +460,16 @@ struct CreateFundView: View {
         config.accumulate = accumulate
         config.manage_cash = manageCash
         config.margin_enabled = marginEnabled
+        if isTradingFund && fallbackEnabled {
+            config.fallback_enabled = true
+            let typed = fallbackTicker.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let symbol = ticker.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            config.fallback_ticker = typed.isEmpty ? (LeveragedPairs.suggestedUnderlying(for: symbol) ?? "qqq") : typed
+            let drawdown = (Double(fallbackDrawdownPct) ?? 60) / 100
+            config.fallback_drawdown = drawdown > 0 ? drawdown : 0.60
+            let days = Int(fallbackMADays) ?? 200
+            config.fallback_ma_days = days > 0 ? days : 200
+        }
 
         let fund = FundData(
             platform: platform.lowercased().trimmingCharacters(in: .whitespacesAndNewlines),

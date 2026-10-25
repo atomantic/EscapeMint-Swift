@@ -281,11 +281,19 @@ struct FundDetailView: View {
 
     // MARK: - Recommendation Card
 
+    private func recommendationTitle(_ rec: Recommendation) -> String {
+        if rec.action == .HOLD { return "HOLD" }
+        if rec.action == .BUY, let ticker = rec.routeTicker {
+            return "BUY \(ticker) \(formatCurrency(rec.amount, decimals: dd))"
+        }
+        return "\(rec.action.rawValue) \(formatCurrency(rec.amount, decimals: dd))"
+    }
+
     @ViewBuilder
     private func recommendationCard(_ rec: Recommendation) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text(rec.action == .HOLD ? "HOLD" : "\(rec.action.rawValue) \(formatCurrency(rec.amount, decimals: dd))")
+                Text(recommendationTitle(rec))
                     .font(.title2).fontWeight(.bold)
                     .foregroundColor(Color.forAction(rec.action))
                 Text(rec.reasoning)

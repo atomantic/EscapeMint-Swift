@@ -769,3 +769,103 @@ struct ModeComparisonChart: View {
         }
     }
 }
+
+// MARK: - Path risk chart (Step 11)
+
+private struct PathRiskChartPoint: Identifiable {
+    let id: Int
+    let date: Date
+    let leveraged: Double
+    let fallback: Double
+    let benchmark: Double
+}
+
+struct PathRiskChart: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var animationProgress: Double = 0
+    @State private var points: [PathRiskChartPoint] = []
+    @State private var summary = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Nasdaq-100, 1999–2012. Same deposits. 3x-only, 1x fallback, and VTI.")
+                .font(.caption).foregroundColor(.textMuted)
+                .frame(maxWidth: .infinity, alignment: .center)
+
+            if points.isEmpty {
+                Text(summary.isEmpty ? "Loading the 1999–2012 scenario…" : summary)
+                    .font(.caption)
+                    .foregroundColor(.textSecondary)
+                    .frame(maxWidth: .infinity, minHeight: 220)
+            } else {
+                let visibleCount = max(1, Int(animationProgress * Double(points.count)))
+                let visible = Array(points.prefix(visibleCount))
+                let yMax = (points.map { max($0.leveraged, $0.fallback, $0.benchmark) }.max() ?? 1) * 1.05
+                let xDomain = (points.first?.date ?? Date())...(points.last?.date ?? Date())
+
+                Chart {
+                    ForEach(visible) { point in
+                        LineMark(x: .value("Date", point.date), y: .value("3x only", point.leveraged), series: .value("Series", "3x only"))
+                            .foregroundStyle(Color.orange)
+                            .lineStyle(StrokeStyle(lineWidth: 2))
+                        LineMark(x: .value("Date", point.date), y: .value("1x fallback", point.fallback), series: .value("Series", "1x fallback"))
+                            .foregroundStyle(Color.mint)
+                            .lineStyle(StrokeStyle(lineWidth: 2))
+                        LineMark(x: .value("Date", point.date), y: .value("VTI", point.benchmark), series: .value("Series", "VTI"))
+                            .foregroundStyle(Color.blue)
+                            .lineStyle(StrokeStyle(lineWidth: 2))
+                    }
+                }
+                .chartXScale(domain: xDomain)
+                .chartYScale(domain: 0...yMax)
+                .chartXAxis { emDateAxisTemporal() }
+                .chartYAxis { introKAxis() }
+                .chartLegend(.hidden)
+                .frame(height: 220)
+                .accessibilityLabel(summary)
+
+                HStack(spacing: 16) {
+                    LegendDot(color: .orange, label: "3x only")
+                    LegendDot(color: .mint, label: "1x fallback")
+                    LegendDot(color: .blue, label: "VTI")
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+
+                Text("Yahoo Finance daily closes, retrieved 2026-10-25. The 3x line is simulated from the Nasdaq-100 with a 0.9% yearly fee. VTI uses the same buy amounts. No margin.")
+                    .font(.caption2)
+                    .foregroundColor(.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .introCardStyle()
+        .task {
+            guard points.isEmpty else { return }
+            let library = loadBundledPathRiskLibrary()
+            let built = library.flatMap { lib in
+                lib.scenarios.first { $0.id == "nasdaq-1999-2012" }.flatMap {
+                    compareLeveragedPath(bars: $0.bars, assumptions: lib.assumptions)
+                }
+            }
+            if let built {
+                let sampledLeveraged = sampleArray(built.leveragedOnly.points, maxPoints: 160)
+                let fallbackByDate = Dictionary(uniqueKeysWithValues: built.fallback.points.map { ($0.date, $0.value) })
+                let benchmarkByDate = Dictionary(uniqueKeysWithValues: built.benchmark.points.map { ($0.date, $0.value) })
+                points = sampledLeveraged.enumerated().compactMap { index, point in
+                    guard let fallback = fallbackByDate[point.date], let benchmark = benchmarkByDate[point.date] else { return nil }
+                    return PathRiskChartPoint(
+                        id: index,
+                        date: point.dateValue,
+                        leveraged: point.value,
+                        fallback: fallback,
+                        benchmark: benchmark
+                    )
+                }
+                summary = "3x-only ended near \(formatCurrency(built.leveragedOnly.finalValue, decimals: 0)) with a \(formatPercent(built.leveragedOnly.maxDrawdown)) max drawdown. The fallback ended near \(formatCurrency(built.fallback.finalValue, decimals: 0)). VTI ended near \(formatCurrency(built.benchmark.finalValue, decimals: 0)) with a \(formatPercent(built.benchmark.maxDrawdown)) max drawdown."
+            } else {
+                summary = "The 1999–2012 scenario could not be loaded."
+            }
+            if reduceMotion { animationProgress = 1 }
+            else { withAnimation(.easeInOut(duration: 2.0)) { animationProgress = 1 } }
+        }
+    }
+}
