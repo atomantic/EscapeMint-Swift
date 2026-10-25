@@ -788,7 +788,7 @@ struct PathRiskChart: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Nasdaq-100, 1999–2012. Same deposits. 3x-only, 1x fallback, and VTI.")
+            Text("Nasdaq-100, 1999–2012. Same deposits. VTI finished ahead, with about half the drawdown.")
                 .font(.caption).foregroundColor(.textMuted)
                 .frame(maxWidth: .infinity, alignment: .center)
 

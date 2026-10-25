@@ -211,7 +211,7 @@ struct EditFundView: View {
         } header: {
             Text("Leveraged-fund fallback")
         } footer: {
-            Text("Leave this off for ordinary funds. For TQQQ, SOXL, or SPXL it sends the next buy to the 1x fund in a deep drop or a broken trend, then back when the trend recovers. Do not use margin with these funds.")
+            Text("Leave this off for ordinary funds. For TQQQ, SOXL, or SPXL in a long bear, it sends the next buy to the 1x fund after a deep drop or a broken trend, then back when the trend recovers. Shares already held stay put. Do not use margin.")
         }
     }
 

@@ -163,7 +163,7 @@ struct CreateFundView: View {
         } header: {
             Text("Leveraged-fund fallback")
         } footer: {
-            Text("Off by default. For a 3x fund, new buys can go to the 1x ticker after a deep drop or a broken trend. Do not use margin.")
+            Text("Off by default. For a 3x fund in a long bear, new buys can go to the 1x ticker after a deep drop or a broken trend, then back when it recovers. Shares already held stay put. Do not use margin.")
         }
     }
 

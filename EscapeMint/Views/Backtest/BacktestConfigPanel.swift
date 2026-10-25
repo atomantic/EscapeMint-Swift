@@ -79,7 +79,7 @@ struct BacktestConfigPanel: View, SizeClassAware {
             allocationSlider("SLV", value: $config.slvPct, color: .assetSLV)
 
             if config.tqqqPct > 0 || config.soxlPct > 0 || config.spxlPct > 0 {
-                Text("Daily-reset 3x funds can be wiped out without the index going to zero. On the fund, you can turn on a 1x fallback (TQQQ to QQQ, SOXL to SOXX, SPXL to SPY). It stays off until you enable it. Do not use margin.")
+                Text("In a multi-year bear, a daily-reset 3x fund can fall more than 99% and then be closed or reverse-split. On the fund, you can turn on a 1x fallback (TQQQ to QQQ, SOXL to SOXX, SPXL to SPY). It stays off until you enable it. A one-day 33% wipeout is a stress test: these indexes have not had a day that large. Do not use margin.")
                     .font(.caption2)
                     .foregroundColor(.textMuted)
                     .fixedSize(horizontal: false, vertical: true)

@@ -2,9 +2,12 @@ import Foundation
 
 // MARK: - 1x fallback for daily-reset leveraged funds
 //
-// A 3x fund resets every day. The index does not have to reach zero for the fund to be
-// ruined: about a 33% one-day drop in the index is a total loss, and a multi-year bear
-// market (2000–02, 2008) plus volatility decay can erase more than 99% of the fund.
+// A 3x fund resets every day. The loss that has ruined these products is a slow bear
+// market: volatility decay can take a 3x fund down more than 99% (2000–02), and the
+// issuer may close it or reverse-split it. A one-day index drop of about 33% would
+// zero the fund. That is a stress test. Since 1975 the S&P 500's worst day was
+// −20.5% (Oct 19, 1987); the Nasdaq-100's worst day since 1985 was about −15% that
+// same session.
 //
 // This rule is off unless a fund turns it on. When it is on, a new buy goes to the 1x
 // equivalent (TQQQ→QQQ, SOXL→SOXX, SPXL→SPY) while the 3x price is down past the
