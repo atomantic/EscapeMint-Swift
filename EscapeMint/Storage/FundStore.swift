@@ -113,6 +113,7 @@ protocol FundStoreProtocol: Sendable {
 
     nonisolated func readAllFundConfigs() -> [FundData]
     nonisolated func readFundEntries(id: String) -> [FundEntry]
+    nonisolated func requestPendingICloudDownloads()
     func readAllFunds() async -> [FundData]
 
     func writeFund(_ fund: FundData) async throws
@@ -423,6 +424,26 @@ actor FundStore {
     }
 
     // MARK: - Read
+
+    /// Ask iCloud to materialize evicted files before the readers need them.
+    /// This is best effort: the original read remains responsible for waiting for
+    /// the complete file, so an unavailable file is never treated as an empty fund.
+    nonisolated func requestPendingICloudDownloads() {
+        guard isICloud else { return }
+        let fm = FileManager.default
+        let keys: Set<URLResourceKey> = [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey]
+        guard let files = try? fm.contentsOfDirectory(at: fundsDirectory, includingPropertiesForKeys: Array(keys)) else { return }
+        for file in files where file.pathExtension == "json" || file.pathExtension == "tsv" {
+            do {
+                let values = try file.resourceValues(forKeys: keys)
+                guard values.isUbiquitousItem == true,
+                      values.ubiquitousItemDownloadingStatus == .notDownloaded else { continue }
+                try fm.startDownloadingUbiquitousItem(at: file)
+            } catch {
+                Self.logger.warning("Could not request iCloud download: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
 
     func readAllFunds() -> [FundData] {
         let dir = fundsDirectory

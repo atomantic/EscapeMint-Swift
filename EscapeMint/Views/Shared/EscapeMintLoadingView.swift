@@ -7,6 +7,7 @@ struct EscapeMintLoadingView: View {
     var detail: String?
     var loadedCount: Int = 0
     var totalCount: Int = 0
+    var recoveryAction: (() -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -36,6 +37,7 @@ struct EscapeMintLoadingView: View {
                         progress: progress,
                         loadedCount: loadedCount,
                         totalCount: totalCount,
+                        recoveryAction: recoveryAction,
                         time: time
                     )
                 }
@@ -122,14 +124,8 @@ private struct LoadingStatusPanel: View {
     let progress: Double?
     let loadedCount: Int
     let totalCount: Int
+    let recoveryAction: (() -> Void)?
     let time: TimeInterval
-
-    private let rows = [
-        "icloud.funds.scan()",
-        "parse(tsv).parallel()",
-        "cashflow.normalize()",
-        "rebalance.signal.emit()"
-    ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -161,19 +157,9 @@ private struct LoadingStatusPanel: View {
 
             loadingProgress
 
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(rows.indices, id: \.self) { index in
-                    HStack(spacing: 7) {
-                        Circle()
-                            .fill(rowColor(index))
-                            .frame(width: 6, height: 6)
-                            .opacity(rowOpacity(index))
-                        Text(rows[index])
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundColor(.textSecondary)
-                            .lineLimit(1)
-                    }
-                }
+            if let recoveryAction {
+                Button("Retry iCloud downloads", action: recoveryAction)
+                    .buttonStyle(.bordered)
             }
         }
         .padding(18)
@@ -196,18 +182,6 @@ private struct LoadingStatusPanel: View {
         }
     }
 
-    private func rowOpacity(_ index: Int) -> Double {
-        0.35 + 0.65 * ((sin(time * 2.2 + Double(index) * 0.7) + 1) / 2)
-    }
-
-    private func rowColor(_ index: Int) -> Color {
-        switch index % 4 {
-        case 0: .mint
-        case 1: .cyan
-        case 2: .orange
-        default: .red
-        }
-    }
 }
 
 private struct MarketLoadingGraphic: View {

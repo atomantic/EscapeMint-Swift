@@ -15,6 +15,8 @@ final class FundDataStore {
     /// Test seam used to force the suspension window between detached computation
     /// and main-actor application. Production passes `nil`.
     private let beforeApplyingRecompute: (@MainActor () async -> Void)?
+    private let startupNoticeDelay: Duration
+    private let downloadRetryInterval: Duration
 
     enum LoadingPhase: Equatable {
         case idle
@@ -45,6 +47,8 @@ final class FundDataStore {
     private(set) var funds: [FundData] = []
     private(set) var isLoaded = false
     private(set) var loadingPhase: LoadingPhase = .idle
+    private(set) var isStartupTakingLonger = false
+    private(set) var startupUsesICloud = false
 
     /// True once configs are loaded (fund names/platforms visible). Entries may still be streaming.
     private(set) var isConfigLoaded = false
@@ -150,10 +154,14 @@ final class FundDataStore {
 
     init(
         store: FundStoreProtocol = FundStore.shared,
-        beforeApplyingRecompute: (@MainActor () async -> Void)? = nil
+        beforeApplyingRecompute: (@MainActor () async -> Void)? = nil,
+        startupNoticeDelay: Duration = .seconds(8),
+        downloadRetryInterval: Duration = .seconds(15)
     ) {
         self.store = store
         self.beforeApplyingRecompute = beforeApplyingRecompute
+        self.startupNoticeDelay = startupNoticeDelay
+        self.downloadRetryInterval = downloadRetryInterval
     }
 
     // MARK: - Recompute Observers
@@ -204,6 +212,17 @@ final class FundDataStore {
         guard !isLoaded else { return }
         bootstrapRecomputeObserversIfNeeded()
 
+        let delayNotice = Task { @MainActor in
+            do { try await Task.sleep(for: startupNoticeDelay) } catch { return }
+            isStartupTakingLonger = true
+        }
+        defer {
+            delayNotice.cancel()
+            downloadRetryLoop?.cancel()
+            downloadRetryLoop = nil
+            isStartupTakingLonger = false
+        }
+
         // Yield immediately so the UI (intro guide sheet) can finish rendering
         await Task.yield()
 
@@ -222,6 +241,18 @@ final class FundDataStore {
             let recovered = await store.retryICloudIfNeeded(maxAttempts: 2, delay: .milliseconds(300))
             if recovered {
                 Self.logger.info("☁️ iCloud recovered after retry, loading from iCloud")
+            }
+        }
+
+        startupUsesICloud = store.isICloud
+        if startupUsesICloud {
+            // Keep requesting missing files while startup waits, including when a
+            // file read has already blocked inside the operating system.
+            downloadRetryLoop = Task { @MainActor in
+                while !Task.isCancelled {
+                    retryStartupDownloads()
+                    do { try await Task.sleep(for: downloadRetryInterval) } catch { return }
+                }
             }
         }
 
@@ -959,6 +990,19 @@ final class FundDataStore {
 
     private var deferredICloudRecoveryTask: Task<Void, Never>?
     private var historyCacheTask: Task<Void, Never>?
+    private var downloadRetryLoop: Task<Void, Never>?
+    private var downloadRequestTask: Task<Void, Never>?
+
+    func retryStartupDownloads() {
+        guard startupUsesICloud, downloadRequestTask == nil else { return }
+        let store = store
+        downloadRequestTask = Task { @MainActor in
+            await Task.detached(priority: .utility) {
+                store.requestPendingICloudDownloads()
+            }.value
+            downloadRequestTask = nil
+        }
+    }
 
     private func persistHistoryCachesIfNeeded(from summaries: [FundSummary]) async {
         var updates: [(id: String, cache: FundHistoryCache)] = []

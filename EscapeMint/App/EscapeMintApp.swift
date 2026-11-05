@@ -189,8 +189,15 @@ struct ContentView: View {
         EscapeMintLoadingView(
             message: store.loadingPhase.message,
             progress: nil,
+            detail: store.isStartupTakingLonger
+                ? (store.startupUsesICloud
+                    ? "This is taking longer than usual. iCloud may need to download your portfolio files. EscapeMint will keep trying; check your internet connection if the delay continues."
+                    : "This is taking longer than usual. EscapeMint is still preparing your portfolio.")
+                : (store.startupUsesICloud ? "Preparing your portfolio files from iCloud" : "Preparing your portfolio"),
             loadedCount: store.loadedFundCount,
-            totalCount: store.funds.count
+            totalCount: store.funds.count,
+            recoveryAction: store.isStartupTakingLonger && store.startupUsesICloud
+                ? { store.retryStartupDownloads() } : nil
         )
     }
 

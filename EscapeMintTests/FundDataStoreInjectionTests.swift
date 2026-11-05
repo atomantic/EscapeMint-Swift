@@ -103,15 +103,21 @@ final class FundDataStoreInjectionTests: XCTestCase {
             var backupCount = 0
             var batchInFlight = false
             var batchWaiters: [CheckedContinuation<Void, Never>] = []
+            var downloadRequests = 0
         }
         private let lock = OSAllocatedUnfairLock(initialState: State())
         private let batchPersistenceGate: BatchPersistenceGate?
         private let writePersistenceGate: BatchPersistenceGate?
+        let cloudEnabled: Bool
+        let readGate: DispatchSemaphore?
 
         init(seed: [FundData] = [], batchPersistenceGate: BatchPersistenceGate? = nil,
-             writePersistenceGate: BatchPersistenceGate? = nil) {
+             writePersistenceGate: BatchPersistenceGate? = nil,
+             cloudEnabled: Bool = false, readGate: DispatchSemaphore? = nil) {
             self.batchPersistenceGate = batchPersistenceGate
             self.writePersistenceGate = writePersistenceGate
+            self.cloudEnabled = cloudEnabled
+            self.readGate = readGate
             lock.withLock { state in
                 for fund in seed { state.funds[fund.id] = fund }
             }
@@ -126,17 +132,20 @@ final class FundDataStoreInjectionTests: XCTestCase {
         var batchAppendCallCount: Int { lock.withLock { $0.batchAppendCallCount } }
         var deleteCount: Int { lock.withLock { $0.deleteCount } }
         var backupCount: Int { lock.withLock { $0.backupCount } }
+        var downloadRequests: Int { lock.withLock { $0.downloadRequests } }
         func storedFund(_ id: String) -> FundData? { lock.withLock { $0.funds[id] } }
 
         // iCloud lifecycle: this fake is purely local, so it always reports "no iCloud".
-        nonisolated var isICloud: Bool { false }
+        nonisolated var isICloud: Bool { cloudEnabled }
+        nonisolated func requestPendingICloudDownloads() { lock.withLock { $0.downloadRequests += 1 } }
         func hasICloudAccount() -> Bool { false }
         func retryICloudIfNeeded(maxAttempts: Int, delay: Duration) async -> Bool { false }
         func migrateToICloudIfNeeded() async throws {}
 
         // Reads
         nonisolated func readAllFundConfigs() -> [FundData] {
-            lock.withLock { Array($0.funds.values) }.map {
+            readGate?.wait()
+            return lock.withLock { Array($0.funds.values) }.map {
                 FundData(platform: $0.platform, ticker: $0.ticker, config: $0.config, entries: [])
             }
         }
@@ -345,6 +354,26 @@ final class FundDataStoreInjectionTests: XCTestCase {
                                     "summary should be computed from the fake's seeded fund")
         XCTAssertEqual(summary.currentValue, 1200, accuracy: 0.01,
                        "derived state should reflect the fake's streamed entries")
+    }
+
+    func testSlowICloudStartupRetriesAndFinishesWhenFilesArrive() async throws {
+        let gate = DispatchSemaphore(value: 0)
+        let seeded = makeFund(platform: "cloud", ticker: "btc", entries: sampleEntries())
+        let fake = FakeFundStore(seed: [seeded], cloudEnabled: true, readGate: gate)
+        let store = FundDataStore(store: fake, startupNoticeDelay: .milliseconds(20),
+                                  downloadRetryInterval: .milliseconds(20))
+        let loading = Task { await store.loadIfNeeded() }
+        defer { gate.signal() }
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertTrue(store.isStartupTakingLonger)
+        XCTAssertTrue(store.startupUsesICloud)
+        XCTAssertFalse(store.isConfigLoaded)
+        XCTAssertGreaterThanOrEqual(fake.downloadRequests, 2)
+        gate.signal()
+        await loading.value
+        XCTAssertTrue(store.isLoaded)
+        XCTAssertFalse(store.isStartupTakingLonger)
+        XCTAssertEqual(store.funds.first?.entries.count, seeded.entries.count)
     }
 
     /// addFund persists through the protocol seam (write delegated to the fake) and
